@@ -9,12 +9,14 @@ class QuickStyleRail extends StatelessWidget {
   final UnifiedEditorMode mode;
   final UnifiedEditorStatus status;
   final ValueChanged<String> onStyleSelected;
+  final bool isGrid; // ADDED THIS
 
   const QuickStyleRail({
     super.key,
     required this.mode,
     required this.status,
     required this.onStyleSelected,
+    this.isGrid = false, // ADDED THIS
   });
 
   @override
@@ -24,8 +26,31 @@ class QuickStyleRail extends StatelessWidget {
 
     final styles = _stylesForMode(mode);
 
+    if (isGrid) {
+      return GridView.builder(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 3,
+          mainAxisSpacing: 12,
+          crossAxisSpacing: 12,
+          childAspectRatio: 1.0, // Squares!
+        ),
+        physics: const BouncingScrollPhysics(),
+        itemCount: styles.length,
+        itemBuilder: (context, i) {
+          final s = styles[i];
+          return _StyleCard(
+            styleName: s,
+            active: s == status.activeStyle,
+            onTap: () => onStyleSelected(s),
+          );
+        },
+      );
+    }
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      // Only show background if not in grid mode
       decoration: BoxDecoration(
         color: AppTokens.card.withValues(alpha: 0.3),
         border: Border.all(color: AppTokens.border.withValues(alpha: 0.55)),

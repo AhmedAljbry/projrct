@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:untitled2/core/ui/AppTokens.dart';
 
+import 'reference_image_state.dart'; // ADDED THIS
 import 'unified_editor_workspace.dart';
 
 class HeroCanvasSection extends StatelessWidget {
@@ -11,10 +12,14 @@ class HeroCanvasSection extends StatelessWidget {
   final bool compareEnabled;
   final double compareSplit;
   final ValueChanged<double> onCompareSplitChanged;
+  final VoidCallback onCompareToggled; // ADDED THIS
 
   final ImageProvider? beforeImage;
   final ImageProvider? afterImage;
   final Widget? emptyCanvas;
+  
+  final ReferenceImageState referenceState;
+  final VoidCallback onAddReference;
 
   const HeroCanvasSection({
     super.key,
@@ -23,9 +28,12 @@ class HeroCanvasSection extends StatelessWidget {
     required this.compareEnabled,
     required this.compareSplit,
     required this.onCompareSplitChanged,
+    required this.onCompareToggled,
     required this.beforeImage,
     required this.afterImage,
     required this.emptyCanvas,
+    this.referenceState = ReferenceImageState.none,
+    required this.onAddReference,
   });
 
   @override
@@ -43,15 +51,123 @@ class HeroCanvasSection extends StatelessWidget {
       ),
     );
 
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 980),
-        child: AspectRatio(
-          aspectRatio: 16 / 10,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(AppTokens.r20),
-            child: canvas,
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 980),
+      child: Column(
+        children: [
+          SizedBox(
+            height: MediaQuery.of(context).size.height * 0.45,
+            width: double.infinity,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(AppTokens.r20),
+              child: canvas,
+            ),
           ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _ThumbnailButton(
+                title: 'الصورة',
+                image: beforeImage,
+                onTap: () {}, // No action yet for the main image
+              ),
+              const SizedBox(width: 24),
+              _ThumbnailButton(
+                title: 'المرجع',
+                image: referenceState.bytes != null
+                    ? MemoryImage(referenceState.bytes!)
+                    : null,
+                onTap: onAddReference,
+                isReference: true,
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _CanvasActionButton(
+                icon: Icons.undo_rounded,
+                label: "Undo",
+                onTap: () {}, // Not implemented in current engine
+                disabled: true,
+              ),
+              const SizedBox(width: 16),
+              _CanvasActionButton(
+                icon: Icons.compare_rounded,
+                label: "Compare",
+                onTap: onCompareToggled,
+                active: compareEnabled,
+              ),
+              const SizedBox(width: 16),
+              _CanvasActionButton(
+                icon: Icons.redo_rounded,
+                label: "Redo",
+                onTap: () {}, // Not implemented in current engine
+                disabled: true,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CanvasActionButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool active;
+  final bool disabled;
+
+  const _CanvasActionButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.active = false,
+    this.disabled = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = disabled
+        ? AppTokens.text2.withValues(alpha: 0.3)
+        : active
+            ? AppTokens.primary
+            : AppTokens.text2;
+
+    return GestureDetector(
+      onTap: disabled ? null : onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: active
+              ? AppTokens.primary.withValues(alpha: 0.15)
+              : AppTokens.card2.withValues(alpha: 0.3),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: active
+                ? AppTokens.primary.withValues(alpha: 0.5)
+                : AppTokens.border.withValues(alpha: 0.3),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 18, color: color),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -132,8 +248,12 @@ class _CompareCanvasView extends StatelessWidget {
               Positioned.fill(
                 child: GestureDetector(
                   behavior: HitTestBehavior.opaque,
+                  onHorizontalDragDown: (d) {
+                    final next = (d.localPosition.dx / w).clamp(0.01, 0.99);
+                    onCompareSplitChanged(next);
+                  },
                   onHorizontalDragUpdate: (d) {
-                    final next = (d.localPosition.dx / w).clamp(0.12, 0.88);
+                    final next = (d.localPosition.dx / w).clamp(0.01, 0.99);
                     onCompareSplitChanged(next);
                   },
                 ),
@@ -393,6 +513,65 @@ class _SmartMaskPainter extends CustomPainter {
   bool shouldRepaint(covariant _SmartMaskPainter oldDelegate) => oldDelegate.color != color;
 }
 
+class _ThumbnailButton extends StatelessWidget {
+  final String title;
+  final ImageProvider? image;
+  final VoidCallback onTap;
+  final bool isReference;
+
+  const _ThumbnailButton({
+    required this.title,
+    this.image,
+    required this.onTap,
+    this.isReference = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        GestureDetector(
+          onTap: onTap,
+          child: Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: isReference && image == null 
+                  ? AppTokens.primary.withValues(alpha: 0.5) 
+                  : AppTokens.border.withValues(alpha: 0.3),
+                width: 1.5,
+              ),
+              color: AppTokens.card.withValues(alpha: 0.3),
+              image: image != null 
+                ? DecorationImage(image: image!, fit: BoxFit.cover) 
+                : null,
+            ),
+            child: image == null 
+              ? Icon(
+                  isReference ? Icons.add_photo_alternate_rounded : Icons.image_not_supported_rounded,
+                  color: AppTokens.text2.withValues(alpha: 0.5),
+                  size: 24,
+                ) 
+              : null,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          title,
+          style: TextStyle(
+            color: AppTokens.text2,
+            fontSize: 10,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _FallbackCanvas extends StatelessWidget {
   final String title;
   final Color? accent;
@@ -547,4 +726,5 @@ class _HintChip extends StatelessWidget {
     );
   }
 }
+
 

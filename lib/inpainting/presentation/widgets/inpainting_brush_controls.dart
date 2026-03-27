@@ -68,11 +68,16 @@ class InpaintingBrushControls extends StatelessWidget {
         ? BorderRadius.circular(32)
         : const BorderRadius.vertical(top: Radius.circular(30));
     final accent =
-    isEraser ? InpaintingStudioTheme.rose : InpaintingStudioTheme.mint;
+        isEraser ? InpaintingStudioTheme.rose : InpaintingStudioTheme.mint;
     final compact = !_isSideDock;
 
     return LayoutBuilder(
       builder: (context, constraints) {
+        final showBottomDockHeader =
+            !_isSideDock && constraints.maxHeight > 190;
+        final showScrollableContent = constraints.maxHeight > 160;
+        final showPinnedActions = constraints.maxHeight > 100;
+
         return ClipRRect(
           borderRadius: radius,
           child: BackdropFilter(
@@ -89,7 +94,7 @@ class InpaintingBrushControls extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.max,
                 children: [
-                  if (!_isSideDock) ...[
+                  if (showBottomDockHeader) ...[
                     Padding(
                       padding: const EdgeInsets.only(top: 12, bottom: 4),
                       child: Center(
@@ -105,9 +110,34 @@ class InpaintingBrushControls extends StatelessWidget {
                     ),
                   ],
 
+                  if (showBottomDockHeader)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 4, 14, 10),
+                      child: _BottomDockToolHeader(
+                        l10n: l10n,
+                        isEraser: isEraser,
+                        hasMask: hasMask,
+                        maskVisible: maskVisible,
+                        compareEnabled: compareEnabled,
+                        canUndo: canUndo,
+                        canRedo: canRedo,
+                        brushPx: brushPx,
+                        strokeCount: strokeCount,
+                        onBrushMode: onBrushMode,
+                        onEraserMode: onEraserMode,
+                        onToggleMaskVisibility: onToggleMaskVisibility,
+                        onToggleCompare: onToggleCompare,
+                        onUndo: onUndo,
+                        onRedo: onRedo,
+                        onResetViewport: onResetViewport,
+                        onClear: onClear,
+                        onBrushSizeChanged: onBrushSizeChanged,
+                      ),
+                    ),
+
                   // Only show the scrollable content if we have enough height to avoid overflow.
                   // The handle takes ~20px and the pinned CTA row takes ~80-100px.
-                  if (constraints.maxHeight > 160)
+                  if (showScrollableContent)
                     Expanded(
                       child: SingleChildScrollView(
                         physics: const BouncingScrollPhysics(),
@@ -121,8 +151,10 @@ class InpaintingBrushControls extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            _SectionHeader(label: l10n.get('tools')),
-                            const SizedBox(height: 8),
+                            if (_isSideDock) ...[
+                              _SectionHeader(label: l10n.get('tools')),
+                              const SizedBox(height: 8),
+                            ],
                             _BrushEraseToggle(
                               isEraser: isEraser,
                               brushLabel: l10n.get('brush'),
@@ -130,8 +162,23 @@ class InpaintingBrushControls extends StatelessWidget {
                               onBrushMode: onBrushMode,
                               onEraserMode: onEraserMode,
                             ),
-                            const SizedBox(height: 10),
-
+                            const SizedBox(height: 14),
+                            if (_isSideDock) ...[
+                              _SectionHeader(label: l10n.get('brush_size')),
+                              const SizedBox(height: 8),
+                            ],
+                            _BrushSizePanel(
+                              brushPx: brushPx,
+                              strokeCount: strokeCount,
+                              isEraser: isEraser,
+                              accent: accent,
+                              onBrushSizeChanged: onBrushSizeChanged,
+                            ),
+                            const SizedBox(height: 14),
+                            if (_isSideDock) ...[
+                              _SectionHeader(label: l10n.get('tools')),
+                              const SizedBox(height: 8),
+                            ],
                             _QuickActionsRow(
                               canUndo: canUndo,
                               canRedo: canRedo,
@@ -144,18 +191,6 @@ class InpaintingBrushControls extends StatelessWidget {
                               onClear: onClear,
                             ),
                             const SizedBox(height: 14),
-
-                            _SectionHeader(label: l10n.get('brush_size')),
-                            const SizedBox(height: 8),
-                            _BrushSizePanel(
-                              brushPx: brushPx,
-                              strokeCount: strokeCount,
-                              isEraser: isEraser,
-                              accent: accent,
-                              onBrushSizeChanged: onBrushSizeChanged,
-                            ),
-                            const SizedBox(height: 14),
-
                             _AdvancedSection(
                               maskVisible: maskVisible,
                               compareEnabled: compareEnabled,
@@ -171,11 +206,11 @@ class InpaintingBrushControls extends StatelessWidget {
                         ),
                       ),
                     )
-                  else if (constraints.maxHeight > 100)
+                  else if (showPinnedActions)
                     const Spacer(),
 
                   // Only show the pinned CTA row if there's enough space.
-                  if (constraints.maxHeight > 100)
+                  if (showPinnedActions)
                     SafeArea(
                       top: false,
                       child: _PinnedCtaRow(
@@ -192,6 +227,106 @@ class InpaintingBrushControls extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _BottomDockToolHeader extends StatelessWidget {
+  final AppL10n l10n;
+  final bool isEraser;
+  final bool hasMask;
+  final bool maskVisible;
+  final bool compareEnabled;
+  final bool canUndo;
+  final bool canRedo;
+  final double brushPx;
+  final VoidCallback onBrushMode;
+  final VoidCallback onEraserMode;
+  final VoidCallback onToggleMaskVisibility;
+  final VoidCallback onToggleCompare;
+  final VoidCallback onUndo;
+  final VoidCallback onRedo;
+  final VoidCallback onResetViewport;
+  final VoidCallback onClear;
+  final int strokeCount;
+  final ValueChanged<double> onBrushSizeChanged;
+
+  const _BottomDockToolHeader({
+    required this.l10n,
+    required this.isEraser,
+    required this.hasMask,
+    required this.maskVisible,
+    required this.compareEnabled,
+    required this.canUndo,
+    required this.canRedo,
+    required this.brushPx,
+    required this.onBrushMode,
+    required this.onEraserMode,
+    required this.onToggleMaskVisibility,
+    required this.onToggleCompare,
+    required this.onUndo,
+    required this.onRedo,
+    required this.onResetViewport,
+    required this.onClear,
+    required this.onBrushSizeChanged,
+    required this.strokeCount,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                l10n.get('preview_tools'),
+                style: const TextStyle(
+                  color: InpaintingStudioTheme.textPrimary,
+                  fontSize: 14.5,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+              ),
+              child: Text(
+                ' px',
+                style: const TextStyle(
+                  color: InpaintingStudioTheme.textSecondary,
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        InpaintingCompactToolbar(
+          isEraser: isEraser,
+          maskVisible: maskVisible,
+          compareEnabled: compareEnabled,
+          canUndo: canUndo,
+          canRedo: canRedo,
+          hasMask: hasMask,
+          brushPx: brushPx,
+          onBrushMode: onBrushMode,
+          onEraserMode: onEraserMode,
+          onToggleMaskVisibility: onToggleMaskVisibility,
+          onToggleCompare: onToggleCompare,
+          onUndo: onUndo,
+          onRedo: onRedo,
+          onResetViewport: onResetViewport,
+          onClear: onClear,
+          onBrushSizeChanged: onBrushSizeChanged,
+        ),
+      ],
     );
   }
 }
@@ -460,9 +595,8 @@ class _BrushSizePanel extends StatelessWidget {
           Row(
             children: [
               _InfoChip(
-                icon: isEraser
-                    ? Icons.auto_fix_off_rounded
-                    : Icons.brush_rounded,
+                icon:
+                    isEraser ? Icons.auto_fix_off_rounded : Icons.brush_rounded,
                 label: '${brushPx.round()} px',
                 accent: accent,
               ),
@@ -576,8 +710,8 @@ class _AdvancedSection extends StatelessWidget {
               label: t.of('workflow_mask'),
               subtitle: hasMask
                   ? (maskVisible
-                  ? t.of('editor_mask_ready')
-                  : t.of('original_label'))
+                      ? t.of('editor_mask_ready')
+                      : t.of('original_label'))
                   : t.of('draw_first'),
               icon: maskVisible
                   ? Icons.visibility_rounded
@@ -603,7 +737,7 @@ class _AdvancedSection extends StatelessWidget {
             _ToggleTile(
               label: t.of('editor_workspace_fit'),
               subtitle:
-              'x${currentZoom.toStringAsFixed(currentZoom < 2 ? 1 : 2)}',
+                  'x${currentZoom.toStringAsFixed(currentZoom < 2 ? 1 : 2)}',
               icon: Icons.center_focus_strong_rounded,
               accent: InpaintingStudioTheme.amber,
               selected: false,
@@ -696,8 +830,7 @@ class _PrimaryMagicButton extends StatelessWidget {
         child: Ink(
           height: 52,
           decoration: BoxDecoration(
-            gradient:
-            hasMask ? InpaintingStudioTheme.primaryGradient : null,
+            gradient: hasMask ? InpaintingStudioTheme.primaryGradient : null,
             color: hasMask ? null : Colors.white.withValues(alpha: 0.06),
             borderRadius: BorderRadius.circular(22),
             border: Border.all(
@@ -707,12 +840,12 @@ class _PrimaryMagicButton extends StatelessWidget {
             ),
             boxShadow: hasMask
                 ? const [
-              BoxShadow(
-                color: Color(0x326DC6B0),
-                blurRadius: 18,
-                offset: Offset(0, 8),
-              ),
-            ]
+                    BoxShadow(
+                      color: Color(0x326DC6B0),
+                      blurRadius: 18,
+                      offset: Offset(0, 8),
+                    ),
+                  ]
                 : null,
           ),
           child: Row(
@@ -721,15 +854,14 @@ class _PrimaryMagicButton extends StatelessWidget {
               Icon(
                 Icons.auto_fix_high_rounded,
                 size: 19,
-                color:
-                hasMask ? Colors.black : InpaintingStudioTheme.textMuted,
+                color: hasMask ? Colors.black : InpaintingStudioTheme.textMuted,
               ),
               const SizedBox(width: 8),
               Text(
                 label,
                 style: TextStyle(
                   color:
-                  hasMask ? Colors.black : InpaintingStudioTheme.textMuted,
+                      hasMask ? Colors.black : InpaintingStudioTheme.textMuted,
                   fontWeight: FontWeight.w900,
                   fontSize: 14.5,
                   letterSpacing: 0.2,
@@ -986,7 +1118,7 @@ class _ToggleTile extends StatelessWidget {
                 ),
                 child: Align(
                   alignment:
-                  selected ? Alignment.centerRight : Alignment.centerLeft,
+                      selected ? Alignment.centerRight : Alignment.centerLeft,
                   child: Container(
                     width: 18,
                     height: 18,
@@ -1022,8 +1154,8 @@ class InpaintingCompactToolbar extends StatelessWidget {
   final VoidCallback onUndo;
   final VoidCallback onRedo;
   final VoidCallback onResetViewport;
-  final VoidCallback onClear;
   final ValueChanged<double> onBrushSizeChanged;
+  final VoidCallback onClear;
 
   const InpaintingCompactToolbar({
     super.key,
@@ -1048,7 +1180,7 @@ class InpaintingCompactToolbar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final accent =
-    isEraser ? InpaintingStudioTheme.rose : InpaintingStudioTheme.mint;
+        isEraser ? InpaintingStudioTheme.rose : InpaintingStudioTheme.mint;
 
     return StudioFloatingPillBar(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),

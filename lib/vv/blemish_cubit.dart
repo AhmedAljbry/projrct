@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:ui' as ui;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -15,15 +16,6 @@ import 'package:untitled2/vv/mask_generation_service.dart';
 
 import 'blemish_state.dart';
 
-/// Central Cubit managing all blemish remover interactions.
-///
-/// Responsibilities:
-///  - Load source image and initialise engine worker
-///  - Handle brush touch events → mask generation → engine heal → state update
-///  - Manage undo/redo via [HistoryService]
-///  - Trigger compare-mode toggle
-///  - Dispatch export via [ExportService]
-///  - Clean up on close
 class BlemishCubit extends Cubit<BlemishState> {
   final EngineIsolateWorker _worker;
   final MaskGenerationService _maskService;
@@ -31,12 +23,8 @@ class BlemishCubit extends Cubit<BlemishState> {
   final HistoryService _history;
   final ExportService _exportService;
 
-  /// Debounce timer for preview-quality healing after stroke end.
-  Timer? _previewDebounce;
-
-  /// Pixel buffer of the source image (kept in memory for engine calls).
   Uint8List? _sourcePixels;
-
+  Uint8List? _previewPixelsCache;
   bool _workerStarted = false;
 
   BlemishCubit({
@@ -54,18 +42,15 @@ class BlemishCubit extends Cubit<BlemishState> {
     _history.addListener(_onHistoryChanged);
   }
 
-  // ─── Initialisation ──────────────────────────────────────────────────────────
-
-  /// Load the source image and start the engine worker.
   Future<void> loadImage(ui.Image image) async {
     if (!_workerStarted) {
       await _worker.start();
       _workerStarted = true;
     }
 
-    // Decode source image to raw RGBA for engine calls.
     final byteData = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
     _sourcePixels = byteData?.buffer.asUint8List();
+    _previewPixelsCache = null;
 
     emit(state.copyWith(
       sourceImage: image,
@@ -75,8 +60,6 @@ class BlemishCubit extends Cubit<BlemishState> {
       clearPreview: true,
     ));
   }
-
-  // ─── Brush settings ──────────────────────────────────────────────────────────
 
   void setBrushRadius(double radius) =>
       emit(state.copyWith(brushSettings: state.brushSettings.copyWith(radius: radius)));
@@ -90,7 +73,7 @@ class BlemishCubit extends Cubit<BlemishState> {
   void setBrushSettings(BrushSettings settings) =>
       emit(state.copyWith(brushSettings: settings));
 
-  // ─── Canvas transform ────────────────────────────────────────────────────────
+  void clearError() => emit(state.copyWith(clearError: true));
 
   void updateCanvasTransform({double? scale, Offset? translation}) {
     emit(state.copyWith(
@@ -99,9 +82,6 @@ class BlemishCubit extends Cubit<BlemishState> {
     ));
   }
 
-  // ─── Stroke handling ─────────────────────────────────────────────────────────
-
-  /// Called when the user begins touching the canvas.
   void onStrokeBegin(Offset canvasPoint) {
     if (state.sourceImage == null) return;
     final imagePoint = _toImageSpace(canvasPoint);
@@ -112,7 +92,6 @@ class BlemishCubit extends Cubit<BlemishState> {
     ));
   }
 
-  /// Called for each subsequent touch move.
   void onStrokeUpdate(Offset canvasPoint) {
     if (state.sourceImage == null) return;
     final imagePoint = _toImageSpace(canvasPoint);
@@ -124,7 +103,6 @@ class BlemishCubit extends Cubit<BlemishState> {
     }
   }
 
-  /// Called when the user lifts their finger/pointer.
   Future<void> onStrokeEnd() async {
     if (state.sourceImage == null) return;
     final strokePoints = _brushInteraction.endStroke();
@@ -138,13 +116,10 @@ class BlemishCubit extends Cubit<BlemishState> {
     await _commitStroke(strokePoints, StrokeType.dragHeal);
   }
 
-  /// Cancel the stroke in progress (e.g., two-finger gesture started).
   void cancelActiveStroke() {
     _brushInteraction.cancelStroke();
     emit(state.copyWith(activeStrokePoints: const []));
   }
-
-  // ─── Undo / Redo ─────────────────────────────────────────────────────────────
 
   Future<void> undo() async {
     final undone = _history.undo();
@@ -153,7 +128,6 @@ class BlemishCubit extends Cubit<BlemishState> {
       operations: _history.operations,
       hasUnsavedChanges: _history.canUndo,
     ));
-    // Recompute preview from scratch after undo.
     await _recomputePreview();
   }
 
@@ -170,11 +144,10 @@ class BlemishCubit extends Cubit<BlemishState> {
   bool get canUndo => _history.canUndo;
   bool get canRedo => _history.canRedo;
 
-  // ─── Reset ───────────────────────────────────────────────────────────────────
-
   void reset() {
     _history.clear();
     _brushInteraction.cancelStroke();
+    _previewPixelsCache = null;
     emit(state.copyWith(
       operations: const [],
       activeStrokePoints: const [],
@@ -183,8 +156,6 @@ class BlemishCubit extends Cubit<BlemishState> {
       hasUnsavedChanges: false,
     ));
   }
-
-  // ─── Compare mode ────────────────────────────────────────────────────────────
 
   void setCompareMode(CompareMode mode) => emit(state.copyWith(compareMode: mode));
 
@@ -195,9 +166,6 @@ class BlemishCubit extends Cubit<BlemishState> {
     setCompareMode(next);
   }
 
-  // ─── Export ──────────────────────────────────────────────────────────────────
-
-  /// Apply all operations at final quality and return PNG bytes.
   Future<Uint8List?> exportImage({
     ui.ImageByteFormat format = ui.ImageByteFormat.png,
   }) async {
@@ -226,24 +194,20 @@ class BlemishCubit extends Cubit<BlemishState> {
           hasUnsavedChanges: false,
         ));
         return result.pngBytes;
-      } else {
-        emit(state.copyWith(
-          processingStatus: ProcessingStatus.error,
-          errorMessage: result.errorMessage,
-        ));
-        return null;
       }
+
+      emit(state.copyWith(
+        processingStatus: ProcessingStatus.error,
+        errorMessage: result.errorMessage,
+      ));
     }
     return null;
   }
-
-  // ─── Private ─────────────────────────────────────────────────────────────────
 
   Future<void> _commitStroke(List<Offset> strokePoints, StrokeType strokeType) async {
     if (_sourcePixels == null) return;
 
     try {
-      // 1. Generate mask.
       final mask = _maskService.generateStrokeMask(
         strokePoints: strokePoints,
         brush: state.brushSettings,
@@ -256,7 +220,6 @@ class BlemishCubit extends Cubit<BlemishState> {
         return;
       }
 
-      // 2. Build immutable operation.
       final operation = BlemishOperation(
         id: _generateOperationId(),
         createdAt: DateTime.now(),
@@ -266,10 +229,7 @@ class BlemishCubit extends Cubit<BlemishState> {
         mask: mask,
       );
 
-      // 3. Run preview-quality healing on the worker isolate.
-      // We feed the accumulated preview (or original if first op) into the engine.
-      final inputPixels = await _buildCurrentPixels(EngineQualityMode.preview);
-
+      final inputPixels = Uint8List.fromList(_previewPixelsCache ?? _sourcePixels!);
       final result = await _worker.heal(
         imagePixels: inputPixels,
         imageWidth: state.imageWidth,
@@ -279,29 +239,27 @@ class BlemishCubit extends Cubit<BlemishState> {
       );
 
       if (result.isSuccess) {
-        // 4. Write healed region into a working copy for preview display.
-        final previewPixels = Uint8List.fromList(inputPixels);
-        _writeRegion(previewPixels, result.healed!.bounds, result.healed!.healedPixels);
-
-        // 5. Commit to history.
+        _writeRegion(inputPixels, result.healed!.bounds, result.healed!.healedPixels);
+        _previewPixelsCache = inputPixels;
         _history.commit(operation.copyWith(isProcessed: true));
 
         if (!isClosed) {
           emit(state.copyWith(
             operations: _history.operations,
-            previewPixels: previewPixels,
+            previewPixels: _previewPixelsCache,
             processingStatus: ProcessingStatus.idle,
             hasUnsavedChanges: true,
           ));
         }
-      } else {
-        debugPrint('[BlemishCubit] Heal failed: ${result.error}');
-        if (!isClosed) {
-          emit(state.copyWith(
-            processingStatus: ProcessingStatus.error,
-            errorMessage: 'Healing failed: ${result.error?.message}',
-          ));
-        }
+        return;
+      }
+
+      debugPrint('[BlemishCubit] Heal failed: ${result.error}');
+      if (!isClosed) {
+        emit(state.copyWith(
+          processingStatus: ProcessingStatus.error,
+          errorMessage: 'Healing failed: ${result.error?.message}',
+        ));
       }
     } catch (e, stack) {
       debugPrint('[BlemishCubit] _commitStroke error: $e\n$stack');
@@ -314,11 +272,14 @@ class BlemishCubit extends Cubit<BlemishState> {
     }
   }
 
-  /// Recompute preview by replaying all operations on the original image.
   Future<void> _recomputePreview() async {
     if (_sourcePixels == null) return;
     if (_history.operations.isEmpty) {
-      emit(state.copyWith(clearPreview: true, processingStatus: ProcessingStatus.idle));
+      _previewPixelsCache = null;
+      emit(state.copyWith(
+        clearPreview: true,
+        processingStatus: ProcessingStatus.idle,
+      ));
       return;
     }
 
@@ -333,9 +294,10 @@ class BlemishCubit extends Cubit<BlemishState> {
         mode: EngineQualityMode.preview,
       );
 
+      _previewPixelsCache = resultPixels;
       if (!isClosed) {
         emit(state.copyWith(
-          previewPixels: resultPixels,
+          previewPixels: _previewPixelsCache,
           processingStatus: ProcessingStatus.idle,
         ));
       }
@@ -349,19 +311,6 @@ class BlemishCubit extends Cubit<BlemishState> {
     }
   }
 
-  /// Build the current pixel state by starting from original + applying all
-  /// committed operations up to this point.
-  Future<Uint8List> _buildCurrentPixels(EngineQualityMode mode) async {
-    if (_history.operations.isEmpty) return Uint8List.fromList(_sourcePixels!);
-    return _worker.applyAll(
-      imagePixels: _sourcePixels!,
-      imageWidth: state.imageWidth,
-      imageHeight: state.imageHeight,
-      operations: _history.operations,
-      mode: mode,
-    );
-  }
-
   void _writeRegion(Uint8List buffer, MaskBounds bounds, Uint8List regionPixels) {
     final w = bounds.width;
     for (int dy = 0; dy < bounds.height; dy++) {
@@ -372,10 +321,7 @@ class BlemishCubit extends Cubit<BlemishState> {
     }
   }
 
-  void _onHistoryChanged() {
-    // Sync undo/redo availability into state when history notifies.
-    // (State already updated by undo()/redo() calls.)
-  }
+  void _onHistoryChanged() {}
 
   Offset _toImageSpace(Offset canvasPoint) {
     return BrushInteractionService.canvasToImage(
@@ -393,9 +339,9 @@ class BlemishCubit extends Cubit<BlemishState> {
 
   @override
   Future<void> close() async {
-    _previewDebounce?.cancel();
     _history.removeListener(_onHistoryChanged);
     await _worker.dispose();
     return super.close();
   }
 }
+

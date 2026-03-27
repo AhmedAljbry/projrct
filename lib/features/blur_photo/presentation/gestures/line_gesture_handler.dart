@@ -7,7 +7,6 @@ import '../painters/line_overlay_painter.dart';
 
 enum _LineDragTarget { center, rotation, none }
 
-/// Stateful gesture handler for the line / tilt-shift overlay.
 class LineGestureHandler extends StatefulWidget {
   const LineGestureHandler({
     super.key,
@@ -46,64 +45,63 @@ class _LineGestureHandlerState extends State<LineGestureHandler> {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(builder: (context, constraints) {
-      final size = Size(constraints.maxWidth, constraints.maxHeight);
-      final painter = LineOverlayPainter(
-        params: _live,
-        accentColor: widget.accentColor,
-        isDragging: _dragging,
-      );
-      return GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onPanStart: (d) {
-          final local = d.localPosition;
-          if (painter.hitTestRotationHandle(local, size)) {
-            _target = _LineDragTarget.rotation;
-          } else if (painter.hitTestCenter(local, size)) {
-            _target = _LineDragTarget.center;
-          } else {
-            _target = _LineDragTarget.none;
-          }
-          _lastPos = local;
-          if (_target != _LineDragTarget.none) {
-            setState(() => _dragging = true);
-          }
-        },
-        onPanUpdate: (d) {
-          if (_target == _LineDragTarget.none) return;
-          final local = d.localPosition;
-          final dx = d.delta.dx / size.width;
-          final dy = d.delta.dy / size.height;
-          setState(() {
-            if (_target == _LineDragTarget.center) {
-              _live = _live.copyWith(
-                centerX: (_live.centerX + dx).clamp(0.05, 0.95),
-                centerY: (_live.centerY + dy).clamp(0.05, 0.95),
-              );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final size = Size(constraints.maxWidth, constraints.maxHeight);
+        final painter = LineOverlayPainter(
+          params: _live,
+          accentColor: widget.accentColor,
+          isDragging: _dragging,
+        );
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onPanStart: (details) {
+            final local = details.localPosition;
+            if (painter.hitTestRotationHandle(local, size)) {
+              _target = _LineDragTarget.rotation;
+            } else if (painter.hitTestCenter(local, size)) {
+              _target = _LineDragTarget.center;
             } else {
-              // rotation: use angle from center
-              final cx = _live.centerX * size.width;
-              final cy = _live.centerY * size.height;
-              final prev = math.atan2(
-                  (_lastPos!.dy - cy), (_lastPos!.dx - cx));
-              final curr =
-                  math.atan2((local.dy - cy), (local.dx - cx));
-              _live =
-                  _live.copyWith(angle: _live.angle + (curr - prev));
+              _target = _LineDragTarget.none;
             }
             _lastPos = local;
-          });
-          widget.onUpdate(_live);
-        },
-        onPanEnd: (_) {
-          if (_target == _LineDragTarget.none) return;
-          setState(() => _dragging = false);
-          _target = _LineDragTarget.none;
-          _lastPos = null;
-          widget.onEnd(_live);
-        },
-        child: CustomPaint(size: Size(size.width, size.height), painter: painter),
-      );
-    });
+            if (_target != _LineDragTarget.none) {
+              setState(() => _dragging = true);
+            }
+          },
+          onPanUpdate: (details) {
+            if (_target == _LineDragTarget.none) return;
+            final local = details.localPosition;
+            final dx = (details.delta.dx / size.width) * 1.18;
+            final dy = (details.delta.dy / size.height) * 1.18;
+            setState(() {
+              if (_target == _LineDragTarget.center) {
+                _live = _live.copyWith(
+                  centerX: (_live.centerX + dx).clamp(0.05, 0.95),
+                  centerY: (_live.centerY + dy).clamp(0.05, 0.95),
+                );
+              } else {
+                final cx = _live.centerX * size.width;
+                final cy = _live.centerY * size.height;
+                final prev = math.atan2(_lastPos!.dy - cy, _lastPos!.dx - cx);
+                final curr = math.atan2(local.dy - cy, local.dx - cx);
+                _live =
+                    _live.copyWith(angle: _live.angle + ((curr - prev) * 1.1));
+              }
+              _lastPos = local;
+            });
+            widget.onUpdate(_live);
+          },
+          onPanEnd: (_) {
+            if (_target == _LineDragTarget.none) return;
+            setState(() => _dragging = false);
+            _target = _LineDragTarget.none;
+            _lastPos = null;
+            widget.onEnd(_live);
+          },
+          child: CustomPaint(size: size, painter: painter),
+        );
+      },
+    );
   }
 }

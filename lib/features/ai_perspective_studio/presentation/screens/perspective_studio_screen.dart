@@ -1,9 +1,9 @@
-import 'dart:ui' as ui;
+﻿import 'dart:ui' as ui;
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
+import 'package:flutter_tesseract_ocr/flutter_tesseract_ocr.dart';
 import '../../core/perspective_processor.dart';
 import '../../core/ai_corner_detector.dart';
 import '../../domain/models/perspective_points.dart';
@@ -128,10 +128,10 @@ class _PerspectiveStudioScreenState extends State<PerspectiveStudioScreen> {
         body: SafeArea(
           child: Column(
             children: [
-              // ── Top Bar ──────────────────────────────────────────────────
+              // â”€â”€ Top Bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
               _buildTopBar(),
 
-              // ── Editor Area ──────────────────────────────────────────────
+              // â”€â”€ Editor Area â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
               Expanded(
                 child: Stack(
                   children: [
@@ -159,7 +159,7 @@ class _PerspectiveStudioScreenState extends State<PerspectiveStudioScreen> {
                 ),
               ),
 
-              // ── Bottom Controls ──────────────────────────────────────────
+              // â”€â”€ Bottom Controls â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
               if (!_showPreview) _buildBottomControls(),
               if (_showPreview) _buildPreviewControls(),
             ],
@@ -251,41 +251,29 @@ class _PerspectiveStudioScreenState extends State<PerspectiveStudioScreen> {
     if (_resultBytes == null) return;
 
     setState(() => _isProcessing = true);
+    File? tempFile;
     try {
       final tempDir = await getTemporaryDirectory();
-      final tempFile =
+      tempFile =
           File('${tempDir.path}${Platform.pathSeparator}ocr_input.png');
       await tempFile.writeAsBytes(_resultBytes!, flush: true);
 
-      // ── AUTO-SCRIPT DETECTION ──────────────────────────────────────────
-      // This logic will automatically pick 'arabic' if the SDK is upgraded.
-      // If the current SDK version doesn't support it, it falls back to 'latin'
-      // to prevent app crashes.
-      TextRecognitionScript bestScript = TextRecognitionScript.latin;
-      try {
-        bestScript = TextRecognitionScript.values.firstWhere(
-          (e) => e.name.toLowerCase() == 'arabic',
-          orElse: () => TextRecognitionScript.latin,
-        );
-      } catch (_) {
-        bestScript = TextRecognitionScript.latin;
-      }
-
-      final textRecognizer = TextRecognizer(script: bestScript);
-      final inputImage = InputImage.fromFilePath(tempFile.path);
-
-      final recognizedText = await textRecognizer.processImage(inputImage);
-
-      await textRecognizer.close();
-      if (tempFile.existsSync()) await tempFile.delete();
+      final recognizedText = await FlutterTesseractOcr.extractText(
+        tempFile.path,
+        language: 'ara+eng+osd',
+        args: {
+          'psm': '6',
+          'preserve_interword_spaces': '1',
+        },
+      );
 
       if (mounted) {
-        if (recognizedText.text.trim().isEmpty) {
+        if (recognizedText.trim().isEmpty) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('No text detected in the image.')),
           );
         } else {
-          _showTextDialog(recognizedText.text);
+          _showTextDialog(recognizedText);
         }
       }
     } on MissingPluginException {
@@ -296,11 +284,15 @@ class _PerspectiveStudioScreenState extends State<PerspectiveStudioScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text('OCR Error: $e'),
-              backgroundColor: Colors.redAccent),
+            content: Text('OCR Error: $e'),
+            backgroundColor: Colors.redAccent,
+          ),
         );
       }
     } finally {
+      if (tempFile != null && tempFile.existsSync()) {
+        await tempFile.delete();
+      }
       if (mounted) setState(() => _isProcessing = false);
     }
   }
@@ -481,3 +473,5 @@ class _BottomAction extends StatelessWidget {
     );
   }
 }
+
+

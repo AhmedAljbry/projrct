@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
+import 'dart:ui' as ui;
 import 'package:untitled2/core/ui/AppTokens.dart';
 
+import 'advanced_inspector.dart';
 import 'context_panels.dart';
 import 'pro_refine_panel.dart';
 import 'reference_image_state.dart';
 import 'unified_editor_workspace.dart';
 
-enum ContextPanelPresentation { mobileSheet, sideInspector }
+enum ContextPanelPresentation { mobileSheet, embeddedMobileSheet, sideInspector }
 
 class ActiveContextPanelHost extends StatelessWidget {
   final UnifiedEditorMode mode;
@@ -21,8 +23,10 @@ class ActiveContextPanelHost extends StatelessWidget {
   final VoidCallback onRequestShare;
 
   final bool showAdvancedInspector;
+  final bool includeAdvancedInspector;
   final ReferenceImageState referenceState;
   final VoidCallback onAddReference;
+  final VoidCallback onAdvancedInspectorToggle;
 
   const ActiveContextPanelHost({
     super.key,
@@ -35,67 +39,151 @@ class ActiveContextPanelHost extends StatelessWidget {
     required this.onRequestSave,
     required this.onRequestShare,
     required this.showAdvancedInspector,
+    required this.includeAdvancedInspector,
     this.referenceState = ReferenceImageState.none,
     required this.onAddReference,
+    required this.onAdvancedInspectorToggle,
   });
 
   @override
   Widget build(BuildContext context) {
-    if (activePanel == UnifiedContextPanel.none) {
+    final showAdvanced = includeAdvancedInspector && showAdvancedInspector;
+    if (activePanel == UnifiedContextPanel.none && !showAdvanced) {
       return const SizedBox.shrink();
     }
 
-    final panelTitle = _titleFor(activePanel);
+    final panelTitle =
+        activePanel == UnifiedContextPanel.none ? 'Advanced Inspector' : _titleFor(activePanel);
 
-    final panelBody = _panelFor(activePanel, context);
+    final panelBody =
+        activePanel == UnifiedContextPanel.none ? const SizedBox.shrink() : _panelFor(activePanel, context);
 
-    if (presentation == ContextPanelPresentation.mobileSheet) {
+    final advancedHeight = (presentation == ContextPanelPresentation.mobileSheet ||
+                            presentation == ContextPanelPresentation.embeddedMobileSheet)
+        ? 220.0
+        : 260.0;
+
+    if (presentation == ContextPanelPresentation.mobileSheet ||
+        presentation == ContextPanelPresentation.embeddedMobileSheet) {
       // Bottom-sheet-like: hero stays visible; panel slides in and stays scrollable.
+      
+      Widget contentColumn = Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 10),
+          if (activePanel != UnifiedContextPanel.none && presentation != ContextPanelPresentation.embeddedMobileSheet)
+            _GrabHandle(onClosePanel: onClosePanel),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    panelTitle,
+                    style: const TextStyle(
+                      color: AppTokens.text,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.2,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (activePanel != UnifiedContextPanel.none)
+                  TextButton.icon(
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('تم التراجع بنجاح')),
+                      );
+                    },
+                    icon: const Icon(Icons.undo_rounded, size: 16, color: AppTokens.primary),
+                    label: const Text(
+                      'تراجع',
+                      style: TextStyle(
+                        color: AppTokens.primary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      minimumSize: const Size(0, 32),
+                      backgroundColor: AppTokens.primary.withValues(alpha: 0.1),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                const SizedBox(width: 8),
+                if (activePanel != UnifiedContextPanel.none)
+                  IconButton(
+                    onPressed: onClosePanel,
+                    icon: const Icon(
+                      Icons.close_rounded,
+                      size: 20,
+                      color: AppTokens.text2,
+                    ),
+                    constraints: const BoxConstraints.tightFor(
+                      width: 38,
+                      height: 38,
+                    ),
+                    padding: EdgeInsets.zero,
+                  ),
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: AppTokens.border, thickness: 0.8),
+          Expanded(
+            child: Column(
+              children: [
+                if (activePanel != UnifiedContextPanel.none)
+                  Expanded(child: panelBody),
+                if (showAdvanced)
+                  SizedBox(
+                    height: advancedHeight,
+                    child: AdvancedInspector(
+                      mode: mode,
+                      status: status,
+                      expanded: showAdvancedInspector,
+                      onToggle: onAdvancedInspectorToggle,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      );
+
       return AnimatedSwitcher(
         duration: const Duration(milliseconds: 220),
         switchInCurve: Curves.easeOutCubic,
         switchOutCurve: Curves.easeInCubic,
-        child: Container(
+        child: SizedBox(
           key: ValueKey(activePanel),
           width: double.infinity,
-          decoration: BoxDecoration(
-            color: AppTokens.surface.withValues(alpha: 0.9),
-            border: Border(top: BorderSide(color: AppTokens.border.withValues(alpha: 0.65))),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(height: 10),
-              _GrabHandle(onClosePanel: onClosePanel),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        panelTitle,
-                        style: const TextStyle(
-                          color: AppTokens.text,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 0.2,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: onClosePanel,
-                      icon: const Icon(Icons.close_rounded, size: 20, color: AppTokens.text2),
-                      constraints: const BoxConstraints.tightFor(width: 38, height: 38),
-                      padding: EdgeInsets.zero,
-                    ),
+          child: presentation == ContextPanelPresentation.embeddedMobileSheet
+              ? contentColumn
+              : ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)), // Matched Bottom Sheet
+            child: BackdropFilter(
+              filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18), // Matched Bottom Sheet
+              child: Container(
+                decoration: BoxDecoration(
+                  color: AppTokens.surface.withValues(alpha: 0.88),
+                  border: Border.all(
+                    color: AppTokens.border.withValues(alpha: 0.3),
+                    width: 1,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.4),
+                      blurRadius: 24,
+                      offset: const Offset(0, -6),
+                    )
                   ],
                 ),
+                child: contentColumn,
               ),
-              const Divider(height: 1, color: AppTokens.border, thickness: 0.8),
-              Expanded(child: panelBody),
-            ],
+            ),
           ),
         ),
       );
@@ -129,17 +217,34 @@ class ActiveContextPanelHost extends StatelessWidget {
                       ),
                     ),
                   ),
-                  IconButton(
-                    onPressed: onClosePanel,
-                    icon: const Icon(Icons.close_rounded, size: 20, color: AppTokens.text2),
-                    constraints: const BoxConstraints.tightFor(width: 38, height: 38),
-                    padding: EdgeInsets.zero,
-                  ),
+                  if (activePanel != UnifiedContextPanel.none)
+                    IconButton(
+                      onPressed: onClosePanel,
+                      icon: const Icon(Icons.close_rounded, size: 20, color: AppTokens.text2),
+                      constraints: const BoxConstraints.tightFor(width: 38, height: 38),
+                      padding: EdgeInsets.zero,
+                    ),
                 ],
               ),
             ),
             const Divider(height: 1, color: AppTokens.border, thickness: 0.8),
-            Expanded(child: panelBody),
+            Expanded(
+              child: Column(
+                children: [
+                  if (activePanel != UnifiedContextPanel.none) Expanded(child: panelBody),
+                  if (showAdvanced)
+                    SizedBox(
+                      height: advancedHeight,
+                      child: AdvancedInspector(
+                        mode: mode,
+                        status: status,
+                        expanded: showAdvancedInspector,
+                        onToggle: onAdvancedInspectorToggle,
+                      ),
+                    ),
+                ],
+              ),
+            ),
           ],
         ),
       ),

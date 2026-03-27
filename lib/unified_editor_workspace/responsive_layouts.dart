@@ -8,6 +8,7 @@ import 'quick_style_rail.dart';
 import 'reference_image_state.dart';
 import 'unified_editor_workspace.dart';
 import 'workspace_adaptive_dock.dart';
+import 'workspace_bottom_sheet.dart'; // ADDED THIS
 
 class MobileWorkspaceLayout extends StatelessWidget {
   final UnifiedEditorMode mode;
@@ -26,6 +27,7 @@ class MobileWorkspaceLayout extends StatelessWidget {
 
   final ValueChanged<UnifiedDockAction> onDockTapped;
   final ValueChanged<double> onCompareSplitChanged;
+  final VoidCallback onCompareToggled; // ADDED THIS
   final ValueChanged<UnifiedContextPanel> onActivePanelChanged;
   final ValueChanged<String> onStyleSelected;
   final VoidCallback onRequestExport;
@@ -49,6 +51,7 @@ class MobileWorkspaceLayout extends StatelessWidget {
     required this.emptyCanvas,
     required this.onDockTapped,
     required this.onCompareSplitChanged,
+    required this.onCompareToggled, // ADDED THIS
     required this.onActivePanelChanged,
     required this.onStyleSelected,
     required this.onRequestExport,
@@ -61,44 +64,48 @@ class MobileWorkspaceLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const dockHeight = 118.0;
+    // ── The new elegant bottom sheet peek height is 65.0 ──
+    // Setting dockHeight to 10.0 allows the canvas to extend further down.
+    const dockHeight = 10.0;
+    
     final panelMaxHeight = Responsive.bottomPanelHeight(context) - 12;
 
     return Stack(
       children: [
+        // ── Canvas fills the whole space; only the dock is reserved at bottom.
         Padding(
-          padding: const EdgeInsets.only(top: 8, left: 12, right: 12),
-          child: Column(
-            children: [
-              Expanded(
-                child: HeroCanvasSection(
-                  mode: mode,
-                  status: status,
-                  compareEnabled: compareEnabled,
-                  compareSplit: compareSplit,
-                  onCompareSplitChanged: onCompareSplitChanged,
-                  beforeImage: beforeImage,
-                  afterImage: afterImage,
-                  emptyCanvas: emptyCanvas,
-                ),
-              ),
-              const SizedBox(height: 10),
-              QuickStyleRail(
-                mode: mode,
-                status: status,
-                onStyleSelected: onStyleSelected,
-              ),
-              SizedBox(height: dockHeight),
-            ],
+          padding: const EdgeInsets.only(
+            top: 8,
+            left: 12,
+            right: 12,
+            // Reserve space for dock. Style tray is positioned, not in-flow.
+            bottom: dockHeight,
+          ),
+          child: HeroCanvasSection(
+            mode: mode,
+            status: status,
+            compareEnabled: compareEnabled,
+            compareSplit: compareSplit,
+            onCompareSplitChanged: onCompareSplitChanged,
+            onCompareToggled: onCompareToggled,
+            beforeImage: beforeImage,
+            afterImage: afterImage,
+            emptyCanvas: emptyCanvas,
+            referenceState: referenceState,
+            onAddReference: onAddReference,
           ),
         ),
 
-        // Contextual bottom sheet.
-        Positioned(
+        // ── Style tray removed. Styles live inside the new WorkspaceBottomSheet ──
+
+        // ── Context panel: slides in above the dock when a tool is active.
+        AnimatedPositioned(
+          duration: const Duration(milliseconds: 240),
+          curve: Curves.easeOutCubic,
           left: 0,
           right: 0,
           bottom: dockHeight,
-          child: activePanel == UnifiedContextPanel.none
+          child: (activePanel == UnifiedContextPanel.none && !showAdvancedInspector)
               ? const SizedBox.shrink()
               : SizedBox(
                   height: panelMaxHeight.clamp(260.0, 420.0),
@@ -107,33 +114,49 @@ class MobileWorkspaceLayout extends StatelessWidget {
                     activePanel: activePanel,
                     status: status,
                     presentation: ContextPanelPresentation.mobileSheet,
-                    onClosePanel: () => onActivePanelChanged(UnifiedContextPanel.none),
+                    onClosePanel: () =>
+                        onActivePanelChanged(UnifiedContextPanel.none),
                     onRequestExport: onRequestExport,
                     onRequestSave: onRequestSave,
                     onRequestShare: onRequestShare,
                     showAdvancedInspector: showAdvancedInspector,
+                    includeAdvancedInspector: true,
                     referenceState: referenceState,
                     onAddReference: onAddReference,
+                    onAdvancedInspectorToggle: onAdvancedInspectorToggle,
                   ),
                 ),
         ),
 
-        // Dock stays anchored.
+        // ── Elegant Unified Bottom Sheet (Styles & Tools) ──
         Positioned(
           left: 0,
           right: 0,
           bottom: 0,
-          child: WorkspaceAdaptiveDock(
+          child: WorkspaceBottomSheet(
             mode: mode,
+            status: status,
             activeDock: activeDock,
-            height: dockHeight,
+            activePanel: activePanel, // FIXED THIS
+            compareEnabled: compareEnabled,
+            onStyleSelected: onStyleSelected,
             onDockTapped: onDockTapped,
+            onActivePanelChanged: onActivePanelChanged, // FIXED THIS
+            onRequestExport: onRequestExport, // ADDED THIS
+            onRequestSave: onRequestSave, // ADDED THIS
+            onRequestShare: onRequestShare, // ADDED THIS
+            showAdvancedInspector: showAdvancedInspector, // ADDED THIS
+            referenceState: referenceState, // ADDED THIS
+            onAddReference: () {}, // ADDED THIS
+            onAdvancedInspectorToggle: onAdvancedInspectorToggle, // ADDED THIS
           ),
         ),
       ],
     );
   }
 }
+
+// _StyleTray removed as it is now encapsulated in WorkspaceBottomSheet.
 
 class TabletWorkspaceLayout extends StatelessWidget {
   final UnifiedEditorMode mode;
@@ -158,6 +181,7 @@ class TabletWorkspaceLayout extends StatelessWidget {
   final VoidCallback onRequestSave;
   final VoidCallback onRequestShare;
   final VoidCallback onAdvancedInspectorToggle;
+  final VoidCallback onCompareToggled; // ADDED THIS
   final ReferenceImageState referenceState;
   final VoidCallback onAddReference;
 
@@ -181,6 +205,7 @@ class TabletWorkspaceLayout extends StatelessWidget {
     required this.onRequestSave,
     required this.onRequestShare,
     required this.onAdvancedInspectorToggle,
+    required this.onCompareToggled, // ADDED THIS
     this.referenceState = ReferenceImageState.none,
     required this.onAddReference,
   });
@@ -212,9 +237,12 @@ class TabletWorkspaceLayout extends StatelessWidget {
                     compareEnabled: compareEnabled,
                     compareSplit: compareSplit,
                     onCompareSplitChanged: onCompareSplitChanged,
+                    onCompareToggled: onCompareToggled,
                     beforeImage: beforeImage,
                     afterImage: afterImage,
                     emptyCanvas: emptyCanvas,
+                    referenceState: referenceState,
+                    onAddReference: onAddReference,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -228,8 +256,10 @@ class TabletWorkspaceLayout extends StatelessWidget {
                   onRequestSave: onRequestSave,
                   onRequestShare: onRequestShare,
                   showAdvancedInspector: showAdvancedInspector,
+                  includeAdvancedInspector: true,
                   referenceState: referenceState,
                   onAddReference: onAddReference,
+                  onAdvancedInspectorToggle: onAdvancedInspectorToggle,
                 ),
               ],
             ),
@@ -238,6 +268,7 @@ class TabletWorkspaceLayout extends StatelessWidget {
         WorkspaceAdaptiveDock(
           mode: mode,
           activeDock: activeDock,
+          compareEnabled: compareEnabled,
           height: dockHeight,
           onDockTapped: onDockTapped,
         ),
@@ -269,6 +300,7 @@ class WideWorkspaceLayout extends StatelessWidget {
   final VoidCallback onRequestSave;
   final VoidCallback onRequestShare;
   final VoidCallback onAdvancedInspectorToggle;
+  final VoidCallback onCompareToggled; // ADDED THIS
   final ReferenceImageState referenceState;
   final VoidCallback onAddReference;
 
@@ -292,6 +324,7 @@ class WideWorkspaceLayout extends StatelessWidget {
     required this.onRequestSave,
     required this.onRequestShare,
     required this.onAdvancedInspectorToggle,
+    required this.onCompareToggled, // ADDED THIS
     this.referenceState = ReferenceImageState.none,
     required this.onAddReference,
   });
@@ -322,9 +355,12 @@ class WideWorkspaceLayout extends StatelessWidget {
                   compareEnabled: compareEnabled,
                   compareSplit: compareSplit,
                   onCompareSplitChanged: onCompareSplitChanged,
+                  onCompareToggled: onCompareToggled,
                   beforeImage: beforeImage,
                   afterImage: afterImage,
                   emptyCanvas: emptyCanvas,
+                  referenceState: referenceState,
+                  onAddReference: onAddReference,
                 ),
               ),
               const SizedBox(width: 12),
@@ -343,8 +379,10 @@ class WideWorkspaceLayout extends StatelessWidget {
                         onRequestSave: onRequestSave,
                         onRequestShare: onRequestShare,
                         showAdvancedInspector: showAdvancedInspector,
+                        includeAdvancedInspector: false,
                         referenceState: referenceState,
                         onAddReference: onAddReference,
+                        onAdvancedInspectorToggle: onAdvancedInspectorToggle,
                       ),
                     ),
                     SizedBox(
@@ -371,6 +409,7 @@ class WideWorkspaceLayout extends StatelessWidget {
           child: WorkspaceAdaptiveDock(
             mode: mode,
             activeDock: activeDock,
+          compareEnabled: compareEnabled,
             height: dockHeight,
             onDockTapped: onDockTapped,
           ),

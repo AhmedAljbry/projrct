@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gal/gal.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:untitled2/features/ai_object_clone_studio/presentation/pages/clone_studio_page.dart';
 import 'package:untitled2/features/smart_retouch/infrastructure/engine/retouch_image_service.dart';
 
 import '../../application/bloc/retouch_bloc.dart';
@@ -50,6 +51,7 @@ class _SmartRetouchView extends StatefulWidget {
 class _SmartRetouchViewState extends State<_SmartRetouchView> {
   bool _isSaving = false;
   bool _isSettingsVisible = false;
+  bool _isBrushesVisible = false;
   bool _showProcessingHint = false;
   Timer? _processingHintTimer;
 
@@ -62,7 +64,7 @@ class _SmartRetouchViewState extends State<_SmartRetouchView> {
   void _handleProcessingState(RetouchStatus status) {
     if (status == RetouchStatus.processing) {
       _processingHintTimer?.cancel();
-      _processingHintTimer = Timer(const Duration(milliseconds: 180), () {
+      _processingHintTimer = Timer(const Duration(milliseconds: 260), () {
         if (!mounted) return;
         setState(() => _showProcessingHint = true);
       });
@@ -78,6 +80,12 @@ class _SmartRetouchViewState extends State<_SmartRetouchView> {
   void _toggleSettings() {
     setState(() {
       _isSettingsVisible = !_isSettingsVisible;
+    });
+  }
+
+  void _toggleBrushes() {
+    setState(() {
+      _isBrushesVisible = !_isBrushesVisible;
     });
   }
 
@@ -201,7 +209,7 @@ class _SmartRetouchViewState extends State<_SmartRetouchView> {
               );
             }
 
-            if (state.currentImage == null) {
+            if (state.currentImage == null || state.originalImage == null) {
               return const Center(
                 child: Text(
                   'Failed to load image',
@@ -215,6 +223,7 @@ class _SmartRetouchViewState extends State<_SmartRetouchView> {
                 Positioned.fill(
                   child: RetouchCanvasEditor(
                     displayImage: state.currentImage!,
+                    originalImage: state.originalImage!,
                   ),
                 ),
                 if (_isSettingsVisible)
@@ -224,13 +233,18 @@ class _SmartRetouchViewState extends State<_SmartRetouchView> {
                     width: 240,
                     child: BrushParameterControl(),
                   ),
+                if (_isBrushesVisible)
+                  Positioned(
+                    bottom: 154,
+                    left: 0,
+                    right: 0,
+                    child: const Center(child: BrushPresetBar()),
+                  ),
                 Positioned(
                   bottom: 104,
                   left: 0,
                   right: 0,
-                  child: const Center(
-                    child: BrushSizeBar(),
-                  ),
+                  child: const Center(child: BrushSizeBar()),
                 ),
                 Positioned(
                   bottom: 30,
@@ -239,54 +253,63 @@ class _SmartRetouchViewState extends State<_SmartRetouchView> {
                   child: Center(
                     child: RetouchToolbar(
                       isSettingsVisible: _isSettingsVisible,
+                      isBrushesVisible: _isBrushesVisible,
                       onToggleSettings: _toggleSettings,
+                      onToggleBrushes: _toggleBrushes,
                     ),
                   ),
                 ),
                 if (_showProcessingHint && !_isSaving)
-                  Positioned(
-                    bottom: 178,
-                    left: 0,
-                    right: 0,
-                    child: Center(
-                      child: IgnorePointer(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 10,
-                          ),
-                          decoration: BoxDecoration(
-                            color:
-                                const Color(0xFF161616).withValues(alpha: 0.92),
-                            borderRadius: BorderRadius.circular(18),
-                            boxShadow: const [
-                              BoxShadow(
-                                color: Colors.black38,
-                                blurRadius: 10,
-                                offset: Offset(0, 4),
+                  IgnorePointer(
+                    child: AnimatedOpacity(
+                      duration: const Duration(milliseconds: 120),
+                      opacity: _showProcessingHint ? 1 : 0,
+                      child: Container(
+                        color: Colors.black.withValues(alpha: 0.42),
+                        child: Center(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 22,
+                              vertical: 18,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF111111)
+                                  .withValues(alpha: 0.95),
+                              borderRadius: BorderRadius.circular(22),
+                              border: Border.all(
+                                color: const Color(0xFF56E39F)
+                                    .withValues(alpha: 0.18),
                               ),
-                            ],
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Color(0xFF56E39F),
+                              boxShadow: const [
+                                BoxShadow(
+                                  color: Colors.black45,
+                                  blurRadius: 16,
+                                  offset: Offset(0, 8),
                                 ),
-                              ),
-                              SizedBox(width: 10),
-                              Text(
-                                'Applying...',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w600,
+                              ],
+                            ),
+                            child: const Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                SizedBox(
+                                  width: 28,
+                                  height: 28,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.4,
+                                    color: Color(0xFF56E39F),
+                                  ),
                                 ),
-                              ),
-                            ],
+                                SizedBox(height: 14),
+                                Text(
+                                  'ط¬ط§ط±ظگ ط§ظ„ظ…ط¹ط§ظ„ط¬ط©',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),

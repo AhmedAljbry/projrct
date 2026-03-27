@@ -23,7 +23,7 @@ class BrushSettings {
   final bool velocityPressure;
 
   const BrushSettings({
-    this.radius = 24.0,
+    this.radius = 34.0,
     this.softness = 0.7,
     this.strength = 0.90,
     this.spacing = 0.25,
@@ -82,3 +82,4 @@ class BrushSettings {
   String toString() =>
       'BrushSettings(r=$radius, soft=$softness, str=$strength, sp=$spacing)';
 }
+

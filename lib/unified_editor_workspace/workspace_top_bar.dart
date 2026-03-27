@@ -87,13 +87,6 @@ class WorkspaceTopBar extends StatelessWidget {
             onPressed: onExportTapped,
             tooltip: 'Export',
           ),
-          const SizedBox(width: 2),
-          _IconButton(
-            icon: Icons.compare_rounded,
-            onPressed: onCompareTapped,
-            tooltip: 'Compare',
-            active: compareActive,
-          ),
           const SizedBox(width: 4),
           AddReferenceButton(
             referenceActive: referenceActive,
@@ -176,13 +169,11 @@ class _ModePill extends StatelessWidget {
 class _IconButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback? onPressed;
-  final bool active;
   final String? tooltip;
 
   const _IconButton({
     required this.icon,
     required this.onPressed,
-    this.active = false,
     this.tooltip,
   });
 
@@ -194,7 +185,7 @@ class _IconButton extends StatelessWidget {
       icon: Icon(
         icon,
         size: 22,
-        color: active ? AppTokens.primary : AppTokens.text2,
+        color: AppTokens.text2,
       ),
       padding: const EdgeInsets.all(10),
       constraints: const BoxConstraints.tightFor(width: 40, height: 40),

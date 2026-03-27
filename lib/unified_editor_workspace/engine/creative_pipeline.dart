@@ -496,6 +496,8 @@ SmartMaskKind _kindFromLabel(String label) {
   switch (label) {
     case 'Face':
       return SmartMaskKind.face;
+    case 'Background':
+      return SmartMaskKind.none;
     case 'Sky':
       return SmartMaskKind.sky;
     case 'Subject':
@@ -506,6 +508,10 @@ SmartMaskKind _kindFromLabel(String label) {
     case 'Windows':
     case 'Walls/Floor/Ceiling':
       return SmartMaskKind.facade;
+    // Reference-aware region transfer isn't fully represented by the current engine masks,
+    // so we map "From Reference" to a reasonable fallback mask kind.
+    case 'From Reference':
+      return SmartMaskKind.subject;
     default:
       return SmartMaskKind.subject;
   }

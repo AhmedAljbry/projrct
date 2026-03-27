@@ -1,7 +1,7 @@
 import 'package:equatable/equatable.dart';
 
-/// Parameters defining the circular focus region.
-/// All positional values are normalised [0..1] relative to image dimensions.
+enum BlurShapeType { ellipse, rectangle }
+
 class CircleBlurParams extends Equatable {
   const CircleBlurParams({
     this.centerX = 0.50,
@@ -10,25 +10,16 @@ class CircleBlurParams extends Equatable {
     this.radiusY = 0.24,
     this.rotation = 0.0,
     this.feather = 0.18,
+    this.shapeType = BlurShapeType.ellipse,
   });
 
-  /// Horizontal center, normalised [0..1].
   final double centerX;
-
-  /// Vertical center, normalised [0..1].
   final double centerY;
-
-  /// Horizontal radius, normalised [0..1].
   final double radiusX;
-
-  /// Vertical radius, normalised [0..1].
   final double radiusY;
-
-  /// Rotation in radians.
   final double rotation;
-
-  /// Soft edge feathering width, normalised [0..1].
   final double feather;
+  final BlurShapeType shapeType;
 
   CircleBlurParams copyWith({
     double? centerX,
@@ -37,6 +28,7 @@ class CircleBlurParams extends Equatable {
     double? radiusY,
     double? rotation,
     double? feather,
+    BlurShapeType? shapeType,
   }) {
     return CircleBlurParams(
       centerX: centerX ?? this.centerX,
@@ -45,6 +37,7 @@ class CircleBlurParams extends Equatable {
       radiusY: radiusY ?? this.radiusY,
       rotation: rotation ?? this.rotation,
       feather: feather ?? this.feather,
+      shapeType: shapeType ?? this.shapeType,
     );
   }
 
@@ -55,6 +48,7 @@ class CircleBlurParams extends Equatable {
         'radiusY': radiusY,
         'rotation': rotation,
         'feather': feather,
+        'shapeType': shapeType.name,
       };
 
   factory CircleBlurParams.fromJson(Map<String, dynamic> json) {
@@ -65,10 +59,21 @@ class CircleBlurParams extends Equatable {
       radiusY: (json['radiusY'] as num?)?.toDouble() ?? 0.24,
       rotation: (json['rotation'] as num?)?.toDouble() ?? 0.0,
       feather: (json['feather'] as num?)?.toDouble() ?? 0.18,
+      shapeType: BlurShapeType.values.firstWhere(
+        (shape) => shape.name == json['shapeType'],
+        orElse: () => BlurShapeType.ellipse,
+      ),
     );
   }
 
   @override
-  List<Object?> get props =>
-      [centerX, centerY, radiusX, radiusY, rotation, feather];
+  List<Object?> get props => [
+        centerX,
+        centerY,
+        radiusX,
+        radiusY,
+        rotation,
+        feather,
+        shapeType,
+      ];
 }

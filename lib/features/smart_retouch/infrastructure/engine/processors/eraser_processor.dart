@@ -1,10 +1,12 @@
 import 'dart:math' as math;
-import 'package:image/image.dart' as img;
+
 import 'package:flutter/material.dart';
+import 'package:image/image.dart' as img;
+
 import '../../../domain/models/retouch_operation.dart';
 
 class EraserProcessor {
-  /// Erasing makes pixels transparent — this is the real object-removal eraser.
+  // Restore original pixels inside the brush area instead of erasing to transparency.
   static void processErase({
     required img.Image targetImage,
     required img.Image originalImage,
@@ -20,6 +22,7 @@ class EraserProcessor {
     for (final point in operation.path) {
       _applyEraserDab(
         targetImage: targetImage,
+        originalImage: originalImage,
         center: point,
         radius: radius,
         hardness: hardness,
@@ -30,6 +33,7 @@ class EraserProcessor {
 
   static void _applyEraserDab({
     required img.Image targetImage,
+    required img.Image originalImage,
     required Offset center,
     required double radius,
     required double hardness,
@@ -47,13 +51,17 @@ class EraserProcessor {
         final int targetX = cx + x;
         final int targetY = cy + y;
 
-        if (targetX < 0 || targetX >= width || targetY < 0 || targetY >= height) continue;
+        if (targetX < 0 ||
+            targetX >= width ||
+            targetY < 0 ||
+            targetY >= height) {
+          continue;
+        }
 
         final double distanceSq = (x * x + y * y).toDouble();
         final double radiusSq = radius * radius;
         if (distanceSq > radiusSq) continue;
 
-        // Feathering: how much to erase at this pixel
         final double distance = math.sqrt(distanceSq);
         final double featherStart = radius * hardness;
         double alpha = 1.0;
@@ -62,13 +70,23 @@ class EraserProcessor {
         }
         alpha *= opacity;
 
-        // Reduce alpha of target pixel proportionally
-        final img.Pixel pixel = targetImage.getPixel(targetX, targetY);
-        final double currentAlpha = pixel.a / 255.0;
-        final double newAlpha = math.max(0.0, currentAlpha - alpha);
-        // Use setPixelRgba to ensure the alpha write commits to the image buffer
-        targetImage.setPixelRgba(targetX, targetY, pixel.r.toInt(), pixel.g.toInt(), pixel.b.toInt(), (newAlpha * 255).round());
+        final img.Pixel currentPixel = targetImage.getPixel(targetX, targetY);
+        final img.Pixel originalPixel =
+            originalImage.getPixel(targetX, targetY);
+
+        targetImage.setPixelRgba(
+          targetX,
+          targetY,
+          _lerp(currentPixel.r.toDouble(), originalPixel.r.toDouble(), alpha),
+          _lerp(currentPixel.g.toDouble(), originalPixel.g.toDouble(), alpha),
+          _lerp(currentPixel.b.toDouble(), originalPixel.b.toDouble(), alpha),
+          _lerp(currentPixel.a.toDouble(), originalPixel.a.toDouble(), alpha),
+        );
       }
     }
+  }
+
+  static int _lerp(double a, double b, double t) {
+    return (a + (b - a) * t).round().clamp(0, 255);
   }
 }

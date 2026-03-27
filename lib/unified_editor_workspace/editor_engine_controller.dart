@@ -63,6 +63,13 @@ class EditorEngineController extends ChangeNotifier {
   String? _quickProfile;
   Uint8List? _referenceStealBytes;
 
+  // Style Steal PRO controls (reference-driven grading deltas).
+  // These must be user-driven (via the UI panel) and persisted across sessions.
+  double _styleStealStrength = 1.0; // 0..1 scales reference deltas
+  bool _stealToneEnabled = true; // exposure (light/dark distribution)
+  bool _stealMoodEnabled = true; // warmth (overall mood)
+  bool _stealColorEnabled = true; // saturation (color mood)
+
   Uint8List? _mlMaskPng;
   bool _mlMaskRefreshing = false;
   int _pipelineGen = 0;
@@ -302,10 +309,25 @@ class EditorEngineController extends ChangeNotifier {
       interpolation: im.Interpolation.linear,
     );
     final delta = styleStealDelta(working, ref);
-    base['exposure'] = delta.exposure;
-    base['warmth'] = delta.warmth;
-    base['saturation'] = delta.saturation;
+    // Apply only the selected components and scale by the chosen PRO strength.
+    final s = _styleStealStrength.clamp(0.0, 1.0);
+    if (_stealToneEnabled) base['exposure'] = delta.exposure * s;
+    if (_stealMoodEnabled) base['warmth'] = delta.warmth * s;
+    if (_stealColorEnabled) base['saturation'] = delta.saturation * s;
     return base;
+  }
+
+  void setStyleStealProOptions({
+    double? strength,
+    bool? toneEnabled,
+    bool? moodEnabled,
+    bool? colorEnabled,
+  }) {
+    if (strength != null) _styleStealStrength = strength.clamp(0.0, 1.0);
+    if (toneEnabled != null) _stealToneEnabled = toneEnabled;
+    if (moodEnabled != null) _stealMoodEnabled = moodEnabled;
+    if (colorEnabled != null) _stealColorEnabled = colorEnabled;
+    schedulePreview();
   }
 
   void schedulePreview() {
@@ -508,12 +530,24 @@ class EditorEngineController extends ChangeNotifier {
       'curveMid': _curveMid,
       'curveHi': _curveHi,
       'curveMaster': _curveMaster,
+      'quickProfile': _quickProfile,
       'maskKind': _maskKind.index,
+      'localTransfer': _localTransfer,
+      'ltSource': _ltSource,
+      'ltTarget': _ltTarget,
+      'ltFeather': _ltFeather,
       'toneLock': _toneLock,
       'glass': _glassEnhance,
       'sky': _skyEnhance,
       'blendT': _blendT,
       'secondaryPackId': _secondaryPackId,
+      'samplePackIds': _samplePackIds,
+      'sampleWeights': _sampleWeights,
+      'sampleMixStrength': _sampleMix,
+      'styleStealStrength': _styleStealStrength,
+      'stealToneEnabled': _stealToneEnabled,
+      'stealMoodEnabled': _stealMoodEnabled,
+      'stealColorEnabled': _stealColorEnabled,
     };
   }
 
@@ -526,15 +560,42 @@ class EditorEngineController extends ChangeNotifier {
     _curveMid = (m['curveMid'] as num?)?.toDouble() ?? _curveMid;
     _curveHi = (m['curveHi'] as num?)?.toDouble() ?? _curveHi;
     _curveMaster = (m['curveMaster'] as num?)?.toDouble() ?? _curveMaster;
+    _quickProfile = m['quickProfile'] as String? ?? _quickProfile;
     final mk = (m['maskKind'] as num?)?.toInt();
     if (mk != null && mk >= 0 && mk < SmartMaskKind.values.length) {
       _maskKind = SmartMaskKind.values[mk];
     }
+    _localTransfer = (m['localTransfer'] as num?)?.toDouble() ?? _localTransfer;
+    _ltSource = m['ltSource'] as String? ?? _ltSource;
+    _ltTarget = m['ltTarget'] as String? ?? _ltTarget;
+    _ltFeather = (m['ltFeather'] as num?)?.toDouble() ?? _ltFeather;
     _toneLock = (m['toneLock'] as num?)?.toDouble() ?? _toneLock;
     _glassEnhance = (m['glass'] as num?)?.toDouble() ?? _glassEnhance;
     _skyEnhance = (m['sky'] as num?)?.toDouble() ?? _skyEnhance;
     _blendT = (m['blendT'] as num?)?.toDouble() ?? _blendT;
     _secondaryPackId = m['secondaryPackId'] as String?;
+
+    final sp = m['samplePackIds'];
+    final sw = m['sampleWeights'];
+    if (sp is List && sw is List) {
+      final packs = sp.whereType<String>().toList();
+      final weights = sw
+          .map((e) => (e as num).toDouble())
+          .toList(growable: false);
+      final count = math.min(packs.length, weights.length);
+      _samplePackIds = packs.take(count).toList(growable: false);
+      _sampleWeights = weights.take(count).toList(growable: false);
+    }
+    _sampleMix = (m['sampleMixStrength'] as num?)?.toDouble() ?? _sampleMix;
+
+    _styleStealStrength =
+        (m['styleStealStrength'] as num?)?.toDouble() ?? _styleStealStrength;
+    _stealToneEnabled =
+        m['stealToneEnabled'] as bool? ?? _stealToneEnabled;
+    _stealMoodEnabled =
+        m['stealMoodEnabled'] as bool? ?? _stealMoodEnabled;
+    _stealColorEnabled =
+        m['stealColorEnabled'] as bool? ?? _stealColorEnabled;
     notifyListeners();
     schedulePreview();
   }

@@ -149,7 +149,7 @@ class _EditorPageState extends State<EditorPage>
                               canRedo: drawingState.canRedo,
                               compact: compactToolbar,
                               onBack: _handleBackNavigation,
-                               onHelp: () => _showEditorHelpSheet(context, l10n),
+                              onHelp: () => _showEditorHelpSheet(context, l10n),
                               onUndo: () => context.read<DrawingCubit>().undo(),
                               onRedo: () => context.read<DrawingCubit>().redo(),
                               onClear: () =>
@@ -236,64 +236,18 @@ class _EditorPageState extends State<EditorPage>
                     drawingStateOverride: drawingState,
                   ),
                 ),
-                SizedBox(height: 10),
-
-                // Compact toolbar pill
-                InpaintingCompactToolbar(
-                  isEraser: drawingState.brush.kind == BrushKind.eraser,
-                  maskVisible: _showMaskOverlay,
-                  compareEnabled: _showOriginalPreview,
-                  canUndo: drawingState.canUndo,
-                  canRedo: drawingState.canRedo,
-                  hasMask: drawingState.strokes.isNotEmpty,
-                  brushPx: drawingState.brushSize,
-                  onBrushMode: () =>
-                      context.read<DrawingCubit>().setBrushKind(BrushKind.solid),
-                  onEraserMode: () =>
-                      context.read<DrawingCubit>().setBrushKind(BrushKind.eraser),
-                  onToggleMaskVisibility: _toggleMaskVisibility,
-                  onToggleCompare: _toggleComparePreview,
-                  onUndo: () => context.read<DrawingCubit>().undo(),
-                  onRedo: () => context.read<DrawingCubit>().redo(),
-                  onResetViewport: _resetViewport,
-                  onClear: () => context.read<DrawingCubit>().clear(),
-                  onBrushSizeChanged: (v) =>
-                      context.read<DrawingCubit>().setBrush(v),
-                ),
-                SizedBox(height: 10),
-
-                // Pinned Run AI row
-                _buildNarrowRunRow(
-                  context: context,
-                  l10n: l10n,
-                  hasMask: drawingState.strokes.isNotEmpty,
-                  image: image,
-                ),
-                SizedBox(height: 6),
-
-                // Hint: swipe up for advanced
-                Center(
-                  child: Text(
-                    '↑  ${l10n.get('preview_tools')}',
-                    style: TextStyle(
-                      color: InpaintingStudioTheme.textMuted,
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.3,
-                    ),
-                  ),
-                ),
-                SizedBox(height: 6),
+                SizedBox(height: 12),
+                SizedBox(height: 2),
               ],
             ),
 
             // ── Draggable advanced settings sheet ───────────────────
             DraggableScrollableSheet(
-              initialChildSize: 0.10,
-              minChildSize: 0.10,
-              maxChildSize: 0.78,
+              initialChildSize: 0.16,
+              minChildSize: 0.16,
+              maxChildSize: 0.80,
               snap: true,
-              snapSizes: const [0.10, 0.55, 0.78],
+              snapSizes: const [0.16, 0.42, 0.80],
               builder: (sheetContext, scrollController) {
                 return ValueListenableBuilder<Matrix4>(
                   valueListenable: _viewportController,
@@ -310,73 +264,6 @@ class _EditorPageState extends State<EditorPage>
           ],
         );
       },
-    );
-  }
-
-  Widget _buildNarrowRunRow({
-    required BuildContext context,
-    required AppL10n l10n,
-    required bool hasMask,
-    required ui.Image image,
-  }) {
-    return Opacity(
-      opacity: hasMask ? 1.0 : 0.44,
-      child: InkWell(
-        onTap: hasMask
-            ? () => _runMagicPipeline(context, image, l10n)
-            : null,
-        borderRadius: BorderRadius.circular(24),
-        child: Ink(
-          height: 56,
-          decoration: BoxDecoration(
-            gradient: hasMask
-                ? InpaintingStudioTheme.primaryGradient
-                : null,
-            color: hasMask
-                ? null
-                : Colors.white.withValues(alpha: 0.06),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(
-              color: hasMask
-                  ? Colors.transparent
-                  : Colors.white.withValues(alpha: 0.08),
-            ),
-            boxShadow: hasMask
-                ? const [
-                    BoxShadow(
-                      color: Color(0x326DC6B0),
-                      blurRadius: 22,
-                      offset: Offset(0, 8),
-                    ),
-                  ]
-                : null,
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.auto_fix_high_rounded,
-                size: 20,
-                color: hasMask
-                    ? Colors.black
-                    : InpaintingStudioTheme.textMuted,
-              ),
-              SizedBox(width: 9),
-              Text(
-                l10n.get('magic'),
-                style: TextStyle(
-                  color: hasMask
-                      ? Colors.black
-                      : InpaintingStudioTheme.textMuted,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 15.5,
-                  letterSpacing: 0.2,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 
@@ -397,10 +284,11 @@ class _EditorPageState extends State<EditorPage>
             final canvasSize = Size(
               constraints.maxWidth,
               constraints.maxHeight -
-                  (compact ? 92 : 108), // مساحة للهيدر + الفوتر داخل الكارد
+                  (compact ? 68 : 108), // مساحة للهيدر + الفوتر داخل الكارد
             );
 
-            final isCompactHud = compact || constraints.biggest.shortestSide < 360;
+            final isCompactHud =
+                compact || constraints.biggest.shortestSide < 360;
 
             final magnifierDiameter = math.min(
               math.max(constraints.biggest.shortestSide * 0.34, 116.0),
@@ -470,7 +358,8 @@ class _EditorPageState extends State<EditorPage>
                     children: [
                       Container(
                         decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(compact ? 26 : 30),
+                          borderRadius:
+                              BorderRadius.circular(compact ? 26 : 30),
                           border: Border.all(
                             color: Colors.white.withValues(alpha: 0.08),
                           ),
@@ -483,7 +372,8 @@ class _EditorPageState extends State<EditorPage>
                           ],
                         ),
                         child: ClipRRect(
-                          borderRadius: BorderRadius.circular(compact ? 26 : 30),
+                          borderRadius:
+                              BorderRadius.circular(compact ? 26 : 30),
                           child: Listener(
                             onPointerDown: (_) => _handlePointerDown(context),
                             onPointerUp: (_) => _handlePointerEnd(),
@@ -535,14 +425,15 @@ class _EditorPageState extends State<EditorPage>
                                                       milliseconds: 180,
                                                     ),
                                                     opacity: _showMaskOverlay &&
-                                                        !_showOriginalPreview
+                                                            !_showOriginalPreview
                                                         ? 1
                                                         : 0,
                                                     child: RepaintBoundary(
                                                       child: CustomPaint(
-                                                        painter: MaskStrokesPainter(
-                                                          strokes:
-                                                          drawingState.strokes,
+                                                        painter:
+                                                            MaskStrokesPainter(
+                                                          strokes: drawingState
+                                                              .strokes,
                                                           isPreview: true,
                                                           imageW: image.width,
                                                           imageH: image.height,
@@ -557,7 +448,6 @@ class _EditorPageState extends State<EditorPage>
                                         ),
                                       ),
                                     ),
-
                                     if (_cursorPoint != null &&
                                         !_isViewportGestureActive &&
                                         !_showOriginalPreview)
@@ -574,7 +464,6 @@ class _EditorPageState extends State<EditorPage>
                           ),
                         ),
                       ),
-
                       if (_magnifierImagePoint != null &&
                           !_isViewportGestureActive &&
                           !_showOriginalPreview)
@@ -633,9 +522,6 @@ class _EditorPageState extends State<EditorPage>
       builder: (context, drawingState) => buildContent(drawingState),
     );
   }
-
-
-
 
   Widget _buildControlsPanel({
     required BuildContext context,

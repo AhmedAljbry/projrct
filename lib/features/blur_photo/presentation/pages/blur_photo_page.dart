@@ -7,6 +7,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../data/datasources/bp_segmentation_datasource.dart';
 import '../../data/rendering/bp_isolate_renderer.dart';
 import '../../data/repositories/bp_blur_repository_impl.dart';
+import '../../domain/entities/blur_mode.dart';
+import '../../domain/entities/blur_style.dart';
 import '../../domain/entities/circle_params.dart';
 import '../../domain/entities/line_params.dart';
 import '../cubit/blur_photo_cubit.dart';
@@ -19,7 +21,6 @@ import '../widgets/bp_top_bar.dart';
 const _kBg = Color(0xFF0B0B0D);
 const _kAccent = Color(0xFF56E39F);
 
-/// Entry point widget — wraps [_BlurPhotoView] in a [BlocProvider].
 class BlurPhotoPage extends StatelessWidget {
   const BlurPhotoPage({
     super.key,
@@ -46,8 +47,6 @@ class BlurPhotoPage extends StatelessWidget {
   }
 }
 
-// ── Private view ─────────────────────────────────────────────────────────────
-
 class _BlurPhotoView extends StatelessWidget {
   const _BlurPhotoView({this.onApply, this.onClose});
 
@@ -58,136 +57,194 @@ class _BlurPhotoView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _kBg,
-      body: BlocConsumer<BlurPhotoCubit, BlurPhotoState>(
-        listenWhen: (p, c) => p.errorMessage != c.errorMessage,
-        listener: (context, state) {
-          final msg = state.errorMessage;
-          if (msg != null && msg.isNotEmpty) {
-            ScaffoldMessenger.of(context)
-                .showSnackBar(SnackBar(content: Text(msg)));
-          }
-        },
-        builder: (context, state) {
-          final cubit = context.read<BlurPhotoCubit>();
+      body: SafeArea(
+        bottom: false,
+        child: BlocConsumer<BlurPhotoCubit, BlurPhotoState>(
+          listenWhen: (p, c) => p.errorMessage != c.errorMessage,
+          listener: (context, state) {
+            final msg = state.errorMessage;
+            if (msg != null && msg.isNotEmpty) {
+              ScaffoldMessenger.of(context)
+                  .showSnackBar(SnackBar(content: Text(msg)));
+            }
+          },
+          builder: (context, state) {
+            final cubit = context.read<BlurPhotoCubit>();
 
-          if (state.status == BpEditorStatus.loading ||
-              state.originalImage == null) {
-            return const Center(
-              child: CircularProgressIndicator(color: _kAccent),
-            );
-          }
+            if (state.status == BpEditorStatus.loading ||
+                state.originalImage == null) {
+              return const Center(
+                child: CircularProgressIndicator(color: _kAccent),
+              );
+            }
 
-          final visibleImage = state.showOriginal
-              ? state.originalImage!
-              : (state.previewImage ?? state.originalImage!);
+            final visibleImage = state.showOriginal
+                ? state.originalImage!
+                : (state.previewImage ?? state.originalImage!);
 
-          return Column(
-            children: [
-              // ── Top bar ────────────────────────────────────────────────────
-              BpTopBar(
-                status: state.status,
-                canUndo: state.canUndo,
-                onClose: () {
-                  onClose?.call();
-                  Navigator.of(context).pop();
-                },
-                onExport: () async {
-                  final navigator = Navigator.of(context);
-                  final bytes = await cubit.exportFinal();
-                  if (!context.mounted || bytes == null) return;
+            return Column(
+              children: [
+                BpTopBar(
+                  status: state.status,
+                  onClose: () {
+                    onClose?.call();
+                    Navigator.of(context).pop();
+                  },
+                  onExport: () async {
+                    final navigator = Navigator.of(context);
+                    final bytes = await cubit.exportFinal();
+                    if (!context.mounted || bytes == null) return;
 
-                  // Save to gallery using gal
-                  try {
-                    // We try using gal; if it's unavailable, trigger onApply directly
-                    onApply?.call(bytes);
-                  } catch (_) {}
+                    try {
+                      onApply?.call(bytes);
+                    } catch (_) {}
 
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Image saved!'),
-                      backgroundColor: Color(0xFF1E1E22),
-                    ),
-                  );
-                  navigator.pop();
-                },
-                onUndo: state.canUndo ? () => cubit.undo() : null,
-                onCompareStart: () => cubit.showOriginal(true),
-                onCompareEnd: () => cubit.showOriginal(false),
-              ),
-
-              // ── Canvas ─────────────────────────────────────────────────────
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  child: Stack(
-                    children: [
-                      BpCanvasView(
-                        image: visibleImage,
-                        settings: state.settings,
-                        onCircleUpdate: (p) =>
-                            cubit.updateCircle(p as CircleBlurParams, trackOnly: true),
-                        onCircleEnd: (p) =>
-                            cubit.commitCircleInteractionEnd(p as CircleBlurParams),
-                        onLineUpdate: (p) =>
-                            cubit.updateLine(p as LineBlurParams, trackOnly: true),
-                        onLineEnd: (p) =>
-                            cubit.commitLineInteractionEnd(p as LineBlurParams),
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Image saved!'),
+                        backgroundColor: Color(0xFF1E1E22),
                       ),
-
-                      // Busy indicator
-                      if (state.isBusy)
-                        const Positioned(
-                          top: 12,
-                          right: 12,
-                          child: _BusyIndicator(),
+                    );
+                    navigator.pop();
+                  },
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
+                    child: Stack(
+                      children: [
+                        BpCanvasView(
+                          image: visibleImage,
+                          settings: state.settings,
+                          onCircleUpdate: (p) => cubit.updateCircle(
+                            p as CircleBlurParams,
+                            trackOnly: true,
+                          ),
+                          onCircleEnd: (p) => cubit.commitCircleInteractionEnd(
+                            p as CircleBlurParams,
+                          ),
+                          onLineUpdate: (p) => cubit.updateLine(
+                            p as LineBlurParams,
+                            trackOnly: true,
+                          ),
+                          onLineEnd: (p) => cubit.commitLineInteractionEnd(
+                            p as LineBlurParams,
+                          ),
                         ),
-                    ],
-                  ),
-                ),
-              ),
-
-              // ── Intensity slider ───────────────────────────────────────────
-              Padding(
-                padding: const EdgeInsets.fromLTRB(0, 4, 0, 0),
-                child: BpIntensitySlider(
-                  value: state.settings.blurIntensity,
-                  onChanged: cubit.updateIntensity,
-                  onChangeEnd: cubit.onIntensityDragEnd,
-                ),
-              ),
-
-              // ── Hint message ───────────────────────────────────────────────
-              if (state.hintMessage != null && state.hintMessage!.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      state.hintMessage!,
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.55),
-                        fontSize: 12,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                        if (state.isBusy)
+                          const Positioned(
+                            top: 12,
+                            right: 12,
+                            child: _BusyIndicator(),
+                          ),
+                      ],
                     ),
                   ),
                 ),
-
-              // ── Mode bar ───────────────────────────────────────────────────
-              BpModeBar(
-                activeMode: state.activeMode,
-                onChanged: cubit.setMode,
-              ),
-            ],
-          );
-        },
+                Container(
+                  width: double.infinity,
+                  constraints: const BoxConstraints(maxHeight: 290),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0F1013),
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(28),
+                    ),
+                    border: Border(
+                      top: BorderSide(
+                        color: Colors.white.withValues(alpha: 0.06),
+                      ),
+                    ),
+                  ),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children: [
+                        Container(
+                          width: 42,
+                          height: 4,
+                          margin: const EdgeInsets.only(top: 10, bottom: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.16),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+                          child: Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            alignment: WrapAlignment.center,
+                            children: [
+                              _ActionButton(
+                                icon: Icons.undo_rounded,
+                                label: 'Undo',
+                                enabled: state.canUndo,
+                                onTap:
+                                    state.canUndo ? () => cubit.undo() : null,
+                              ),
+                              _ActionButton(
+                                icon: Icons.redo_rounded,
+                                label: 'Redo',
+                                enabled: state.canRedo,
+                                onTap:
+                                    state.canRedo ? () => cubit.redo() : null,
+                              ),
+                              _HoldCompareButton(
+                                onHoldStart: cubit.showOriginal,
+                              ),
+                              _StyleMenuButton(
+                                activeStyle: state.settings.style,
+                                onSelected: (style) => cubit.updateStyle(style),
+                              ),
+                              _ShapeMenuButton(
+                                activePreset:
+                                    _activePresetFor(state.settings.circle),
+                                onSelected: (preset) =>
+                                    _applyPreset(cubit, preset),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(0, 6, 0, 0),
+                          child: BpIntensitySlider(
+                            value: state.settings.blurIntensity,
+                            onChanged: cubit.updateIntensity,
+                            onChangeEnd: cubit.onIntensityDragEnd,
+                          ),
+                        ),
+                        if (state.hintMessage != null &&
+                            state.hintMessage!.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                state.hintMessage!,
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.55),
+                                  fontSize: 12,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ),
+                        BpModeBar(
+                          activeMode: state.activeMode,
+                          onChanged: (mode) => cubit.setMode(mode),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
 }
-
-// ── Busy indicator ────────────────────────────────────────────────────────────
 
 class _BusyIndicator extends StatelessWidget {
   const _BusyIndicator();
@@ -212,10 +269,449 @@ class _BusyIndicator extends StatelessWidget {
             ),
           ),
           SizedBox(width: 8),
-          Text('Processing',
-              style: TextStyle(color: Colors.white, fontSize: 11.5)),
+          Text(
+            'Processing',
+            style: TextStyle(color: Colors.white, fontSize: 11.5),
+          ),
         ],
       ),
     );
   }
 }
+
+class _ActionButton extends StatelessWidget {
+  const _ActionButton({
+    required this.icon,
+    required this.label,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool enabled;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = enabled ? _kAccent : Colors.white.withValues(alpha: 0.28);
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: enabled ? 0.05 : 0.03),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 17, color: color),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HoldCompareButton extends StatelessWidget {
+  const _HoldCompareButton({required this.onHoldStart});
+
+  final ValueChanged<bool> onHoldStart;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onLongPressStart: (_) => onHoldStart(true),
+      onLongPressEnd: (_) => onHoldStart(false),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.compare_rounded, size: 17, color: _kAccent),
+            const SizedBox(width: 6),
+            Text(
+              'Compare',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.88),
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StyleMenuButton extends StatelessWidget {
+  const _StyleMenuButton({
+    required this.activeStyle,
+    required this.onSelected,
+  });
+
+  final BlurPhotoStyle activeStyle;
+  final ValueChanged<BlurPhotoStyle> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<BlurPhotoStyle>(
+      tooltip: 'Style',
+      color: const Color(0xFF15171B),
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      onSelected: onSelected,
+      itemBuilder: (context) => BlurPhotoStyle.values
+          .map(
+            (style) => PopupMenuItem<BlurPhotoStyle>(
+              value: style,
+              child: _PopupOptionRow(
+                icon: _styleIcon(style),
+                title: style.label,
+                subtitle: style.description,
+                active: activeStyle == style,
+              ),
+            ),
+          )
+          .toList(),
+      child: _MenuChip(
+        icon: Icons.layers_outlined,
+        label: 'Style',
+        detail: activeStyle.label,
+      ),
+    );
+  }
+}
+
+class _ShapeMenuButton extends StatelessWidget {
+  const _ShapeMenuButton({
+    required this.activePreset,
+    required this.onSelected,
+  });
+
+  final _ShapePreset activePreset;
+  final ValueChanged<_ShapePreset> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<_ShapePreset>(
+      tooltip: 'Shape',
+      color: const Color(0xFF15171B),
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      onSelected: onSelected,
+      itemBuilder: (context) => _shapePresets
+          .map(
+            (preset) => PopupMenuItem<_ShapePreset>(
+              value: preset.preset,
+              child: _PopupOptionRow(
+                icon: preset.icon,
+                title: preset.label,
+                subtitle: preset.subtitle,
+                active: activePreset == preset.preset,
+              ),
+            ),
+          )
+          .toList(),
+      child: _MenuChip(
+        icon: Icons.category_outlined,
+        label: 'Shape',
+        detail: _labelForPreset(activePreset),
+      ),
+    );
+  }
+}
+
+class _MenuChip extends StatelessWidget {
+  const _MenuChip({
+    required this.icon,
+    required this.label,
+    required this.detail,
+  });
+
+  final IconData icon;
+  final String label;
+  final String detail;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 17, color: _kAccent),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.92),
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            detail,
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.48),
+              fontSize: 11,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PopupOptionRow extends StatelessWidget {
+  const _PopupOptionRow({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.active,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = active ? _kAccent : Colors.white.withValues(alpha: 0.84);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 30,
+          height: 30,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, size: 16, color: color),
+        ),
+        const SizedBox(width: 10),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              title,
+              style: TextStyle(
+                color: color,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            Text(
+              subtitle,
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.46),
+                fontSize: 10.5,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+void _applyPreset(BlurPhotoCubit cubit, _ShapePreset preset) {
+  switch (preset) {
+    case _ShapePreset.circle:
+      cubit.setMode(BlurPhotoMode.circle);
+      cubit.commitCircleInteractionEnd(
+        const CircleBlurParams(
+          radiusX: 0.24,
+          radiusY: 0.24,
+          feather: 0.18,
+          shapeType: BlurShapeType.ellipse,
+        ),
+      );
+      break;
+    case _ShapePreset.oval:
+      cubit.setMode(BlurPhotoMode.circle);
+      cubit.commitCircleInteractionEnd(
+        const CircleBlurParams(
+          radiusX: 0.30,
+          radiusY: 0.20,
+          feather: 0.16,
+          shapeType: BlurShapeType.ellipse,
+        ),
+      );
+      break;
+    case _ShapePreset.portrait:
+      cubit.setMode(BlurPhotoMode.circle);
+      cubit.commitCircleInteractionEnd(
+        const CircleBlurParams(
+          centerY: 0.46,
+          radiusX: 0.22,
+          radiusY: 0.32,
+          feather: 0.22,
+          shapeType: BlurShapeType.ellipse,
+        ),
+      );
+      break;
+    case _ShapePreset.rectangle:
+      cubit.setMode(BlurPhotoMode.circle);
+      cubit.commitCircleInteractionEnd(
+        const CircleBlurParams(
+          radiusX: 0.28,
+          radiusY: 0.18,
+          feather: 0.14,
+          shapeType: BlurShapeType.rectangle,
+        ),
+      );
+      break;
+    case _ShapePreset.tilt:
+      cubit.setMode(BlurPhotoMode.line);
+      cubit.commitLineInteractionEnd(
+        const LineBlurParams(bandWidth: 0.18, feather: 0.16),
+      );
+      break;
+    case _ShapePreset.vertical:
+      cubit.setMode(BlurPhotoMode.line);
+      cubit.commitLineInteractionEnd(
+        const LineBlurParams(
+          angle: 1.57079632679,
+          bandWidth: 0.16,
+          feather: 0.18,
+        ),
+      );
+      break;
+    case _ShapePreset.diagonal:
+      cubit.setMode(BlurPhotoMode.line);
+      cubit.commitLineInteractionEnd(
+        const LineBlurParams(
+          angle: 0.78,
+          bandWidth: 0.15,
+          feather: 0.20,
+        ),
+      );
+      break;
+  }
+}
+
+_ShapePreset _activePresetFor(CircleBlurParams params) {
+  if (params.shapeType == BlurShapeType.rectangle) {
+    return _ShapePreset.rectangle;
+  }
+  final tall = params.radiusY > params.radiusX * 1.2;
+  final wide = params.radiusX > params.radiusY * 1.2;
+  if (tall) return _ShapePreset.portrait;
+  if (wide) return _ShapePreset.oval;
+  return _ShapePreset.circle;
+}
+
+String _labelForPreset(_ShapePreset preset) => switch (preset) {
+      _ShapePreset.circle => 'Circle',
+      _ShapePreset.oval => 'Oval',
+      _ShapePreset.portrait => 'Portrait',
+      _ShapePreset.rectangle => 'Rectangle',
+      _ShapePreset.tilt => 'Tilt',
+      _ShapePreset.vertical => 'Vertical',
+      _ShapePreset.diagonal => 'Diagonal',
+    };
+
+IconData _styleIcon(BlurPhotoStyle style) => switch (style) {
+      BlurPhotoStyle.soft => Icons.blur_on_rounded,
+      BlurPhotoStyle.frost => Icons.ac_unit_rounded,
+      BlurPhotoStyle.motion => Icons.motion_photos_on_rounded,
+      BlurPhotoStyle.crystal => Icons.diamond_outlined,
+      BlurPhotoStyle.spotlight => Icons.highlight_alt_rounded,
+    };
+
+enum _ShapePreset {
+  circle,
+  oval,
+  portrait,
+  rectangle,
+  tilt,
+  vertical,
+  diagonal,
+}
+
+class _ShapePresetOption {
+  const _ShapePresetOption({
+    required this.preset,
+    required this.label,
+    required this.subtitle,
+    required this.icon,
+  });
+
+  final _ShapePreset preset;
+  final String label;
+  final String subtitle;
+  final IconData icon;
+}
+
+const _shapePresets = <_ShapePresetOption>[
+  _ShapePresetOption(
+    preset: _ShapePreset.circle,
+    label: 'Circle',
+    subtitle: 'Round focus area',
+    icon: Icons.circle_outlined,
+  ),
+  _ShapePresetOption(
+    preset: _ShapePreset.oval,
+    label: 'Oval',
+    subtitle: 'Wide center focus',
+    icon: Icons.egg_alt_outlined,
+  ),
+  _ShapePresetOption(
+    preset: _ShapePreset.portrait,
+    label: 'Portrait',
+    subtitle: 'Tall subject focus',
+    icon: Icons.person_outline_rounded,
+  ),
+  _ShapePresetOption(
+    preset: _ShapePreset.rectangle,
+    label: 'Rectangle',
+    subtitle: 'Rectangular blur box',
+    icon: Icons.crop_square_rounded,
+  ),
+  _ShapePresetOption(
+    preset: _ShapePreset.tilt,
+    label: 'Tilt',
+    subtitle: 'Horizontal line focus',
+    icon: Icons.view_stream_outlined,
+  ),
+  _ShapePresetOption(
+    preset: _ShapePreset.vertical,
+    label: 'Vertical',
+    subtitle: 'Vertical line focus',
+    icon: Icons.splitscreen_outlined,
+  ),
+  _ShapePresetOption(
+    preset: _ShapePreset.diagonal,
+    label: 'Diagonal',
+    subtitle: 'Diagonal line focus',
+    icon: Icons.show_chart_rounded,
+  ),
+];

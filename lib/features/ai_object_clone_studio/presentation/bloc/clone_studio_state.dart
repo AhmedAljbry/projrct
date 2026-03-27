@@ -8,6 +8,8 @@ enum CloneStudioMode {
   place,
 }
 
+const Object _unsetActiveLayerId = Object();
+
 abstract class CloneStudioEvent extends Equatable {
   @override
   List<Object?> get props => [];
@@ -27,6 +29,14 @@ class SelectObjectEvent extends CloneStudioEvent {
 
   @override
   List<Object?> get props => [points];
+}
+
+class SetModeEvent extends CloneStudioEvent {
+  final CloneStudioMode mode;
+  SetModeEvent(this.mode);
+
+  @override
+  List<Object?> get props => [mode];
 }
 
 class ConfirmSelectionEvent extends CloneStudioEvent {}
@@ -86,7 +96,7 @@ class CloneStudioState extends Equatable {
     Uint8List? baseImage,
     CloneStudioMode? mode,
     List<EditLayer>? layers,
-    String? activeLayerId,
+    Object? activeLayerId = _unsetActiveLayerId,
     bool? isLoading,
     String? errorMessage,
     List<EditLayer>? history,
@@ -96,7 +106,9 @@ class CloneStudioState extends Equatable {
       baseImage: baseImage ?? this.baseImage,
       mode: mode ?? this.mode,
       layers: layers ?? this.layers,
-      activeLayerId: activeLayerId ?? this.activeLayerId,
+      activeLayerId: identical(activeLayerId, _unsetActiveLayerId)
+          ? this.activeLayerId
+          : activeLayerId as String?,
       isLoading: isLoading ?? this.isLoading,
       errorMessage: errorMessage ?? this.errorMessage,
       history: history ?? this.history,
@@ -113,6 +125,6 @@ class CloneStudioState extends Equatable {
         isLoading,
         errorMessage,
         history,
-        historyIndex
+        historyIndex,
       ];
 }

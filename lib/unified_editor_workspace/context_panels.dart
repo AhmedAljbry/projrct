@@ -5,6 +5,7 @@ import 'editor_scope.dart';
 import 'engine/creative_types.dart';
 import 'engine/style_registry.dart';
 import 'reference_image_state.dart';
+import 'session_store.dart';
 import 'unified_editor_workspace.dart';
 
 /// Context panels drive [EditorEngineController] via [EditorScope] where available.
@@ -581,6 +582,38 @@ class _RegionControlPanelState extends State<RegionControlPanel> {
               ),
             ],
           ),
+          const SizedBox(height: 12),
+          _PrimaryButton(
+            label: 'Apply Regions',
+            icon: Icons.crop_rounded,
+            onPressed: () {
+              // Engine supports a single mask kind at a time; for multi-selection
+              // we apply the highest-priority selected region.
+              SmartMaskKind kind;
+              if (activeRegions.contains('Face')) {
+                kind = SmartMaskKind.face;
+              } else if (activeRegions.contains('Sky')) {
+                kind = SmartMaskKind.sky;
+              } else if (activeRegions.contains('Subject')) {
+                kind = SmartMaskKind.subject;
+              } else if (activeRegions.contains('Vegetation')) {
+                kind = SmartMaskKind.vegetation;
+              } else if (activeRegions.contains('Facade') ||
+                  activeRegions.contains('Windows') ||
+                  activeRegions.contains('Walls/Floor/Ceiling')) {
+                kind = SmartMaskKind.facade;
+              } else if (activeRegions.contains('Background')) {
+                kind = SmartMaskKind.none;
+              } else {
+                kind = SmartMaskKind.face;
+              }
+
+              EditorScope.maybeOf(context)?.setMaskKind(kind);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Regions applied: ${kind.name}')),
+              );
+            },
+          ),
         ],
       ),
     );
@@ -1087,10 +1120,21 @@ class _MultiSamplePanelState extends State<MultiSamplePanel> {
           _SecondaryButton(
             label: 'Save preset',
             icon: Icons.save_rounded,
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Preset saved (UI only)')),
-              );
+            onPressed: () async {
+              final eng = EditorScope.maybeOf(context);
+              if (eng == null) return;
+              try {
+                await UnifiedEditorSessionStore.save(eng);
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Preset saved to session')),
+                );
+              } catch (e) {
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Preset save failed: $e')),
+                );
+              }
             },
           ),
         ],
@@ -1632,11 +1676,19 @@ class _ReferenceInfoBox extends StatelessWidget {
             children: [
               const Icon(Icons.image_search_rounded, color: AppTokens.success, size: 14),
               const SizedBox(width: 6),
-              Text('Reference · ',
-                style: const TextStyle(color: AppTokens.success, fontWeight: FontWeight.w900, fontSize: 12)),
+              const Text(
+                'Reference',
+                style: TextStyle(color: AppTokens.success, fontWeight: FontWeight.w900, fontSize: 12),
+              ),
               const Spacer(),
-              Text('Match %',
-                style: TextStyle(color: p.compatibilityBias > 0.65 ? AppTokens.success : AppTokens.warning, fontWeight: FontWeight.w900, fontSize: 11)),
+              Text(
+                '${(p.compatibilityBias * 100).round()}% match',
+                style: TextStyle(
+                  color: p.compatibilityBias > 0.65 ? AppTokens.success : AppTokens.warning,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 11,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 8),
@@ -1773,8 +1825,12 @@ class _StyleStealProPanelState extends State<StyleStealProPanel> {
                         Text('Compatibility Score', style: TextStyle(color: AppTokens.text2, fontWeight: FontWeight.w800, fontSize: 12)),
                         const SizedBox(height: 4),
                         Text(
-                          '% · ',
-                          style: TextStyle(color: profile.compatibilityBias > 0.65 ? AppTokens.success : AppTokens.warning, fontWeight: FontWeight.w900, fontSize: 12),
+                          '${(profile.compatibilityBias * 100).round()}% fit',
+                          style: TextStyle(
+                            color: profile.compatibilityBias > 0.65 ? AppTokens.success : AppTokens.warning,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 12,
+                          ),
                         ),
                       ]),
                     ),
@@ -1788,11 +1844,19 @@ class _StyleStealProPanelState extends State<StyleStealProPanel> {
               icon: Icons.auto_awesome_rounded,
               onPressed: () {
                 final eff = extractStrength * overApplicationLimit * (profile?.compatibilityBias ?? 0.75);
-                final eng = EditorScope.maybeOf(context);
+              final eng = EditorScope.maybeOf(context);
+              eng?.setStyleStealProOptions(
+                strength: eff,
+                toneEnabled: toneTransfer,
+                moodEnabled: moodTransfer,
+                colorEnabled: colorTransfer,
+              );
                 if (colorTransfer) {
                   eng?.setLocalTransfer(amount: eff, sourceLabel: 'Reference', targetLabel: 'Full', feather: preserveStructure ? 0.35 : 0.6);
                 }
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Style profile built · Strength %')));
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Style profile built - Strength ${(eff * 100).round()}%')),
+              );
               },
             ),
             const SizedBox(height: 12),

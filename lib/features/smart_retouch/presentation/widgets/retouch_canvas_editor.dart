@@ -13,8 +13,13 @@ import '../../infrastructure/engine/image_coordinate_mapper.dart';
 
 class RetouchCanvasEditor extends StatefulWidget {
   final ui.Image displayImage;
+  final ui.Image originalImage;
 
-  const RetouchCanvasEditor({super.key, required this.displayImage});
+  const RetouchCanvasEditor({
+    super.key,
+    required this.displayImage,
+    required this.originalImage,
+  });
 
   @override
   State<RetouchCanvasEditor> createState() => _RetouchCanvasEditorState();
@@ -32,17 +37,17 @@ class _RetouchCanvasEditorState extends State<RetouchCanvasEditor> {
   bool _isDefiningSource = false;
   Offset? _continuedCloneOffset;
   Offset? _continuedSourceAnchor;
+  Offset? _carryStrokeEnd;
+  Offset? _carrySourceEnd;
+  RetouchMode? _carryMode;
 
   bool _shouldContinueFromLastStroke({
     required RetouchState state,
     required Offset nextPoint,
   }) {
-    if (state.lastStrokeEnd == null) return false;
-    final double threshold = (state.activeBrushSettings.size * 1.9).clamp(
-      28.0,
-      180.0,
-    );
-    return (state.lastStrokeEnd! - nextPoint).distance <= threshold;
+    if (_carryStrokeEnd == null) return false;
+    if (_carryMode != state.activeMode) return false;
+    return true;
   }
 
   @override
@@ -95,6 +100,9 @@ class _RetouchCanvasEditorState extends State<RetouchCanvasEditor> {
       _isDefiningSource = true;
       _continuedCloneOffset = null;
       _continuedSourceAnchor = null;
+      _carryStrokeEnd = null;
+      _carrySourceEnd = null;
+      _carryMode = null;
       context.read<RetouchBloc>().add(SetSourceAnchorEvent(imagePoint));
       return;
     }
@@ -104,15 +112,15 @@ class _RetouchCanvasEditorState extends State<RetouchCanvasEditor> {
     _continuedSourceAnchor = null;
     final bool continueStroke =
         _shouldContinueFromLastStroke(state: state, nextPoint: imagePoint);
-    if (continueStroke && state.lastStrokeEnd != null) {
-      _currentStrokePoints = [state.lastStrokeEnd!];
+    if (continueStroke && _carryStrokeEnd != null) {
+      _currentStrokePoints = [_carryStrokeEnd!];
       if ((_currentStrokePoints.first - imagePoint).distance > 0.1) {
         _currentStrokePoints.add(imagePoint);
       }
       if ((state.activeMode == RetouchMode.clone ||
               state.activeMode == RetouchMode.heal) &&
-          state.lastSourceEnd != null) {
-        _continuedCloneOffset = state.lastSourceEnd! - state.lastStrokeEnd!;
+          _carrySourceEnd != null) {
+        _continuedCloneOffset = _carrySourceEnd! - _carryStrokeEnd!;
         _continuedSourceAnchor =
             _currentStrokePoints.first + _continuedCloneOffset!;
       }
@@ -180,6 +188,9 @@ class _RetouchCanvasEditorState extends State<RetouchCanvasEditor> {
       _currentStrokePoints.clear();
       _continuedCloneOffset = null;
       _continuedSourceAnchor = null;
+      _carryStrokeEnd = null;
+      _carrySourceEnd = null;
+      _carryMode = null;
       return;
     }
 
@@ -210,6 +221,14 @@ class _RetouchCanvasEditorState extends State<RetouchCanvasEditor> {
         sourceAnchor: effectiveSource,
         targetAnchor: _currentStrokePoints.first,
       );
+    }
+
+    _carryStrokeEnd = _currentStrokePoints.last;
+    _carryMode = state.activeMode;
+    if (op is StrokeOperation && op.sourceAnchor != null) {
+      _carrySourceEnd = op.sourceAnchor! + (op.path.last - op.path.first);
+    } else {
+      _carrySourceEnd = null;
     }
 
     _currentStrokePoints.clear();
@@ -329,6 +348,7 @@ class _RetouchCanvasEditorState extends State<RetouchCanvasEditor> {
                                   widget.displayImage.height.toDouble(),
                                 ),
                                 baseImage: widget.displayImage,
+                                originalImage: widget.originalImage,
                               ),
                             ),
                           ),
@@ -392,6 +412,7 @@ class _RetouchCanvasEditorState extends State<RetouchCanvasEditor> {
                         ),
                         zoomScale: _currentScale,
                         loupeScale: _loupeScaleFor(_currentScale),
+                        originalImage: widget.originalImage,
                       ),
                     ),
                 ],
@@ -409,6 +430,7 @@ class _RetouchLoupe extends StatelessWidget {
   final Matrix4 transform;
   final Size canvasSize;
   final ui.Image displayImage;
+  final ui.Image originalImage;
   final List<RetouchOperation> operations;
   final StrokeOperation? inProgressStroke;
   final Offset? inProgressSourceAnchor;
@@ -423,6 +445,7 @@ class _RetouchLoupe extends StatelessWidget {
     required this.transform,
     required this.canvasSize,
     required this.displayImage,
+    required this.originalImage,
     required this.operations,
     required this.inProgressStroke,
     required this.inProgressSourceAnchor,
@@ -489,6 +512,7 @@ class _RetouchLoupe extends StatelessWidget {
                         imageRect: imageRect,
                         imageSize: imageSize,
                         baseImage: displayImage,
+                        originalImage: originalImage,
                       ),
                     ),
                   ],

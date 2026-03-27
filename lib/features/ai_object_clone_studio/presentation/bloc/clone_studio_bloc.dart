@@ -16,24 +16,28 @@ class CloneStudioBloc extends Bloc<CloneStudioEvent, CloneStudioState> {
   }) : super(const CloneStudioState()) {
     on<LoadImageEvent>(_onLoadImage);
     on<SelectObjectEvent>(_onSelectObject);
+    on<SetModeEvent>(_onSetMode);
     on<UpdateLayerTransformEvent>(_onUpdateLayerTransform);
     on<UpdateLayerHarmonizationEvent>(_onUpdateLayerHarmonization);
     on<DeleteLayerEvent>(_onDeleteLayer);
   }
 
   void _onLoadImage(LoadImageEvent event, Emitter<CloneStudioState> emit) {
-    print('DEBUG: CloneStudioBloc - Loading image, size: ${event.image.length}');
     emit(state.copyWith(
       baseImage: event.image,
       mode: CloneStudioMode.select,
       isLoading: false,
+      activeLayerId: null,
     ));
   }
 
-  Future<void> _onSelectObject(SelectObjectEvent event, Emitter<CloneStudioState> emit) async {
+  Future<void> _onSelectObject(
+    SelectObjectEvent event,
+    Emitter<CloneStudioState> emit,
+  ) async {
     if (state.baseImage == null) return;
-    
-    emit(state.copyWith(isLoading: true));
+
+    emit(state.copyWith(isLoading: true, errorMessage: null));
     try {
       final clonedObject = await extractObjectUseCase.call(
         imageBytes: state.baseImage!,
@@ -44,7 +48,7 @@ class CloneStudioBloc extends Bloc<CloneStudioEvent, CloneStudioState> {
       final newLayer = EditLayer(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         object: clonedObject,
-        transform: TransformState(),
+        transform: TransformState(position: clonedObject.mask.bounds.center),
         harmonization: HarmonizationSettings(),
       );
 
@@ -55,11 +59,21 @@ class CloneStudioBloc extends Bloc<CloneStudioEvent, CloneStudioState> {
         isLoading: false,
       ));
     } catch (e) {
-       emit(state.copyWith(isLoading: false, errorMessage: e.toString()));
+      emit(state.copyWith(
+        isLoading: false,
+        errorMessage: e.toString(),
+      ));
     }
   }
 
-  void _onUpdateLayerTransform(UpdateLayerTransformEvent event, Emitter<CloneStudioState> emit) {
+  void _onSetMode(SetModeEvent event, Emitter<CloneStudioState> emit) {
+    emit(state.copyWith(mode: event.mode));
+  }
+
+  void _onUpdateLayerTransform(
+    UpdateLayerTransformEvent event,
+    Emitter<CloneStudioState> emit,
+  ) {
     final updatedLayers = state.layers.map((layer) {
       if (layer.id == event.id) {
         return layer.copyWith(transform: event.transform);
@@ -69,7 +83,10 @@ class CloneStudioBloc extends Bloc<CloneStudioEvent, CloneStudioState> {
     emit(state.copyWith(layers: updatedLayers));
   }
 
-  void _onUpdateLayerHarmonization(UpdateLayerHarmonizationEvent event, Emitter<CloneStudioState> emit) {
+  void _onUpdateLayerHarmonization(
+    UpdateLayerHarmonizationEvent event,
+    Emitter<CloneStudioState> emit,
+  ) {
     final updatedLayers = state.layers.map((layer) {
       if (layer.id == event.id) {
         return layer.copyWith(harmonization: event.harmonization);
@@ -80,10 +97,13 @@ class CloneStudioBloc extends Bloc<CloneStudioEvent, CloneStudioState> {
   }
 
   void _onDeleteLayer(DeleteLayerEvent event, Emitter<CloneStudioState> emit) {
-    final updatedLayers = state.layers.where((layer) => layer.id != event.id).toList();
+    final updatedLayers =
+        state.layers.where((layer) => layer.id != event.id).toList();
     emit(state.copyWith(
       layers: updatedLayers,
-      activeLayerId: state.activeLayerId == event.id ? null : state.activeLayerId,
+      activeLayerId:
+          state.activeLayerId == event.id ? null : state.activeLayerId,
+      mode: updatedLayers.isEmpty ? CloneStudioMode.select : state.mode,
     ));
   }
 }

@@ -21,17 +21,12 @@ class _BlemishEditCanvasState extends State<BlemishEditCanvas>
   Offset? _cursorPos;
   bool _cursorVisible = false;
   Timer? _cursorHideTimer;
+  late final AnimationController _cursorPulseController;
 
   bool _isPinching = false;
   double? _scaleStart;
   Offset? _focalStart;
   Offset? _translationStart;
-
-  Offset? _tapDownPos;
-  DateTime? _tapDownTime;
-  bool _movedTooMuch = false;
-  static const double _kDragThreshold = 10.0;
-  static const int _kTapMaxMs = 400;
 
   ui.Image? _sourceUiImage;
   ui.Image? _previewUiImage;
@@ -39,8 +34,18 @@ class _BlemishEditCanvasState extends State<BlemishEditCanvas>
   bool _transformReady = false;
 
   @override
+  void initState() {
+    super.initState();
+    _cursorPulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1100),
+    )..repeat(reverse: true);
+  }
+
+  @override
   void dispose() {
     _cursorHideTimer?.cancel();
+    _cursorPulseController.dispose();
     _previewUiImage?.dispose();
     super.dispose();
   }
@@ -93,13 +98,19 @@ class _BlemishEditCanvasState extends State<BlemishEditCanvas>
                       if (_cursorVisible && _cursorPos != null)
                         Positioned.fill(
                           child: IgnorePointer(
-                            child: CustomPaint(
-                              painter: _CursorOnlyPainter(
-                                pos: _cursorPos!,
-                                screenRadius: state.brushSettings.radius *
-                                    state.canvasScale,
-                                softness: state.brushSettings.softness,
-                              ),
+                            child: AnimatedBuilder(
+                              animation: _cursorPulseController,
+                              builder: (context, child) {
+                                return CustomPaint(
+                                  painter: _CursorOnlyPainter(
+                                    pos: _cursorPos!,
+                                    screenRadius: state.brushSettings.radius *
+                                        state.canvasScale,
+                                    softness: state.brushSettings.softness,
+                                    pulse: _cursorPulseController.value,
+                                  ),
+                                );
+                              },
                             ),
                           ),
                         ),
@@ -128,10 +139,8 @@ class _BlemishEditCanvasState extends State<BlemishEditCanvas>
     }
 
     _isPinching = false;
-    _tapDownPos = details.localFocalPoint;
-    _tapDownTime = DateTime.now();
-    _movedTooMuch = false;
     _showCursor(details.localFocalPoint);
+    context.read<BlemishCubit>().onStrokeBegin(details.localFocalPoint);
   }
 
   void _onScaleUpdate(ScaleUpdateDetails details) {
@@ -151,11 +160,7 @@ class _BlemishEditCanvasState extends State<BlemishEditCanvas>
     }
 
     _showCursor(details.localFocalPoint);
-
-    if (_tapDownPos != null &&
-        (details.localFocalPoint - _tapDownPos!).distance > _kDragThreshold) {
-      _movedTooMuch = true;
-    }
+    context.read<BlemishCubit>().onStrokeUpdate(details.localFocalPoint);
   }
 
   void _onScaleEnd(ScaleEndDetails details) {
@@ -167,27 +172,9 @@ class _BlemishEditCanvasState extends State<BlemishEditCanvas>
       return;
     }
 
-    final elapsedMs = _tapDownTime != null
-        ? DateTime.now().difference(_tapDownTime!).inMilliseconds
-        : 9999;
-
-    if (!_movedTooMuch && elapsedMs < _kTapMaxMs && _tapDownPos != null) {
-      _doTapHeal(_tapDownPos!);
-    }
-
-    _tapDownPos = null;
-    _tapDownTime = null;
-  }
-
-  void _doTapHeal(Offset screenPos) {
-    _showCursor(screenPos);
-
-    final cubit = context.read<BlemishCubit>();
-    cubit.onStrokeBegin(screenPos);
-    cubit.onStrokeEnd();
-
+    context.read<BlemishCubit>().onStrokeEnd();
     _cursorHideTimer?.cancel();
-    _cursorHideTimer = Timer(const Duration(milliseconds: 800), _hideCursor);
+    _cursorHideTimer = Timer(const Duration(milliseconds: 650), _hideCursor);
   }
 
   void _showCursor(Offset position) {
@@ -278,56 +265,59 @@ class _CursorOnlyPainter extends CustomPainter {
   final Offset pos;
   final double screenRadius;
   final double softness;
+  final double pulse;
 
   const _CursorOnlyPainter({
     required this.pos,
     required this.screenRadius,
     required this.softness,
+    required this.pulse,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
+    final pulseScale = 0.95 + (pulse * 0.10);
+    final animatedRadius = screenRadius * pulseScale;
+    final outerRadius = animatedRadius * 1.12;
+
     canvas.drawCircle(
       pos,
-      screenRadius,
-      Paint()
-        ..shader = RadialGradient(
-          colors: [
-            Colors.white.withValues(alpha: 0.25),
-            Colors.white.withValues(alpha: 0.0),
-          ],
-        ).createShader(
-          Rect.fromCircle(center: pos, radius: screenRadius),
-        ),
+      outerRadius,
+      Paint()..color = const Color(0xFF16B07E).withValues(alpha: 0.16),
     );
 
     canvas.drawCircle(
       pos,
-      screenRadius,
+      animatedRadius,
+      Paint()..color = const Color(0xFF16B07E).withValues(alpha: 0.66),
+    );
+
+    canvas.drawCircle(
+      pos,
+      animatedRadius,
       Paint()
-        ..color = Colors.white.withValues(alpha: 0.9)
+        ..color = Colors.white.withValues(alpha: 0.92)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.0,
+        ..strokeWidth = 1.8,
     );
 
     if (softness > 0.05) {
       canvas.drawCircle(
         pos,
-        screenRadius * (1.0 - softness),
+        animatedRadius * (1.0 - softness * 0.55),
         Paint()
-          ..color = const Color(0xFF56E39F).withValues(alpha: 0.6)
+          ..color = Colors.white.withValues(alpha: 0.14)
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.2,
+          ..strokeWidth = 1.0,
       );
     }
-
-    canvas.drawCircle(pos, 3, Paint()..color = Colors.white);
   }
 
   @override
   bool shouldRepaint(covariant _CursorOnlyPainter oldDelegate) {
     return oldDelegate.pos != pos ||
         oldDelegate.screenRadius != screenRadius ||
-        oldDelegate.softness != softness;
+        oldDelegate.softness != softness ||
+        oldDelegate.pulse != pulse;
   }
 }

@@ -12,7 +12,8 @@ class CanvasPreviewPainter extends CustomPainter {
   final double brushSize;
   final Rect imageRect;
   final Size imageSize;
-  final ui.Image? baseImage; // Added for real-time pixel preview
+  final ui.Image? baseImage;
+  final ui.Image? originalImage;
 
   CanvasPreviewPainter({
     required this.operations,
@@ -23,6 +24,7 @@ class CanvasPreviewPainter extends CustomPainter {
     required this.imageRect,
     required this.imageSize,
     this.baseImage,
+    this.originalImage,
   });
 
   Offset _toCanvas(Offset imagePoint) {
@@ -120,9 +122,55 @@ class CanvasPreviewPainter extends CustomPainter {
             (inProgressStroke!.alignmentMode == SourceAlignmentMode.aligned)
                 ? inProgressSourceAnchor! + dragVector
                 : inProgressSourceAnchor!;
-        _drawCrosshair(canvas, _toCanvas(currentSourcePos), Colors.blueAccent);
+        _drawSourceMarker(canvas, _toCanvas(currentSourcePos),
+            canvasTarget: _toCanvas(currentPoint));
+      } else if (inProgressStroke!.mode == RetouchMode.eraser &&
+          baseImage != null &&
+          originalImage != null) {
+        final Paint dabPaint = Paint()
+          ..isAntiAlias = true
+          ..filterQuality = FilterQuality.medium;
+
+        for (final point in inProgressStroke!.path) {
+          final Offset canvasTarget = _toCanvas(point);
+          final double imgR = settings.size / 2;
+          final Rect srcRect = Rect.fromCircle(center: point, radius: imgR);
+          final Rect dstRect = Rect.fromCircle(
+            center: canvasTarget,
+            radius: scaledBrushSize / 2,
+          );
+          final Rect layerBounds = Rect.fromCircle(
+            center: canvasTarget,
+            radius: scaledBrushSize / 2 + 2,
+          );
+
+          canvas.saveLayer(
+            layerBounds,
+            Paint()..color = Colors.white.withValues(alpha: settings.opacity),
+          );
+          canvas.drawImageRect(originalImage!, srcRect, dstRect, dabPaint);
+
+          final double hardnessStop = settings.hardness.clamp(0.0, 0.98);
+          final Paint featherMask = Paint()
+            ..blendMode = BlendMode.dstIn
+            ..shader = ui.Gradient.radial(
+              canvasTarget,
+              scaledBrushSize / 2,
+              const [
+                Colors.white,
+                Colors.white,
+                Colors.transparent,
+              ],
+              [
+                0.0,
+                hardnessStop,
+                1.0,
+              ],
+            );
+          canvas.drawCircle(canvasTarget, scaledBrushSize / 2, featherMask);
+          canvas.restore();
+        }
       } else {
-        // Only show eraser tint. Avoid any white brush overlay on the actual image.
         paintLine.strokeWidth = scaledBrushSize;
         paintLine.color = (inProgressStroke!.mode == RetouchMode.eraser)
             ? Colors.red.withValues(alpha: 0.4)
@@ -143,7 +191,7 @@ class CanvasPreviewPainter extends CustomPainter {
 
     // Draw static source anchor if selected but not painting
     if (inProgressSourceAnchor != null && inProgressStroke == null) {
-      _drawCrosshair(canvas, _toCanvas(inProgressSourceAnchor!), Colors.blue);
+      _drawSourceMarker(canvas, _toCanvas(inProgressSourceAnchor!));
     }
   }
 
@@ -166,17 +214,36 @@ class CanvasPreviewPainter extends CustomPainter {
     canvas.drawPath(path, paint);
   }
 
-  void _drawCrosshair(Canvas canvas, Offset center, Color color) {
-    final paint = Paint()
-      ..color = color
+  void _drawSourceMarker(Canvas canvas, Offset center, {Offset? canvasTarget}) {
+    final outerPaint = Paint()
+      ..color = const Color(0xFF56E39F)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.0;
+      ..strokeWidth = 2.2;
+    final innerPaint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.1;
+    final linkPaint = Paint()
+      ..color = const Color(0xFF56E39F).withValues(alpha: 0.55)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.6;
 
-    canvas.drawCircle(center, 10, paint);
+    if (canvasTarget != null) {
+      canvas.drawLine(center, canvasTarget, linkPaint);
+    }
+
+    canvas.drawCircle(center, 12, outerPaint);
+    canvas.drawCircle(center, 7, innerPaint);
     canvas.drawLine(
-        center - const Offset(0, 15), center + const Offset(0, 15), paint);
+      center - const Offset(0, 16),
+      center + const Offset(0, 16),
+      outerPaint,
+    );
     canvas.drawLine(
-        center - const Offset(15, 0), center + const Offset(15, 0), paint);
+      center - const Offset(16, 0),
+      center + const Offset(16, 0),
+      outerPaint,
+    );
   }
 
   void _drawBrushCursor(Canvas canvas, Offset center, double size) {

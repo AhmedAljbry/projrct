@@ -9,6 +9,7 @@ import 'package:untitled2/core/ui/AppTheme.dart';
 import 'editor_engine_controller.dart';
 import 'editor_scope.dart';
 import 'export_support.dart';
+import 'engine/creative_types.dart';
 import 'reference_image_processor.dart';
 import 'reference_image_state.dart';
 import 'session_store.dart';
@@ -260,6 +261,9 @@ class _UnifiedEditorWorkspaceState extends State<UnifiedEditorWorkspace> {
       uiCompatibility: _status.compatibilityScore,
     );
     return _status.copyWith(
+      // Preserve current UI semantics (e.g. Fix/one-tap actions can mark mask-ready),
+      // but also show mask-ready when the engine has an active mask kind.
+      maskReady: _status.maskReady || _engine.maskKind != SmartMaskKind.none,
       compatibilityScore: o.compatibilityScore,
       sceneKindLabel: o.sceneKindLabel,
       styleDnaDigest: o.styleDnaDigest,
@@ -304,11 +308,11 @@ class _UnifiedEditorWorkspaceState extends State<UnifiedEditorWorkspace> {
       // Quick
       case UnifiedDockAction.viral:
       case UnifiedDockAction.natural:
-        return UnifiedContextPanel.none;
+        return UnifiedContextPanel.styleBlend;
       case UnifiedDockAction.fix:
         return UnifiedContextPanel.smartMask;
       case UnifiedDockAction.styles:
-        return UnifiedContextPanel.none;
+        return UnifiedContextPanel.styleBlend;
       case UnifiedDockAction.compare:
         return UnifiedContextPanel.none;
 
@@ -328,7 +332,7 @@ class _UnifiedEditorWorkspaceState extends State<UnifiedEditorWorkspace> {
 
       // Architect
       case UnifiedDockAction.realism:
-        return UnifiedContextPanel.none;
+        return UnifiedContextPanel.proRefine;
       case UnifiedDockAction.materials:
         return UnifiedContextPanel.architectMaterials;
       case UnifiedDockAction.sky:
@@ -356,10 +360,12 @@ class _UnifiedEditorWorkspaceState extends State<UnifiedEditorWorkspace> {
         case UnifiedDockAction.viral:
           _engine.applyQuickViral();
           _status = _status.copyWith(activeStyle: 'Clean Influencer', compatibilityScore: 0.78);
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Viral Style Applied!')));
           break;
         case UnifiedDockAction.natural:
           _engine.applyQuickNatural();
           _status = _status.copyWith(activeStyle: 'Natural Premium', compatibilityScore: 0.74);
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Natural Style Applied!')));
           break;
         case UnifiedDockAction.fix:
           _engine.applyOneTapFix();
@@ -372,6 +378,8 @@ class _UnifiedEditorWorkspaceState extends State<UnifiedEditorWorkspace> {
         case UnifiedDockAction.compare:
           _compareEnabled = !_compareEnabled;
           _status = _status.copyWith(compareActive: _compareEnabled);
+          ScaffoldMessenger.of(context).clearSnackBars();
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_compareEnabled ? 'Compare Enabled' : 'Compare Disabled')));
           break;
 
         case UnifiedDockAction.regions:
@@ -461,6 +469,12 @@ class _UnifiedEditorWorkspaceState extends State<UnifiedEditorWorkspace> {
       if (picked == null) return;
       final bytes = await picked.readAsBytes();
       if (!mounted) return;
+
+      // Make reference immediately usable by the preview pipeline.
+      // This enables reference-driven "Style Steal" / reference influence features
+      // across the workspace UI.
+      _engine.setReferenceSteal(bytes);
+
       setState(() {
         _reference = _reference.copyWith(
           bytes: bytes,
@@ -493,6 +507,7 @@ class _UnifiedEditorWorkspaceState extends State<UnifiedEditorWorkspace> {
   }
 
   void _clearReference() {
+    _engine.setReferenceSteal(null);
     setState(() {
       _reference = ReferenceImageState.none;
       _status = _status.copyWith(

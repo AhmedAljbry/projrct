@@ -7,8 +7,8 @@ class EditorScope extends InheritedNotifier<EditorEngineController> {
   const EditorScope({
     super.key,
     required EditorEngineController controller,
-    required Widget child,
-  }) : super(notifier: controller, child: child);
+    required super.child,
+  }) : super(notifier: controller);
 
   static EditorEngineController of(BuildContext context) {
     final scope = context.dependOnInheritedWidgetOfExactType<EditorScope>();

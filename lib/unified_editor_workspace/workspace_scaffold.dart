@@ -137,6 +137,7 @@ class WorkspaceScaffold extends StatelessWidget {
                         onDockTapped: onDockTapped,
                         onStyleSelected: onStyleSelected,
                         onCompareSplitChanged: onCompareSplitChanged,
+                        onCompareToggled: onCompareToggled, // ADDED
                         onActivePanelChanged: onActivePanelChanged,
                         onRequestExport: onRequestExport,
                         onRequestSave: onRequestSave,
@@ -160,6 +161,7 @@ class WorkspaceScaffold extends StatelessWidget {
                             onDockTapped: onDockTapped,
                             onStyleSelected: onStyleSelected,
                             onCompareSplitChanged: onCompareSplitChanged,
+                            onCompareToggled: onCompareToggled, // ADDED
                             onActivePanelChanged: onActivePanelChanged,
                             onRequestExport: onRequestExport,
                             onRequestSave: onRequestSave,
@@ -182,6 +184,7 @@ class WorkspaceScaffold extends StatelessWidget {
                             onDockTapped: onDockTapped,
                             onStyleSelected: onStyleSelected,
                             onCompareSplitChanged: onCompareSplitChanged,
+                            onCompareToggled: onCompareToggled, // ADDED
                             onActivePanelChanged: onActivePanelChanged,
                             onRequestExport: onRequestExport,
                             onRequestSave: onRequestSave,

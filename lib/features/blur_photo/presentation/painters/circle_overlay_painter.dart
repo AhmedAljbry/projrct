@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 
 import '../../domain/entities/circle_params.dart';
 
-/// Paints the interactive circle / ellipse overlay on the canvas.
 class CircleOverlayPainter extends CustomPainter {
   CircleOverlayPainter({
     required this.params,
@@ -22,33 +21,40 @@ class CircleOverlayPainter extends CustomPainter {
     final cy = params.centerY * size.height;
     final rx = params.radiusX * size.width;
     final ry = params.radiusY * size.height;
+    final shapeRect = Rect.fromCenter(
+      center: Offset.zero,
+      width: rx * 2,
+      height: ry * 2,
+    );
 
     canvas.save();
     canvas.translate(cx, cy);
     canvas.rotate(params.rotation);
 
-    // Outer soft halo
     final haloPaint = Paint()
-      ..color = Colors.black.withValues(alpha: isDragging ? 0.28 : 0.18)
+      ..color = Colors.black.withValues(alpha: isDragging ? 0.24 : 0.15)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 12;
-    canvas.drawOval(Rect.fromCenter(center: Offset.zero, width: rx * 2 + 12, height: ry * 2 + 12), haloPaint);
-
-    // Primary ellipse ring
+      ..strokeWidth = 10;
     final ringPaint = Paint()
       ..color = accentColor.withValues(alpha: isDragging ? 0.95 : 0.72)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = isDragging ? 2.4 : 1.8;
-    canvas.drawOval(
-        Rect.fromCenter(center: Offset.zero, width: rx * 2, height: ry * 2),
-        ringPaint);
+      ..strokeWidth = isDragging ? 2.2 : 1.6;
 
-    // Corner handles at 4 cardinal points
+    if (params.shapeType == BlurShapeType.rectangle) {
+      final haloRect = shapeRect.inflate(6);
+      final radius = Radius.circular(math.min(rx, ry) * 0.18 + 8);
+      canvas.drawRRect(RRect.fromRectAndRadius(haloRect, radius), haloPaint);
+      canvas.drawRRect(RRect.fromRectAndRadius(shapeRect, radius), ringPaint);
+    } else {
+      canvas.drawOval(shapeRect.inflate(6), haloPaint);
+      canvas.drawOval(shapeRect, ringPaint);
+    }
+
     final handlePaint = Paint()
       ..color = Colors.white
       ..style = PaintingStyle.fill;
     final shadowPaint = Paint()
-      ..color = Colors.black.withValues(alpha: 0.55)
+      ..color = Colors.black.withValues(alpha: 0.50)
       ..style = PaintingStyle.fill;
 
     final handles = [
@@ -57,38 +63,41 @@ class CircleOverlayPainter extends CustomPainter {
       Offset(0, ry),
       Offset(0, -ry),
     ];
-    const r = 7.0;
-    for (final h in handles) {
-      canvas.drawCircle(h, r + 2, shadowPaint);
-      canvas.drawCircle(h, r, handlePaint);
-      canvas.drawCircle(h, r,
-          Paint()
-            ..color = accentColor.withValues(alpha: 0.55)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.6);
+    const handleRadius = 6.0;
+    for (final handle in handles) {
+      canvas.drawCircle(handle, handleRadius + 2, shadowPaint);
+      canvas.drawCircle(handle, handleRadius, handlePaint);
+      canvas.drawCircle(
+        handle,
+        handleRadius,
+        Paint()
+          ..color = accentColor.withValues(alpha: 0.55)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.4,
+      );
     }
 
-    // Centre dot
     canvas.drawCircle(Offset.zero, 5, handlePaint);
-    canvas.drawCircle(Offset.zero, 5,
-        Paint()
-          ..color = accentColor
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.4);
+    canvas.drawCircle(
+      Offset.zero,
+      5,
+      Paint()
+        ..color = accentColor
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2,
+    );
 
     canvas.restore();
   }
 
   @override
-  @override
   bool shouldRepaint(CircleOverlayPainter oldDelegate) =>
       oldDelegate.params != params || oldDelegate.isDragging != isDragging;
 
-  /// Hit-tests centre or handle grab area in local coordinates.
   bool hitTestCenter(Offset local, Size size) {
     final cx = params.centerX * size.width;
     final cy = params.centerY * size.height;
-    return (local - Offset(cx, cy)).distance < 32;
+    return (local - Offset(cx, cy)).distance < 30;
   }
 
   bool hitTestRadiusHandle(Offset local, Size size) {
@@ -103,9 +112,6 @@ class CircleOverlayPainter extends CustomPainter {
       Offset(cx, cy + ry),
       Offset(cx, cy - ry),
     ];
-    return handles.any((h) => (local - h).distance < 24);
+    return handles.any((handle) => (local - handle).distance < 20);
   }
 }
-
-// ignore: unused_element
-double _deg2rad(double deg) => deg * math.pi / 180;

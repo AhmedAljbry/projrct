@@ -150,17 +150,21 @@ class _TestAutoMaskPageState extends State<TestAutoMaskPage> {
   Future<void> _loadSampleImage() async {
     setState(() => _isLoadingImage = true);
     try {
-      final response = await http.get(Uri.parse('https://picsum.photos/800/600'));
+      final response = await http
+          .get(Uri.parse('https://picsum.photos/800/600'))
+          .timeout(const Duration(seconds: 10));
       final bytes = response.bodyBytes;
       final codec = await ui.instantiateImageCodec(bytes);
       final frame = await codec.getNextFrame();
 
+      if (!mounted) return;
       setState(() {
         _testImage = frame.image;
         _isLoadingImage = false;
       });
     } catch (e) {
       debugPrint('🚨 Error loading image: $e');
+      if (!mounted) return;
       setState(() => _isLoadingImage = false);
     }
   }
@@ -383,17 +387,24 @@ class _ServerTestPageState extends State<ServerTestPage> {
     });
 
     try {
-      final response = await http.get(Uri.parse('https://picsum.photos/800/600'));
-      _rawImageBytes = response.bodyBytes;
+      final response = await http
+          .get(Uri.parse('https://picsum.photos/800/600'))
+          .timeout(const Duration(seconds: 10));
+      final bytes = response.bodyBytes;
+
+      if (!mounted) return;
+      _rawImageBytes = bytes;
 
       final codec = await ui.instantiateImageCodec(_rawImageBytes!);
       final frame = await codec.getNextFrame();
 
+      if (!mounted) return;
       setState(() {
         _currentImage = frame.image;
         _statusMessage = "انقر على عنصر لتوليد ماسك، ثم نفّذ المسح";
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() => _statusMessage = "فشل تحميل الصورة: $e");
     }
   }

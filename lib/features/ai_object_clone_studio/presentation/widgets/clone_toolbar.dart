@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+
 import '../bloc/clone_studio_bloc.dart';
 import '../bloc/clone_studio_state.dart';
 
@@ -11,52 +12,73 @@ class CloneToolbar extends StatelessWidget {
     return BlocBuilder<CloneStudioBloc, CloneStudioState>(
       builder: (context, state) {
         return Container(
-          height: 70,
-          color: Colors.black.withValues(alpha: 0.8),
+          height: 76,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.82),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+          ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
               _buildToolButton(
-                icon: Icons.gesture,
-                label: 'SELECT',
+                icon: Icons.auto_fix_high_rounded,
+                label: 'تحديد',
                 isActive: state.mode == CloneStudioMode.select,
                 onPressed: () {
-                   // Add mode switch event if needed
+                  context.read<CloneStudioBloc>().add(
+                        SetModeEvent(CloneStudioMode.select),
+                      );
                 },
               ),
               _buildToolButton(
-                icon: Icons.layers,
-                label: 'LAYERS',
+                icon: Icons.open_with_rounded,
+                label: 'تحريك',
                 isActive: state.mode == CloneStudioMode.place,
-                onPressed: () {},
+                onPressed: state.activeLayerId == null
+                    ? null
+                    : () {
+                        context.read<CloneStudioBloc>().add(
+                              SetModeEvent(CloneStudioMode.place),
+                            );
+                      },
               ),
               _buildToolButton(
                 icon: Icons.flip,
-                label: 'FLIP',
+                label: 'قلب',
                 isActive: false,
-                onPressed: () {
-                  if (state.activeLayerId != null) {
-                    final layer = state.layers.firstWhere((l) => l.id == state.activeLayerId);
-                    context.read<CloneStudioBloc>().add(
-                      UpdateLayerTransformEvent(layer.id, layer.transform.copyWith(flipX: !layer.transform.flipX)),
-                    );
-                  }
-                },
+                onPressed: state.activeLayerId == null
+                    ? null
+                    : () {
+                        final layer = state.layers.firstWhere(
+                          (l) => l.id == state.activeLayerId,
+                        );
+                        context.read<CloneStudioBloc>().add(
+                              UpdateLayerTransformEvent(
+                                layer.id,
+                                layer.transform.copyWith(
+                                  flipX: !layer.transform.flipX,
+                                ),
+                              ),
+                            );
+                      },
               ),
-               _buildToolButton(
+              _buildToolButton(
                 icon: Icons.delete_outline,
-                label: 'DELETE',
+                label: 'حذف',
                 isActive: false,
-                onPressed: () {
-                   if (state.activeLayerId != null) {
-                    context.read<CloneStudioBloc>().add(DeleteLayerEvent(state.activeLayerId!));
-                  }
-                },
+                onPressed: state.activeLayerId == null
+                    ? null
+                    : () {
+                        context.read<CloneStudioBloc>().add(
+                              DeleteLayerEvent(state.activeLayerId!),
+                            );
+                      },
               ),
             ],
           ),
         );
-
       },
     );
   }
@@ -65,17 +87,30 @@ class CloneToolbar extends StatelessWidget {
     required IconData icon,
     required String label,
     required bool isActive,
-    required VoidCallback onPressed,
+    required VoidCallback? onPressed,
   }) {
+    final color = onPressed == null
+        ? Colors.white24
+        : isActive
+            ? const Color(0xFF56E39F)
+            : Colors.white70;
+
     return InkWell(
       onTap: onPressed,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, color: isActive ? Colors.blueAccent : Colors.white70, size: 28),
-          const SizedBox(height: 4),
-          Text(label, style: TextStyle(color: isActive ? Colors.blueAccent : Colors.white70, fontSize: 10)),
-        ],
+      borderRadius: BorderRadius.circular(18),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: color, size: 28),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(color: color, fontSize: 11),
+            ),
+          ],
+        ),
       ),
     );
   }

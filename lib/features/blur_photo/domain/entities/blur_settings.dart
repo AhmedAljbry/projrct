@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 
 import 'blur_mode.dart';
+import 'blur_style.dart';
 import 'circle_params.dart';
 import 'line_params.dart';
 
@@ -8,6 +9,7 @@ import 'line_params.dart';
 class BlurPhotoSettings extends Equatable {
   const BlurPhotoSettings({
     this.mode = BlurPhotoMode.full,
+    this.style = BlurPhotoStyle.soft,
     this.blurIntensity = 16.0,
     this.transitionSoftness = 0.34,
     this.circle = const CircleBlurParams(),
@@ -16,6 +18,9 @@ class BlurPhotoSettings extends Equatable {
 
   /// Active blur mode.
   final BlurPhotoMode mode;
+
+  /// Selected visual blur style.
+  final BlurPhotoStyle style;
 
   /// Blur strength [2..30].
   final double blurIntensity;
@@ -31,6 +36,7 @@ class BlurPhotoSettings extends Equatable {
 
   BlurPhotoSettings copyWith({
     BlurPhotoMode? mode,
+    BlurPhotoStyle? style,
     double? blurIntensity,
     double? transitionSoftness,
     CircleBlurParams? circle,
@@ -38,6 +44,7 @@ class BlurPhotoSettings extends Equatable {
   }) {
     return BlurPhotoSettings(
       mode: mode ?? this.mode,
+      style: style ?? this.style,
       blurIntensity: blurIntensity ?? this.blurIntensity,
       transitionSoftness: transitionSoftness ?? this.transitionSoftness,
       circle: circle ?? this.circle,
@@ -47,6 +54,7 @@ class BlurPhotoSettings extends Equatable {
 
   Map<String, dynamic> toJson() => {
         'mode': mode.name,
+        'style': style.name,
         'blurIntensity': blurIntensity,
         'transitionSoftness': transitionSoftness,
         'circle': circle.toJson(),
@@ -59,21 +67,33 @@ class BlurPhotoSettings extends Equatable {
         (m) => m.name == json['mode'],
         orElse: () => BlurPhotoMode.full,
       ),
+      style: BlurPhotoStyle.values.firstWhere(
+        (s) => s.name == json['style'],
+        orElse: () => BlurPhotoStyle.soft,
+      ),
       blurIntensity: (json['blurIntensity'] as num?)?.toDouble() ?? 16.0,
       transitionSoftness:
           (json['transitionSoftness'] as num?)?.toDouble() ?? 0.34,
       circle: json['circle'] != null
           ? CircleBlurParams.fromJson(
-              Map<String, dynamic>.from(json['circle'] as Map))
+              Map<String, dynamic>.from(json['circle'] as Map),
+            )
           : const CircleBlurParams(),
       line: json['line'] != null
           ? LineBlurParams.fromJson(
-              Map<String, dynamic>.from(json['line'] as Map))
+              Map<String, dynamic>.from(json['line'] as Map),
+            )
           : const LineBlurParams(),
     );
   }
 
   @override
-  List<Object?> get props =>
-      [mode, blurIntensity, transitionSoftness, circle, line];
+  List<Object?> get props => [
+        mode,
+        style,
+        blurIntensity,
+        transitionSoftness,
+        circle,
+        line,
+      ];
 }
