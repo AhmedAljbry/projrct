@@ -84,23 +84,24 @@ StylePack? _findPack(String id) {
 }
 
 StyleTransferParams _paramsFromCfg(Map<String, dynamic> c) {
+  final referenceOnlyMode = c['referenceOnlyMode'] as bool? ?? false;
   StyleTransferParams base = const StyleTransferParams();
   final pid = c['packId'] as String?;
-  if (pid != null) {
+  if (!referenceOnlyMode && pid != null) {
     final pack = _findPack(pid);
     if (pack != null) base = pack.params;
   }
 
   final sec = c['secondaryPackId'] as String?;
   final bt = (c['blendT'] as num?)?.toDouble() ?? 0.0;
-  if (sec != null && bt > 0.01) {
+  if (!referenceOnlyMode && sec != null && bt > 0.01) {
     final p2 = _findPack(sec);
     if (p2 != null) base = base.lerpTowards(p2.params, bt.clamp(0.0, 1.0));
   }
 
   final samples = c['samplePackIds'] as List?;
   final weights = c['sampleWeights'] as List?;
-  if (samples != null && weights != null && samples.isNotEmpty) {
+  if (!referenceOnlyMode && samples != null && weights != null && samples.isNotEmpty) {
     final acc = <StyleTransferParams>[];
     final ww = <double>[];
     for (var i = 0; i < samples.length; i++) {
@@ -130,7 +131,7 @@ StyleTransferParams _paramsFromCfg(Map<String, dynamic> c) {
     detailRecovery: (c['detailRecovery'] as num?)?.toDouble(),
   );
 
-  final qp = c['quickProfile'] as String?;
+  final qp = referenceOnlyMode ? null : c['quickProfile'] as String?;
   if (qp == 'viral') {
     base = base.copyWith(
       saturation: math.min(1.35, base.saturation * 1.08),
@@ -641,3 +642,4 @@ List<double> _meanRgb(im.Image img) {
   }
   return [sr / n, sg / n, sb / n, ss / n];
 }
+

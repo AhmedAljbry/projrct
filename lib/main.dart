@@ -31,6 +31,7 @@ import 'package:untitled2/inpainting/presentation/pages/result_page.dart';
 import 'package:untitled2/unified_editor_workspace/unified_editor_routes.dart';
 import 'package:untitled2/unified_editor_workspace/unified_editor_workspace.dart';
 import 'package:untitled2/vv/blemish_remover_screen.dart';
+import 'package:untitled2/features/remote_lama_tools/presentation/pages/remote_lama_flow_shell.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -455,6 +456,24 @@ class _HomeScreenState extends State<HomeScreen>
                 }
               },
             ),
+          ),
+        ),
+
+        const SizedBox(height: 14),
+
+        _FeatureCard(
+          index: 9,
+          icon: Icons.cloud_done_rounded,
+          title: 'Remote AI Studio (LaMa)',
+          subtitle: 'Heal · Repair · Expand · Clean Edges',
+          gradient: const LinearGradient(
+            colors: [Color(0xFF00E5FF), Color(0xFF0097A7)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          foreground: Colors.black,
+          onTap: () => _pickAndNavigateBytes(
+            (bytes) => RemoteLamaFlowShell(initialImage: bytes),
           ),
         ),
       ];

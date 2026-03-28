@@ -13,11 +13,11 @@ enum SurfaceClass {
 
 class TextureAnalyzer {
   double computeMeanLuminance(
-      Uint8List pixels,
-      int imageWidth,
-      int imageHeight,
-      MaskBounds region,
-      ) {
+    Uint8List pixels,
+    int imageWidth,
+    int imageHeight,
+    MaskBounds region,
+  ) {
     final clamped = region.clampTo(imageWidth, imageHeight);
     if (clamped.isEmpty) return 128.0;
 
@@ -36,15 +36,16 @@ class TextureAnalyzer {
   }
 
   double computeLuminanceVariance(
-      Uint8List pixels,
-      int imageWidth,
-      int imageHeight,
-      MaskBounds region,
-      ) {
+    Uint8List pixels,
+    int imageWidth,
+    int imageHeight,
+    MaskBounds region,
+  ) {
     final clamped = region.clampTo(imageWidth, imageHeight);
     if (clamped.isEmpty) return 0.0;
 
-    double sum = 0.0, sumSq = 0.0;
+    double sum = 0.0;
+    double sumSq = 0.0;
     int count = 0;
 
     for (int y = clamped.top; y < clamped.bottom; y++) {
@@ -63,11 +64,11 @@ class TextureAnalyzer {
   }
 
   double computeTextureEnergy(
-      Uint8List pixels,
-      int imageWidth,
-      int imageHeight,
-      MaskBounds region,
-      ) {
+    Uint8List pixels,
+    int imageWidth,
+    int imageHeight,
+    MaskBounds region,
+  ) {
     final clamped = region.clampTo(imageWidth, imageHeight);
     if (clamped.isEmpty) return 0.0;
 
@@ -84,14 +85,30 @@ class TextureAnalyzer {
   }
 
   PatchFeatures computeFeatures(
-      Uint8List pixels,
-      int imageWidth,
-      int imageHeight,
-      MaskBounds region,
-      ) {
+    Uint8List pixels,
+    int imageWidth,
+    int imageHeight,
+    MaskBounds region,
+  ) {
     final clamped = region.clampTo(imageWidth, imageHeight);
+    return _computeFeatureBlock(
+      pixels,
+      imageWidth,
+      imageHeight,
+      region: clamped,
+      include: (x, y) => true,
+    );
+  }
 
-    if (clamped.isEmpty) {
+  PatchFeatures computeRingFeatures(
+    Uint8List pixels,
+    int imageWidth,
+    int imageHeight,
+    MaskBounds innerRegion, {
+    required int ringWidth,
+  }) {
+    final outerRegion = innerRegion.expand(math.max(1, ringWidth)).clampTo(imageWidth, imageHeight);
+    if (outerRegion.isEmpty) {
       return const PatchFeatures(
         meanLuminance: 128,
         variance: 0,
@@ -103,77 +120,29 @@ class TextureAnalyzer {
       );
     }
 
-    double sumL = 0, sumSqL = 0;
-    double sumR = 0, sumG = 0, sumB = 0;
-    double energy = 0;
-    int count = 0;
-
-    for (int y = clamped.top; y < clamped.bottom; y++) {
-      for (int x = clamped.left; x < clamped.right; x++) {
-        final idx = (y * imageWidth + x) * 4;
-        final r = pixels[idx].toDouble();
-        final g = pixels[idx + 1].toDouble();
-        final b = pixels[idx + 2].toDouble();
-        final lum = 0.299 * r + 0.587 * g + 0.114 * b;
-
-        sumL += lum;
-        sumSqL += lum * lum;
-        sumR += r;
-        sumG += g;
-        sumB += b;
-        count++;
-      }
-    }
-
-    final innerTop = clamped.top + 1;
-    final innerBottom = clamped.bottom - 1;
-    final innerLeft = clamped.left + 1;
-    final innerRight = clamped.right - 1;
-
-    if (innerBottom > innerTop && innerRight > innerLeft) {
-      for (int y = innerTop; y < innerBottom; y++) {
-        for (int x = innerLeft; x < innerRight; x++) {
-          final gx = _sobelX(pixels, imageWidth, x, y);
-          final gy = _sobelY(pixels, imageWidth, x, y);
-          energy += gx * gx + gy * gy;
-        }
-      }
-    }
-
-    final n = count.toDouble();
-    final meanL = sumL / n;
-    final variance = (sumSqL / n) - (meanL * meanL);
-    final meanR = sumR / n;
-    final meanG = sumG / n;
-    final meanB = sumB / n;
-
-    final surfaceClass = classifySurface(
-      meanLuminance: meanL,
-      variance: variance,
-      energy: energy,
-      meanR: meanR,
-      meanG: meanG,
-      meanB: meanB,
+    final clampedInner = innerRegion.clampTo(imageWidth, imageHeight);
+    final features = _computeFeatureBlock(
+      pixels,
+      imageWidth,
+      imageHeight,
+      region: outerRegion,
+      include: (x, y) => !_contains(clampedInner, x, y),
     );
 
-    return PatchFeatures(
-      meanLuminance: meanL,
-      variance: variance,
-      energy: energy,
-      meanR: meanR,
-      meanG: meanG,
-      meanB: meanB,
-      surfaceClass: surfaceClass,
-    );
+    if (features.sampleCount > 0) {
+      return features;
+    }
+
+    return computeFeatures(pixels, imageWidth, imageHeight, outerRegion);
   }
 
   double computeSAD(
-      Uint8List pixels,
-      int imageWidth,
-      int imageHeight,
-      MaskBounds regionA,
-      MaskBounds regionB,
-      ) {
+    Uint8List pixels,
+    int imageWidth,
+    int imageHeight,
+    MaskBounds regionA,
+    MaskBounds regionB,
+  ) {
     final w = math.min(regionA.width, regionB.width);
     final h = math.min(regionA.height, regionB.height);
     double sad = 0.0;
@@ -221,9 +190,7 @@ class TextureAnalyzer {
   }) {
     final isBrightFlat =
         meanLuminance > 170 && variance < 180 && energy < 250000;
-    if (isBrightFlat) {
-      return SurfaceClass.flatBrightWall;
-    }
+    if (isBrightFlat) return SurfaceClass.flatBrightWall;
 
     final isSkinLike =
         meanR > meanG &&
@@ -232,25 +199,122 @@ class TextureAnalyzer {
             meanG > 85 &&
             meanB > 60 &&
             variance < 900;
-    if (isSkinLike) {
-      return SurfaceClass.skinLike;
-    }
+    if (isSkinLike) return SurfaceClass.skinLike;
 
     final isDarkFabric =
         meanLuminance < 95 && variance > 150 && energy > 120000;
-    if (isDarkFabric) {
-      return SurfaceClass.darkFabric;
-    }
+    if (isDarkFabric) return SurfaceClass.darkFabric;
 
     final isFabricTextured =
         variance > 120 &&
             energy > 80000 &&
             (meanB > meanR || meanB > meanG || meanLuminance < 160);
-    if (isFabricTextured) {
-      return SurfaceClass.fabricTextured;
-    }
+    if (isFabricTextured) return SurfaceClass.fabricTextured;
 
     return SurfaceClass.unknown;
+  }
+
+  PatchFeatures _computeFeatureBlock(
+    Uint8List pixels,
+    int imageWidth,
+    int imageHeight, {
+    required MaskBounds region,
+    required bool Function(int x, int y) include,
+  }) {
+    if (region.isEmpty) {
+      return const PatchFeatures(
+        meanLuminance: 128,
+        variance: 0,
+        energy: 0,
+        meanR: 128,
+        meanG: 128,
+        meanB: 128,
+        surfaceClass: SurfaceClass.unknown,
+      );
+    }
+
+    double sumL = 0;
+    double sumSqL = 0;
+    double sumR = 0;
+    double sumG = 0;
+    double sumB = 0;
+    double energy = 0;
+    int count = 0;
+
+    for (int y = region.top; y < region.bottom; y++) {
+      for (int x = region.left; x < region.right; x++) {
+        if (!include(x, y)) continue;
+        final idx = (y * imageWidth + x) * 4;
+        final r = pixels[idx].toDouble();
+        final g = pixels[idx + 1].toDouble();
+        final b = pixels[idx + 2].toDouble();
+        final lum = 0.299 * r + 0.587 * g + 0.114 * b;
+
+        sumL += lum;
+        sumSqL += lum * lum;
+        sumR += r;
+        sumG += g;
+        sumB += b;
+        count++;
+      }
+    }
+
+    if (count == 0) {
+      return const PatchFeatures(
+        meanLuminance: 128,
+        variance: 0,
+        energy: 0,
+        meanR: 128,
+        meanG: 128,
+        meanB: 128,
+        surfaceClass: SurfaceClass.unknown,
+      );
+    }
+
+    final innerTop = region.top + 1;
+    final innerBottom = region.bottom - 1;
+    final innerLeft = region.left + 1;
+    final innerRight = region.right - 1;
+
+    if (innerBottom > innerTop && innerRight > innerLeft) {
+      for (int y = innerTop; y < innerBottom; y++) {
+        for (int x = innerLeft; x < innerRight; x++) {
+          if (!include(x, y)) continue;
+          final gx = _sobelX(pixels, imageWidth, x, y);
+          final gy = _sobelY(pixels, imageWidth, x, y);
+          energy += gx * gx + gy * gy;
+        }
+      }
+    }
+
+    final n = count.toDouble();
+    final meanL = sumL / n;
+    final variance = (sumSqL / n) - (meanL * meanL);
+    final meanR = sumR / n;
+    final meanG = sumG / n;
+    final meanB = sumB / n;
+
+    return PatchFeatures(
+      meanLuminance: meanL,
+      variance: variance,
+      energy: energy,
+      meanR: meanR,
+      meanG: meanG,
+      meanB: meanB,
+      surfaceClass: classifySurface(
+        meanLuminance: meanL,
+        variance: variance,
+        energy: energy,
+        meanR: meanR,
+        meanG: meanG,
+        meanB: meanB,
+      ),
+      sampleCount: count,
+    );
+  }
+
+  bool _contains(MaskBounds bounds, int x, int y) {
+    return x >= bounds.left && x < bounds.right && y >= bounds.top && y < bounds.bottom;
   }
 
   double _luminance(int r, int g, int b) => 0.299 * r + 0.587 * g + 0.114 * b;
@@ -293,6 +357,7 @@ class PatchFeatures {
   final double meanG;
   final double meanB;
   final SurfaceClass surfaceClass;
+  final int sampleCount;
 
   const PatchFeatures({
     required this.meanLuminance,
@@ -302,6 +367,7 @@ class PatchFeatures {
     required this.meanG,
     required this.meanB,
     required this.surfaceClass,
+    this.sampleCount = 0,
   });
 
   double distanceTo(PatchFeatures other) {

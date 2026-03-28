@@ -1844,19 +1844,17 @@ class _StyleStealProPanelState extends State<StyleStealProPanel> {
               icon: Icons.auto_awesome_rounded,
               onPressed: () {
                 final eff = extractStrength * overApplicationLimit * (profile?.compatibilityBias ?? 0.75);
-              final eng = EditorScope.maybeOf(context);
-              eng?.setStyleStealProOptions(
-                strength: eff,
-                toneEnabled: toneTransfer,
-                moodEnabled: moodTransfer,
-                colorEnabled: colorTransfer,
-              );
-                if (colorTransfer) {
-                  eng?.setLocalTransfer(amount: eff, sourceLabel: 'Reference', targetLabel: 'Full', feather: preserveStructure ? 0.35 : 0.6);
-                }
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Style profile built - Strength ${(eff * 100).round()}%')),
-              );
+                final eng = EditorScope.maybeOf(context);
+                eng?.setReferenceOnlyMode(true);
+                eng?.setStyleStealProOptions(
+                  strength: eff,
+                  toneEnabled: toneTransfer,
+                  moodEnabled: moodTransfer,
+                  colorEnabled: colorTransfer,
+                );
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Reference style applied - Strength ' + (eff * 100).round().toString() + '%')),
+                );
               },
             ),
             const SizedBox(height: 12),
@@ -1867,3 +1865,6 @@ class _StyleStealProPanelState extends State<StyleStealProPanel> {
     );
   }
 }
+
+
+

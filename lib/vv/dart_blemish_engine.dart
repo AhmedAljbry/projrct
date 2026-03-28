@@ -79,11 +79,11 @@ class DartBlemishEngine implements BlemishRemovalEngine {
 
       double maxAllowed;
       if (base <= 18) {
-        maxAllowed = base * (mode == EngineQualityMode.preview ? 2.4 : 3.2);
+        maxAllowed = base * (mode == EngineQualityMode.preview ? 1.6 : 2.1);
       } else if (base <= 42) {
-        maxAllowed = base * (mode == EngineQualityMode.preview ? 3.1 : 4.2);
+        maxAllowed = base * (mode == EngineQualityMode.preview ? 2.1 : 2.8);
       } else {
-        maxAllowed = base * (mode == EngineQualityMode.preview ? 3.8 : 5.0);
+        maxAllowed = base * (mode == EngineQualityMode.preview ? 2.5 : 3.4);
       }
 
       // Use nearby fallback instead of failing.
@@ -334,3 +334,4 @@ class DartBlemishEngine implements BlemishRemovalEngine {
     }
   }
 }
+

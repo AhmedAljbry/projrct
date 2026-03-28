@@ -274,6 +274,24 @@ class _UnifiedEditorWorkspaceState extends State<UnifiedEditorWorkspace> {
     );
   }
 
+  bool _useReferenceDrivenStyle({String activeLabel = 'Reference Match'}) {
+    if (!_reference.hasReference) return false;
+    _engine.setReferenceOnlyMode(true);
+    _activePanel = UnifiedContextPanel.styleBlend;
+    _activeDock = _mode == UnifiedEditorMode.quick
+        ? UnifiedDockAction.styles
+        : UnifiedDockAction.blend;
+    _status = _status.copyWith(
+      activeStyle: activeLabel,
+      referenceActive: true,
+      referenceLabel: _reference.profile?.shortSummary ?? _reference.label,
+      compatibilityScore: (_status.compatibilityScore * 0.65 +
+              (_reference.profile?.compatibilityBias ?? 0.8) * 0.35)
+          .clamp(0.0, 1.0),
+    );
+    return true;
+  }
+
   void _setMode(UnifiedEditorMode nextMode) {
     if (_mode == nextMode) return;
 
@@ -358,16 +376,35 @@ class _UnifiedEditorWorkspaceState extends State<UnifiedEditorWorkspace> {
       // Engine-backed quick intents + UI state.
       switch (action) {
         case UnifiedDockAction.viral:
+          if (_useReferenceDrivenStyle()) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Reference-driven style applied.')),
+            );
+            break;
+          }
           _engine.applyQuickViral();
           _status = _status.copyWith(activeStyle: 'Clean Influencer', compatibilityScore: 0.78);
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Viral Style Applied!')));
           break;
         case UnifiedDockAction.natural:
+          if (_useReferenceDrivenStyle()) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Reference-driven style applied.')),
+            );
+            break;
+          }
           _engine.applyQuickNatural();
           _status = _status.copyWith(activeStyle: 'Natural Premium', compatibilityScore: 0.74);
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Natural Style Applied!')));
           break;
         case UnifiedDockAction.fix:
+          if (_useReferenceDrivenStyle()) {
+            _status = _status.copyWith(maskReady: true);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Reference-driven style applied.')),
+            );
+            break;
+          }
           _engine.applyOneTapFix();
           _status = _status.copyWith(maskReady: true, activeStyle: 'Fix My Photo');
           break;
@@ -474,6 +511,9 @@ class _UnifiedEditorWorkspaceState extends State<UnifiedEditorWorkspace> {
       // This enables reference-driven "Style Steal" / reference influence features
       // across the workspace UI.
       _engine.setReferenceSteal(bytes);
+      if (_status.activeStyle == 'Style Steal PRO') {
+        _engine.setReferenceOnlyMode(true);
+      }
 
       setState(() {
         _reference = _reference.copyWith(
@@ -482,6 +522,7 @@ class _UnifiedEditorWorkspaceState extends State<UnifiedEditorWorkspace> {
           label: picked.name,
         );
         _status = _status.copyWith(
+          activeStyle: 'Reference Match',
           referenceActive: true,
           referenceLabel: 'Analysing…',
           compatibilityScore: (_status.compatibilityScore - 0.05).clamp(0.0, 1.0),
@@ -492,7 +533,9 @@ class _UnifiedEditorWorkspaceState extends State<UnifiedEditorWorkspace> {
       if (!mounted) return;
       setState(() {
         _reference = _reference.copyWith(profile: profile);
+        _useReferenceDrivenStyle();
         _status = _status.copyWith(
+          activeStyle: 'Reference Match',
           referenceLabel: profile.shortSummary,
           compatibilityScore:
               (_status.compatibilityScore * 0.6 + profile.compatibilityBias * 0.4).clamp(0.0, 1.0),
@@ -508,6 +551,7 @@ class _UnifiedEditorWorkspaceState extends State<UnifiedEditorWorkspace> {
 
   void _clearReference() {
     _engine.setReferenceSteal(null);
+    _engine.setReferenceOnlyMode(false);
     setState(() {
       _reference = ReferenceImageState.none;
       _status = _status.copyWith(
@@ -572,7 +616,12 @@ class _UnifiedEditorWorkspaceState extends State<UnifiedEditorWorkspace> {
 
   void _onStyleSelected(String styleName) {
     setState(() {
+      if (_reference.hasReference) {
+        _useReferenceDrivenStyle();
+        return;
+      }
       if (styleName == 'Style Steal PRO') {
+        _engine.setReferenceOnlyMode(_reference.hasReference);
         _activePanel = UnifiedContextPanel.styleBlend;
         _activeDock = UnifiedDockAction.blend;
         _status = _status.copyWith(
@@ -668,4 +717,8 @@ class _UnifiedEditorWorkspaceState extends State<UnifiedEditorWorkspace> {
     );
   }
 }
+
+
+
+
 

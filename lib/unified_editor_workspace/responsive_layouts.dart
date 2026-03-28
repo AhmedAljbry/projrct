@@ -147,7 +147,7 @@ class MobileWorkspaceLayout extends StatelessWidget {
             onRequestShare: onRequestShare, // ADDED THIS
             showAdvancedInspector: showAdvancedInspector, // ADDED THIS
             referenceState: referenceState, // ADDED THIS
-            onAddReference: () {}, // ADDED THIS
+            onAddReference: onAddReference, // ADDED THIS
             onAdvancedInspectorToggle: onAdvancedInspectorToggle, // ADDED THIS
           ),
         ),
@@ -418,4 +418,5 @@ class WideWorkspaceLayout extends StatelessWidget {
     );
   }
 }
+
 

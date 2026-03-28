@@ -62,6 +62,7 @@ class EditorEngineController extends ChangeNotifier {
   double _skyEnhance = 0;
   String? _quickProfile;
   Uint8List? _referenceStealBytes;
+  bool _referenceOnlyMode = false;
 
   // Style Steal PRO controls (reference-driven grading deltas).
   // These must be user-driven (via the UI panel) and persisted across sessions.
@@ -141,22 +142,26 @@ class EditorEngineController extends ChangeNotifier {
       }
     }
     _quickProfile = null;
+    _referenceOnlyMode = false;
     schedulePreview();
   }
 
   void setPrimaryPackId(String id) {
     _packId = id;
+    _referenceOnlyMode = false;
     schedulePreview();
   }
 
   void setQuickProfile(String? profile) {
     _quickProfile = profile;
+    _referenceOnlyMode = false;
     schedulePreview();
   }
 
   void setStyleBlend({required String secondaryId, required double t}) {
     _secondaryPackId = secondaryId;
     _blendT = t;
+    _referenceOnlyMode = false;
     schedulePreview();
   }
 
@@ -174,6 +179,7 @@ class EditorEngineController extends ChangeNotifier {
     _samplePackIds = List.from(packIds);
     _sampleWeights = List.from(weights);
     _sampleMix = mix;
+    _referenceOnlyMode = false;
     schedulePreview();
   }
 
@@ -234,6 +240,23 @@ class EditorEngineController extends ChangeNotifier {
 
   void setReferenceSteal(Uint8List? ref) {
     _referenceStealBytes = ref;
+    if (ref == null || ref.isEmpty) {
+      _referenceOnlyMode = false;
+    }
+    schedulePreview();
+  }
+
+  void setReferenceOnlyMode(bool enabled) {
+    _referenceOnlyMode =
+        enabled && _referenceStealBytes != null && _referenceStealBytes!.isNotEmpty;
+    if (_referenceOnlyMode) {
+      _quickProfile = null;
+      _secondaryPackId = null;
+      _blendT = 0;
+      _samplePackIds = [];
+      _sampleWeights = [];
+      _localTransfer = 0;
+    }
     schedulePreview();
   }
 
@@ -256,6 +279,7 @@ class EditorEngineController extends ChangeNotifier {
       'glassEnhance': _glassEnhance,
       'skyEnhance': _skyEnhance,
       'quickProfile': _quickProfile,
+      'referenceOnlyMode': _referenceOnlyMode,
     };
     if (_secondaryPackId != null && _blendT > 0.01) {
       m['secondaryPackId'] = _secondaryPackId;
@@ -420,6 +444,7 @@ class EditorEngineController extends ChangeNotifier {
 
   /// One-tap recovery: gentle contrast + detail, scene-aware via pipeline.
   void applyOneTapFix() {
+    _referenceOnlyMode = false;
     _quickProfile = 'fix';
     _curveMaster = 0.58;
     _curveShadow = 0.42;
@@ -442,6 +467,7 @@ class EditorEngineController extends ChangeNotifier {
     _glassEnhance = 0;
     _skyEnhance = 0;
     _quickProfile = null;
+    _referenceOnlyMode = false;
     schedulePreview();
   }
 
@@ -504,12 +530,14 @@ class EditorEngineController extends ChangeNotifier {
   }
 
   void applyQuickViral() {
+    _referenceOnlyMode = false;
     _packId = 'clean_influencer';
     _quickProfile = 'viral';
     schedulePreview();
   }
 
   void applyQuickNatural() {
+    _referenceOnlyMode = false;
     _packId = 'natural_premium';
     _quickProfile = 'natural';
     schedulePreview();
@@ -517,6 +545,7 @@ class EditorEngineController extends ChangeNotifier {
 
   void clearQuickProfile() {
     _quickProfile = null;
+    _referenceOnlyMode = false;
     schedulePreview();
   }
 
@@ -600,3 +629,7 @@ class EditorEngineController extends ChangeNotifier {
     schedulePreview();
   }
 }
+
+
+
+
