@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
 
-    <!-- Default: block cleartext (HTTP) -->
-    <base-config cleartextTrafficPermitted="false" />
+    <!-- Default: Allow cleartext (HTTP) for local development -->
+    <base-config cleartextTrafficPermitted="true" />
 
     <!-- Allow ONLY your API if needed -->
     <domain-config cleartextTrafficPermitted="true">

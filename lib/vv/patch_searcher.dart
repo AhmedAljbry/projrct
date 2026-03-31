@@ -44,23 +44,22 @@ class PatchSearcher {
     final sizeClass = classifyBlemishSize(patchW, patchH);
     final base = math.max(patchW, patchH);
     final maxRadius = _ringMaxRadius(patchW, patchH, mode);
-    final stride = _samplingStride(patchW, patchH, mode);
     final ringWidth = switch (sizeClass) {
-      BlemishSizeClass.small => math.max(4, (base * 0.72).ceil()),
-      BlemishSizeClass.medium => math.max(6, (base * 0.60).ceil()),
-      BlemishSizeClass.largeNatural => math.max(8, (base * 0.50).ceil()),
+      BlemishSizeClass.small => math.max(3, (base * 0.56).ceil()),
+      BlemishSizeClass.medium => math.max(4, (base * 0.44).ceil()),
+      BlemishSizeClass.largeNatural => math.max(6, (base * 0.38).ceil()),
     };
     final exclusionMargin = switch (sizeClass) {
-      BlemishSizeClass.small => math.max(4, (base * 0.92).ceil()),
-      BlemishSizeClass.medium => math.max(6, (base * 1.02).ceil()),
-      BlemishSizeClass.largeNatural => math.max(8, (base * 1.12).ceil()),
+      BlemishSizeClass.small => math.max(2, (base * 0.38).ceil()),
+      BlemishSizeClass.medium => math.max(3, (base * 0.34).ceil()),
+      BlemishSizeClass.largeNatural => math.max(4, (base * 0.30).ceil()),
     };
     final spatialWeight = switch (sizeClass) {
-      BlemishSizeClass.small => 30.0,
-      BlemishSizeClass.medium => 24.0,
-      BlemishSizeClass.largeNatural => 18.0,
+      BlemishSizeClass.small => 44.0,
+      BlemishSizeClass.medium => 38.0,
+      BlemishSizeClass.largeNatural => 30.0,
     };
-    final maxCandidates = mode == EngineQualityMode.preview ? 8 : 14;
+    final maxCandidates = mode == EngineQualityMode.preview ? 6 : 10;
 
     final targetCx = (targetRegion.left + targetRegion.right) / 2.0;
     final targetCy = (targetRegion.top + targetRegion.bottom) / 2.0;
@@ -71,11 +70,17 @@ class PatchSearcher {
       targetRegion,
       ringWidth: ringWidth,
     );
+    final targetSurface = targetRingFeatures.surfaceClass;
 
-    final List<PatchCandidate> candidates = [];
+    final List<_ScoredCandidate> candidates = [];
     final seen = <int>{};
 
-    void considerCandidate(int sx, int sy, {required bool priority}) {
+    void considerCandidate(
+      int sx,
+      int sy, {
+      required double laneBias,
+      required String side,
+    }) {
       final clampedX = sx.clamp(0, math.max(0, imageWidth - patchW)).toInt();
       final clampedY = sy.clamp(0, math.max(0, imageHeight - patchH)).toInt();
       final key = (clampedY * imageWidth) + clampedX;
@@ -107,10 +112,7 @@ class PatchSearcher {
         ringWidth: ringWidth,
       );
 
-      if (!_isSurfaceCompatible(
-        targetRingFeatures.surfaceClass,
-        candidateRingFeatures.surfaceClass,
-      )) {
+      if (!_isSurfaceCompatible(targetSurface, candidateRingFeatures.surfaceClass)) {
         return;
       }
 
@@ -121,6 +123,20 @@ class PatchSearcher {
         candidateBounds,
       );
 
+      if (!_isInteriorCompatible(targetSurface, candidateInterior.surfaceClass)) {
+        return;
+      }
+
+      if (targetSurface == SurfaceClass.skinLike) {
+        final luminanceDelta =
+            (targetRingFeatures.meanLuminance - candidateInterior.meanLuminance).abs();
+        final redDelta = (targetRingFeatures.meanR - candidateInterior.meanR).abs();
+        final greenDelta = (targetRingFeatures.meanG - candidateInterior.meanG).abs();
+        if (luminanceDelta > 16.0 || redDelta > 20.0 || greenDelta > 18.0) {
+          return;
+        }
+      }
+
       final featureDist = targetRingFeatures.distanceTo(candidateRingFeatures);
       final interiorDist = targetRingFeatures.distanceTo(candidateInterior);
       final candCx = clampedX + patchW / 2.0;
@@ -130,47 +146,74 @@ class PatchSearcher {
       final spatialDist = math.sqrt(dx * dx + dy * dy);
       final normalizedSpatial = spatialDist / math.max(1.0, maxRadius.toDouble());
 
-      if (normalizedSpatial > 0.88) return;
-      if (!priority && normalizedSpatial > 0.72 && featureDist > 42.0) return;
-      if (normalizedSpatial > 0.54 && featureDist > 56.0) return;
+      if (normalizedSpatial > 0.52) return;
+      if (normalizedSpatial > 0.34 && featureDist > 30.0) return;
+      if (normalizedSpatial > 0.24 && featureDist > 38.0) return;
 
-      final axisBias = math.min(dx.abs(), dy.abs()) / math.max(1.0, math.max(dx.abs(), dy.abs()));
-      var score = featureDist;
-      score += interiorDist * 0.14;
-      score += normalizedSpatial * spatialWeight;
-      score += (targetRingFeatures.meanLuminance - candidateInterior.meanLuminance).abs() * 0.08;
-      score += (targetRingFeatures.energy - candidateRingFeatures.energy).abs() * 0.025;
-      score += axisBias * 4.0;
-      if (!priority) {
-        score += 3.0;
+      final axisBias = math.min(dx.abs(), dy.abs()) /
+          math.max(1.0, math.max(dx.abs(), dy.abs()));
+      final edgeDistance = _edgeDistancePenalty(
+        clampedX,
+        clampedY,
+        patchW,
+        patchH,
+        targetRegion,
+      );
+      if (edgeDistance > math.max(1.2, math.max(patchW, patchH) * 0.18)) {
+        return;
       }
 
-      candidates.add(PatchCandidate(
-        sourceX: clampedX,
-        sourceY: clampedY,
-        patchWidth: patchW,
-        patchHeight: patchH,
-        score: score,
-      ));
+      var score = featureDist;
+      score += interiorDist * 0.10;
+      score += normalizedSpatial * spatialWeight;
+      score += (targetRingFeatures.meanLuminance - candidateInterior.meanLuminance).abs() * 0.06;
+      score += (targetRingFeatures.energy - candidateRingFeatures.energy).abs() * 0.018;
+      score += _colorPenalty(targetRingFeatures, candidateInterior);
+      score += axisBias * (targetSurface == SurfaceClass.skinLike ? 8.0 : 5.0);
+      score += edgeDistance * 4.5;
+      score += laneBias;
+
+      candidates.add(
+        _ScoredCandidate(
+          candidate: PatchCandidate(
+            sourceX: clampedX,
+            sourceY: clampedY,
+            patchWidth: patchW,
+            patchHeight: patchH,
+            score: score,
+          ),
+          score: score,
+          side: side,
+        ),
+      );
     }
 
-    for (final offset in _priorityOffsets(targetRegion, patchW, patchH, exclusionMargin)) {
-      considerCandidate(offset.x, offset.y, priority: true);
-    }
-
-    final searchLeft = math.max(0, targetRegion.left - maxRadius);
-    final searchTop = math.max(0, targetRegion.top - maxRadius);
-    final searchRight = math.min(imageWidth - patchW, targetRegion.right + maxRadius);
-    final searchBottom = math.min(imageHeight - patchH, targetRegion.bottom + maxRadius);
-
-    for (int sy = searchTop; sy <= searchBottom; sy += stride) {
-      for (int sx = searchLeft; sx <= searchRight; sx += stride) {
-        considerCandidate(sx, sy, priority: false);
+    for (final lane in _priorityLanes(
+      targetRegion,
+      patchW,
+      patchH,
+      exclusionMargin,
+      targetSurface,
+    )) {
+      for (final point in lane.points) {
+        considerCandidate(
+          point.x,
+          point.y,
+          laneBias: lane.bias,
+          side: lane.side,
+        );
       }
     }
 
     if (candidates.isEmpty) {
-      final fallback = _fallbackPatch(imageWidth, imageHeight, targetRegion, patchW, patchH);
+      final fallback = _fallbackPatch(
+        imageWidth,
+        imageHeight,
+        targetRegion,
+        patchW,
+        patchH,
+        targetSurface,
+      );
       sw.stop();
       return PatchSelectionResult(
         bestPatch: fallback,
@@ -179,8 +222,11 @@ class PatchSearcher {
       );
     }
 
-    candidates.sort((a, b) => a.score.compareTo(b.score));
-    final ranked = candidates.take(maxCandidates).toList();
+    final filtered = targetSurface == SurfaceClass.skinLike
+        ? _keepOnlyBestSide(candidates)
+        : candidates;
+    filtered.sort((a, b) => a.score.compareTo(b.score));
+    final ranked = filtered.take(maxCandidates).map((e) => e.candidate).toList();
     sw.stop();
     return PatchSelectionResult(
       bestPatch: ranked.first,
@@ -189,34 +235,80 @@ class PatchSearcher {
     );
   }
 
-  List<({int x, int y})> _priorityOffsets(
+  List<_ScoredCandidate> _keepOnlyBestSide(List<_ScoredCandidate> candidates) {
+    candidates.sort((a, b) => a.score.compareTo(b.score));
+    final bestSide = candidates.first.side;
+    final sameSide = candidates.where((c) => c.side == bestSide).toList();
+    return sameSide.isEmpty ? candidates : sameSide;
+  }
+
+  List<_PriorityLane> _priorityLanes(
     MaskBounds target,
     int patchW,
     int patchH,
     int exclusionMargin,
+    SurfaceClass targetSurface,
   ) {
-    final gapX = math.max(3, exclusionMargin + patchW ~/ 6);
-    final gapY = math.max(3, exclusionMargin + patchH ~/ 6);
-    final nearGapX = math.max(2, gapX ~/ 2);
-    final nearGapY = math.max(2, gapY ~/ 2);
+    final nearGapX = math.max(1, exclusionMargin);
+    final nearGapY = math.max(1, exclusionMargin);
+    final centerTop = target.top;
 
-    return <({int x, int y})>[
-      (x: target.right + nearGapX, y: target.top),
-      (x: target.left - patchW - nearGapX, y: target.top),
-      (x: target.left, y: target.bottom + nearGapY),
-      (x: target.left, y: target.top - patchH - nearGapY),
-      (x: target.right + gapX, y: target.top),
-      (x: target.left - patchW - gapX, y: target.top),
-      (x: target.left, y: target.bottom + gapY),
-      (x: target.left, y: target.top - patchH - gapY),
-      (x: target.right + gapX, y: target.bottom + gapY),
-      (x: target.left - patchW - gapX, y: target.bottom + gapY),
-      (x: target.right + gapX, y: target.top - patchH - gapY),
-      (x: target.left - patchW - gapX, y: target.top - patchH - gapY),
+    List<({int x, int y})> rightLane(int anchorY, int gap) {
+      final spread = math.max(1, patchH ~/ 7);
+      return <({int x, int y})>[
+        (x: target.right + gap, y: anchorY),
+        (x: target.right + gap, y: anchorY - spread),
+        (x: target.right + gap, y: anchorY + spread),
+      ];
+    }
+
+    List<({int x, int y})> leftLane(int anchorY, int gap) {
+      final spread = math.max(1, patchH ~/ 7);
+      return <({int x, int y})>[
+        (x: target.left - patchW - gap, y: anchorY),
+        (x: target.left - patchW - gap, y: anchorY - spread),
+        (x: target.left - patchW - gap, y: anchorY + spread),
+      ];
+    }
+
+    List<({int x, int y})> topLane(int anchorX, int gap) {
+      final spread = math.max(1, patchW ~/ 7);
+      return <({int x, int y})>[
+        (x: anchorX, y: target.top - patchH - gap),
+        (x: anchorX - spread, y: target.top - patchH - gap),
+        (x: anchorX + spread, y: target.top - patchH - gap),
+      ];
+    }
+
+    if (targetSurface == SurfaceClass.skinLike) {
+      return <_PriorityLane>[
+        _PriorityLane(points: rightLane(centerTop, nearGapX), bias: 0.0, side: 'right'),
+        _PriorityLane(points: leftLane(centerTop, nearGapX), bias: 0.0, side: 'left'),
+        _PriorityLane(points: topLane(target.left, nearGapY), bias: 1.6, side: 'top'),
+      ];
+    }
+
+    List<({int x, int y})> bottomLane(int anchorX, int gap) {
+      final spread = math.max(1, patchW ~/ 6);
+      return <({int x, int y})>[
+        (x: anchorX, y: target.bottom + gap),
+        (x: anchorX - spread, y: target.bottom + gap),
+        (x: anchorX + spread, y: target.bottom + gap),
+      ];
+    }
+
+    return <_PriorityLane>[
+      _PriorityLane(points: rightLane(centerTop, nearGapX), bias: 0.0, side: 'right'),
+      _PriorityLane(points: leftLane(centerTop, nearGapX), bias: 0.0, side: 'left'),
+      _PriorityLane(points: topLane(target.left, nearGapY), bias: 0.4, side: 'top'),
+      _PriorityLane(points: bottomLane(target.left, nearGapY), bias: 0.4, side: 'bottom'),
     ];
   }
 
   bool _isSurfaceCompatible(SurfaceClass a, SurfaceClass b) {
+    if (a == SurfaceClass.skinLike) {
+      return b == SurfaceClass.skinLike;
+    }
     if (a == SurfaceClass.unknown || b == SurfaceClass.unknown) return true;
     if (a == b) return true;
     if ((a == SurfaceClass.darkFabric && b == SurfaceClass.fabricTextured) ||
@@ -224,6 +316,45 @@ class PatchSearcher {
       return true;
     }
     return false;
+  }
+
+  bool _isInteriorCompatible(SurfaceClass targetSurface, SurfaceClass candidateSurface) {
+    if (targetSurface == SurfaceClass.skinLike) {
+      return candidateSurface == SurfaceClass.skinLike ||
+          candidateSurface == SurfaceClass.unknown;
+    }
+    if (targetSurface == SurfaceClass.flatBrightWall) {
+      return candidateSurface != SurfaceClass.darkFabric;
+    }
+    return true;
+  }
+
+  double _colorPenalty(PatchFeatures target, PatchFeatures candidate) {
+    final dr = (target.meanR - candidate.meanR).abs();
+    final dg = (target.meanG - candidate.meanG).abs();
+    final db = (target.meanB - candidate.meanB).abs();
+    var penalty = dr * 0.10 + dg * 0.08 + db * 0.08;
+    if (target.surfaceClass == SurfaceClass.skinLike) {
+      penalty += dr * 0.22 + dg * 0.18 + db * 0.16;
+    }
+    return penalty;
+  }
+
+  double _edgeDistancePenalty(
+    int sx,
+    int sy,
+    int pw,
+    int ph,
+    MaskBounds target,
+  ) {
+    final leftGap = (target.left - (sx + pw)).abs();
+    final rightGap = (sx - target.right).abs();
+    final topGap = (target.top - (sy + ph)).abs();
+    final bottomGap = (sy - target.bottom).abs();
+
+    final horizontalGap = math.min(leftGap, rightGap).toDouble();
+    final verticalGap = math.min(topGap, bottomGap).toDouble();
+    return math.min(horizontalGap, verticalGap);
   }
 
   bool _overlaps(int sx, int sy, int pw, int ph, MaskBounds target, {required int margin}) {
@@ -238,20 +369,12 @@ class PatchSearcher {
     final base = math.max(patchW, patchH);
     switch (sizeClass) {
       case BlemishSizeClass.small:
-        return mode == EngineQualityMode.preview ? (base * 1.55).ceil() : (base * 2.0).ceil();
+        return mode == EngineQualityMode.preview ? (base * 0.56).ceil() : (base * 0.72).ceil();
       case BlemishSizeClass.medium:
-        return mode == EngineQualityMode.preview ? (base * 2.0).ceil() : (base * 2.6).ceil();
+        return mode == EngineQualityMode.preview ? (base * 0.68).ceil() : (base * 0.84).ceil();
       case BlemishSizeClass.largeNatural:
-        return mode == EngineQualityMode.preview ? (base * 2.4).ceil() : (base * 3.1).ceil();
+        return mode == EngineQualityMode.preview ? (base * 0.78).ceil() : (base * 0.96).ceil();
     }
-  }
-
-  int _samplingStride(int patchW, int patchH, EngineQualityMode mode) {
-    final minDim = math.min(patchW, patchH);
-    if (mode == EngineQualityMode.preview) {
-      return math.max(minDim ~/ 2, 4);
-    }
-    return math.max(minDim ~/ 3, 3);
   }
 
   PatchCandidate _fallbackPatch(
@@ -260,22 +383,27 @@ class PatchSearcher {
     MaskBounds target,
     int patchW,
     int patchH,
+    SurfaceClass targetSurface,
   ) {
-    final gapX = math.max(3, patchW ~/ 3);
-    final gapY = math.max(3, patchH ~/ 3);
-    final tryPoints = <({int x, int y})>[
-      (x: target.right + gapX, y: target.top),
-      (x: target.left - patchW - gapX, y: target.top),
-      (x: target.left, y: target.bottom + gapY),
-      (x: target.left, y: target.top - patchH - gapY),
-      (x: target.right + gapX, y: target.bottom + gapY),
-      (x: target.left - patchW - gapX, y: target.top - patchH - gapY),
-    ];
+    final gapX = math.max(1, patchW ~/ 5);
+    final gapY = math.max(1, patchH ~/ 5);
+    final tryPoints = targetSurface == SurfaceClass.skinLike
+        ? <({int x, int y, String side})>[
+            (x: target.right + gapX, y: target.top, side: 'right'),
+            (x: target.left - patchW - gapX, y: target.top, side: 'left'),
+            (x: target.left, y: target.top - patchH - gapY, side: 'top'),
+          ]
+        : <({int x, int y, String side})>[
+            (x: target.right + gapX, y: target.top, side: 'right'),
+            (x: target.left - patchW - gapX, y: target.top, side: 'left'),
+            (x: target.left, y: target.bottom + gapY, side: 'bottom'),
+            (x: target.left, y: target.top - patchH - gapY, side: 'top'),
+          ];
 
     for (final p in tryPoints) {
       final x = p.x.clamp(0, math.max(0, imageWidth - patchW)).toInt();
       final y = p.y.clamp(0, math.max(0, imageHeight - patchH)).toInt();
-      if (_overlaps(x, y, patchW, patchH, target, margin: math.max(2, patchW ~/ 3))) {
+      if (_overlaps(x, y, patchW, patchH, target, margin: math.max(1, patchW ~/ 5))) {
         continue;
       }
       return PatchCandidate(
@@ -295,4 +423,28 @@ class PatchSearcher {
       score: 999999.0,
     );
   }
+}
+
+class _PriorityLane {
+  final List<({int x, int y})> points;
+  final double bias;
+  final String side;
+
+  const _PriorityLane({
+    required this.points,
+    required this.bias,
+    required this.side,
+  });
+}
+
+class _ScoredCandidate {
+  final PatchCandidate candidate;
+  final double score;
+  final String side;
+
+  const _ScoredCandidate({
+    required this.candidate,
+    required this.score,
+    required this.side,
+  });
 }

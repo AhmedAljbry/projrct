@@ -250,8 +250,7 @@ class _LamaEditorScreenState extends State<LamaEditorScreen> {
             ),
             onProgress: _onApiProgress,
           );
-          break;
-        case LamaTaskMode.removeObject:
+
           // Just defaulting to heal if triggered by accident
           throw Exception("Remove Object requested but not mapped natively here.");
       }

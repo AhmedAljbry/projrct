@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -7,7 +7,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gal/gal.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:untitled2/features/ai_object_clone_studio/presentation/pages/clone_studio_page.dart';
 import 'package:untitled2/features/smart_retouch/infrastructure/engine/retouch_image_service.dart';
 
 import '../../application/bloc/retouch_bloc.dart';
@@ -301,7 +300,7 @@ class _SmartRetouchViewState extends State<_SmartRetouchView> {
                                 ),
                                 SizedBox(height: 14),
                                 Text(
-                                  'ط¬ط§ط±ظگ ط§ظ„ظ…ط¹ط§ظ„ط¬ط©',
+                                  'ط·آ·ط¢آ¬ط·آ·ط¢آ§ط·آ·ط¢آ±ط·آ¸ط¹آ¯ ط·آ·ط¢آ§ط·آ¸أ¢â‚¬â€چط·آ¸أ¢â‚¬آ¦ط·آ·ط¢آ¹ط·آ·ط¢آ§ط·آ¸أ¢â‚¬â€چط·آ·ط¢آ¬ط·آ·ط¢آ©',
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontSize: 16,

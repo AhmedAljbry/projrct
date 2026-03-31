@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:typed_data';
+
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 
@@ -28,11 +29,15 @@ class LamaRemoteDataSourceImpl implements LamaRemoteDataSource {
   Map<String, String> get _headers => {
         'x-api-key': apiKey,
         'Accept-Language': 'en',
+        'ngrok-skip-browser-warning': '1',
       };
 
   @override
   Future<LamaServerHealth> checkHealth() async {
-    final response = await client.get(Uri.parse('$baseUrl/health'), headers: _headers);
+    final response = await client.get(
+      Uri.parse('$baseUrl/health'),
+      headers: _headers,
+    );
     _checkResponse(response);
     final data = jsonDecode(response.body);
     return LamaServerHealth(
@@ -45,7 +50,10 @@ class LamaRemoteDataSourceImpl implements LamaRemoteDataSource {
 
   @override
   Future<LamaCapabilities> getCapabilities() async {
-    final response = await client.get(Uri.parse('$baseUrl/capabilities'), headers: _headers);
+    final response = await client.get(
+      Uri.parse('$baseUrl/capabilities'),
+      headers: _headers,
+    );
     _checkResponse(response);
     final data = jsonDecode(response.body);
     return LamaCapabilities(
@@ -62,13 +70,19 @@ class LamaRemoteDataSourceImpl implements LamaRemoteDataSource {
       ..fields['mode'] = options.mode.value;
 
     request.fields.addAll(options.toFields());
+    if (options.optionsJson != null && options.optionsJson!.isNotEmpty) {
+      request.fields['options_json'] = jsonEncode(options.optionsJson);
+    }
 
     request.files.add(
       http.MultipartFile.fromBytes(
         'image',
         options.imageBytes,
         filename: options.imageName,
-        contentType: MediaType('image', options.imageName.endsWith('.png') ? 'png' : 'jpeg'),
+        contentType: MediaType(
+          'image',
+          options.imageName.endsWith('.png') ? 'png' : 'jpeg',
+        ),
       ),
     );
 
@@ -91,9 +105,8 @@ class LamaRemoteDataSourceImpl implements LamaRemoteDataSource {
     final data = jsonDecode(response.body);
     if (data['ok'] == true && data['job_id'] != null) {
       return data['job_id'];
-    } else {
-      throw LamaApiFailure('Failed to submit task: ${data['message']}');
     }
+    throw LamaApiFailure('Failed to submit task: ${data['message']}');
   }
 
   @override
@@ -110,9 +123,8 @@ class LamaRemoteDataSourceImpl implements LamaRemoteDataSource {
         message: data['message'] ?? '',
         error: data['error'],
       );
-    } else {
-      throw LamaApiFailure('Failed to get status: ${data['message']}');
     }
+    throw LamaApiFailure('Failed to get status: ${data['message']}');
   }
 
   @override
@@ -124,10 +136,11 @@ class LamaRemoteDataSourceImpl implements LamaRemoteDataSource {
 
     if (response.headers['content-type']?.contains('image') ?? false) {
       return response.bodyBytes;
-    } else {
-       final data = jsonDecode(response.body);
-       throw LamaApiFailure('Result endpoint returned json instead of image: ${data['message']}');
     }
+    final data = jsonDecode(response.body);
+    throw LamaApiFailure(
+      'Result endpoint returned json instead of image: ${data['message']}',
+    );
   }
 
   void _checkResponse(http.Response response) {

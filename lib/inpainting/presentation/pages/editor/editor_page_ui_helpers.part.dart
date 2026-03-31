@@ -205,7 +205,6 @@ extension _EditorPageUIHelpers on _EditorPageState {
       child: BackdropFilter(
         filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
         child: Container(
-          width: compact ? 166 : 214,
           padding: EdgeInsets.all(compact ? 12 : 14),
           decoration: BoxDecoration(
             color: InpaintingStudioTheme.surfaceSoft,
@@ -214,6 +213,7 @@ extension _EditorPageUIHelpers on _EditorPageState {
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
               Row(
                 children: [

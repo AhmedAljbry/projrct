@@ -3,7 +3,6 @@ import 'dart:convert';
 /// Defines the mode of operation for the Lama API task.
 /// All modes from the Python API are implemented here.
 enum LamaTaskMode {
-  removeObject, // Provided for completeness, though user requested to focus on others.
   healRegion,
   repairDamage,
   expandCanvas,
@@ -14,8 +13,6 @@ extension LamaTaskModeExtension on LamaTaskMode {
   /// Converts the enum to the string value expected by the API.
   String get value {
     switch (this) {
-      case LamaTaskMode.removeObject:
-        return 'remove_object';
       case LamaTaskMode.healRegion:
         return 'heal_region';
       case LamaTaskMode.repairDamage:

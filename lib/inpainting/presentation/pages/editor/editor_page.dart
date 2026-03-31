@@ -103,423 +103,393 @@ class _EditorPageState extends State<EditorPage>
     final image = pickState.uiImage;
 
     return Scaffold(
-      backgroundColor: InpaintingStudioTheme.background,
-      body: StudioGlowBackground(
-        animation: _glowController,
-        child: SafeArea(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final isWideLayout = constraints.maxWidth >= 1040;
-              final compactToolbar = constraints.maxWidth < 720;
-              final horizontalPadding =
-                  constraints.maxWidth < 460 ? 12.0 : 20.0;
-              final verticalPadding = constraints.maxHeight < 760 ? 10.0 : 16.0;
-              final sidePanelWidth =
-                  math.min(386.0, constraints.maxWidth * 0.31);
+      backgroundColor: const Color(0xFF061017),
+      body: SafeArea(
+        child: BlocBuilder<DrawingCubit, DrawingState>(
+          builder: (context, drawingState) {
+            return LayoutBuilder(
+              builder: (context, constraints) {
+                final isWideLayout = constraints.maxWidth >= 1040;
+                final compactToolbar = constraints.maxWidth < 720;
 
-              return Stack(
-                children: [
-                  Padding(
-                    padding: EdgeInsets.fromLTRB(
-                      horizontalPadding,
-                      verticalPadding,
-                      horizontalPadding,
-                      math.max(verticalPadding, 12),
-                    ),
-                    child: Column(
-                      children: [
-                        BlocBuilder<DrawingCubit, DrawingState>(
-                          buildWhen: (previous, current) =>
-                              previous.canUndo != current.canUndo ||
-                              previous.canRedo != current.canRedo ||
-                              previous.strokes.length != current.strokes.length,
-                          builder: (context, drawingState) {
-                            return InpaintingEditorToolbar(
-                              l10n: l10n,
-                              title: l10n.get('magic_title'),
-                              subtitle: drawingState.strokes.isEmpty
-                                  ? l10n.get('editor_tip_run')
-                                  : l10n.get('editor_tip_precision'),
-                              statusLabel: drawingState.strokes.isEmpty
-                                  ? l10n.get('editor_mask_pending')
-                                  : l10n.get('editor_mask_ready'),
-                              hasMask: drawingState.strokes.isNotEmpty,
-                              compareEnabled: _showOriginalPreview,
-                              canUndo: drawingState.canUndo,
-                              canRedo: drawingState.canRedo,
-                              compact: compactToolbar,
-                              onBack: _handleBackNavigation,
-                              onHelp: () => _showEditorHelpSheet(context, l10n),
-                              onUndo: () => context.read<DrawingCubit>().undo(),
-                              onRedo: () => context.read<DrawingCubit>().redo(),
-                              onClear: () =>
-                                  context.read<DrawingCubit>().clear(),
-                              onToggleCompare: _toggleComparePreview,
-                              undoLabel: l10n.get('undo'),
-                              redoLabel: l10n.get('redo'),
-                              clearLabel: l10n.get('clear'),
-                              compareLabel: l10n.get('compare'),
-                              compareActiveLabel: l10n.get('compare_live'),
-                            );
-                          },
-                        ),
-                        SizedBox(height: 14),
-                        Expanded(
-                          child: isWideLayout
-                              ? Row(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: [
-                                    Expanded(
-                                      child: _buildWorkspaceCard(
-                                        context: context,
-                                        l10n: l10n,
-                                        image: image,
-                                        compact: false,
-                                      ),
-                                    ),
-                                    SizedBox(width: 18),
-                                    SizedBox(
-                                      width: sidePanelWidth,
-                                      child: _buildControlsPanel(
-                                        context: context,
-                                        l10n: l10n,
-                                        layout:
-                                            InpaintingControlsLayout.sideDock,
-                                      ),
-                                    ),
-                                  ],
-                                )
-                              : _buildNarrowLayout(
-                                  context: context,
-                                  l10n: l10n,
-                                  image: image,
-                                  horizontalPadding: horizontalPadding,
+                // For wide layouts, use a row-based structure.
+                if (isWideLayout) {
+                  return Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.all(16.0),
+                                  child: _buildTopSectionRow(l10n, drawingState, compactToolbar, image),
                                 ),
+                                Expanded(
+                                  child: LayoutBuilder(
+                                    builder: (context, canvasConstraints) {
+                                      final canvasSize = Size(canvasConstraints.maxWidth, canvasConstraints.maxHeight);
+                                      return _buildCanvasWrapper(context, image, drawingState, canvasSize);
+                                    },
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            width: math.min(386.0, constraints.maxWidth * 0.31),
+                            decoration: const BoxDecoration(
+                              border: Border(left: BorderSide(color: Colors.white12)),
+                            ),
+                            child: _buildControlsPanel(
+                              context: context,
+                              l10n: l10n,
+                              layout: InpaintingControlsLayout.sideDock,
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (_isPreparing) _buildPreparingOverlay(),
+                    ],
+                  );
+                }
+
+                // Narrow layout: Column-based (Top -> Image -> Bottom)
+                return Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // 1. Top Section (Toolbar + Status) outside image
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              InpaintingEditorToolbar(
+                                l10n: l10n,
+                                title: l10n.get('magic_title'),
+                                subtitle: drawingState.strokes.isEmpty
+                                    ? l10n.get('editor_tip_run')
+                                    : l10n.get('editor_tip_precision'),
+                                statusLabel: drawingState.strokes.isEmpty
+                                    ? l10n.get('editor_mask_pending')
+                                    : l10n.get('editor_mask_ready'),
+                                hasMask: drawingState.strokes.isNotEmpty,
+                                compareEnabled: _showOriginalPreview,
+                                canUndo: drawingState.canUndo,
+                                canRedo: drawingState.canRedo,
+                                compact: compactToolbar,
+                                onBack: _handleBackNavigation,
+                                onHelp: () => _showEditorHelpSheet(context, l10n),
+                                onUndo: () => context.read<DrawingCubit>().undo(),
+                                onRedo: () => context.read<DrawingCubit>().redo(),
+                                onClear: () => context.read<DrawingCubit>().clear(),
+                                onToggleCompare: _toggleComparePreview,
+                                undoLabel: l10n.get('undo'),
+                                redoLabel: l10n.get('redo'),
+                                clearLabel: l10n.get('clear'),
+                                compareLabel: l10n.get('compare'),
+                                compareActiveLabel: l10n.get('compare_live'),
+                              ),
+                              const SizedBox(height: 12),
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Flexible(
+                                    child: Align(
+                                      alignment: AlignmentDirectional.topStart,
+                                      child: _buildEditorStatusCard(
+                                        l10n: l10n,
+                                        drawingState: drawingState,
+                                        imageWidth: image.width,
+                                        imageHeight: image.height,
+                                        compact: compactToolbar,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        // 2. The Canvas Area (Unobstructed Focus) - Using Remaining Space
+                        Expanded(
+                          child: LayoutBuilder(
+                            builder: (context, canvasConstraints) {
+                              final canvasSize = Size(canvasConstraints.maxWidth, canvasConstraints.maxHeight);
+                              return Stack(
+                                children: [
+                                  _buildCanvasWrapper(context, image, drawingState, canvasSize),
+                                  
+                                  // Right-aligned Zoom badge & Compare toggle floating safely over the image corner
+                                  Positioned(
+                                    top: 12,
+                                    right: 12,
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.end,
+                                      children: [
+                                        ValueListenableBuilder<Matrix4>(
+                                          valueListenable: _viewportController,
+                                          builder: (context, matrix, child) {
+                                            return _buildZoomBadge(
+                                              scale: matrix.getMaxScaleOnAxis(),
+                                              accentColor: InpaintingStudioTheme.mint,
+                                              compact: compactToolbar,
+                                            );
+                                          },
+                                        ),
+                                        if (_showOriginalPreview || !_showMaskOverlay) ...[
+                                          const SizedBox(height: 8),
+                                          StudioPill(
+                                            icon: _showOriginalPreview
+                                                ? Icons.compare_rounded
+                                                : Icons.visibility_off_rounded,
+                                            label: _showOriginalPreview
+                                                ? l10n.get('original_label')
+                                                : l10n.get('workflow_mask'),
+                                            accent: _showOriginalPreview
+                                                ? InpaintingStudioTheme.cyan
+                                                : InpaintingStudioTheme.amber,
+                                            filled: true,
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                  // Quick Gesture Hint
+                                  if (!compactToolbar)
+                                    Positioned(
+                                      bottom: 12,
+                                      left: 12,
+                                      child: _buildGestureHint(
+                                        l10n: l10n,
+                                        compact: compactToolbar,
+                                      ),
+                                    ),
+                                ],
+                              );
+                            },
+                          ),
+                        ),
+
+                        // 3. Bottom Controls Area (Fixed at the bottom outside the image)
+                        Container(
+                          height: math.min(360.0, constraints.maxHeight * 0.42),
+                          decoration: const BoxDecoration(
+                            border: Border(top: BorderSide(color: Colors.white12)),
+                          ),
+                          child: ValueListenableBuilder<Matrix4>(
+                            valueListenable: _viewportController,
+                            builder: (context, matrix, child) {
+                              return _buildControlsPanel(
+                                context: context,
+                                l10n: l10n,
+                                layout: InpaintingControlsLayout.bottomDock,
+                              );
+                            },
+                          ),
                         ),
                       ],
                     ),
-                  ),
-                  if (_isPreparing) _buildPreparingOverlay(),
-                ],
-              );
-            },
-          ),
+                    if (_isPreparing) _buildPreparingOverlay(),
+                  ],
+                );
+              },
+            );
+          },
         ),
       ),
     );
   }
 
-  /// Narrow layout: canvas fills available space, compact toolbar below,
-  /// pinned Run AI row at the very bottom, DraggableScrollableSheet overlays
-  /// advanced settings on demand.
-  Widget _buildNarrowLayout({
-    required BuildContext context,
-    required AppL10n l10n,
-    required ui.Image image,
-    required double horizontalPadding,
-  }) {
-    return BlocBuilder<DrawingCubit, DrawingState>(
-      builder: (context, drawingState) {
-        return Stack(
+  Widget _buildTopSectionRow(AppL10n l10n, DrawingState drawingState, bool compactToolbar, ui.Image image) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        InpaintingEditorToolbar(
+          l10n: l10n,
+          title: l10n.get('magic_title'),
+          subtitle: drawingState.strokes.isEmpty
+              ? l10n.get('editor_tip_run')
+              : l10n.get('editor_tip_precision'),
+          statusLabel: drawingState.strokes.isEmpty
+              ? l10n.get('editor_mask_pending')
+              : l10n.get('editor_mask_ready'),
+          hasMask: drawingState.strokes.isNotEmpty,
+          compareEnabled: _showOriginalPreview,
+          canUndo: drawingState.canUndo,
+          canRedo: drawingState.canRedo,
+          compact: compactToolbar,
+          onBack: _handleBackNavigation,
+          onHelp: () => _showEditorHelpSheet(context, l10n),
+          onUndo: () => context.read<DrawingCubit>().undo(),
+          onRedo: () => context.read<DrawingCubit>().redo(),
+          onClear: () => context.read<DrawingCubit>().clear(),
+          onToggleCompare: _toggleComparePreview,
+          undoLabel: l10n.get('undo'),
+          redoLabel: l10n.get('redo'),
+          clearLabel: l10n.get('clear'),
+          compareLabel: l10n.get('compare'),
+          compareActiveLabel: l10n.get('compare_live'),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            // ── Main column: canvas + compact toolbar + CTA ──────────
-            Column(
-              children: [
-                // Canvas (fills all available space)
-                Expanded(
-                  child: _buildWorkspaceCard(
-                    context: context,
-                    l10n: l10n,
-                    image: image,
-                    compact: true,
-                    drawingStateOverride: drawingState,
-                  ),
+            Flexible(
+              child: Align(
+                alignment: AlignmentDirectional.topStart,
+                child: _buildEditorStatusCard(
+                  l10n: l10n,
+                  drawingState: drawingState,
+                  imageWidth: image.width,
+                  imageHeight: image.height,
+                  compact: compactToolbar,
                 ),
-                SizedBox(height: 12),
-                SizedBox(height: 2),
-              ],
-            ),
-
-            // ── Draggable advanced settings sheet ───────────────────
-            DraggableScrollableSheet(
-              initialChildSize: 0.16,
-              minChildSize: 0.16,
-              maxChildSize: 0.80,
-              snap: true,
-              snapSizes: const [0.16, 0.42, 0.80],
-              builder: (sheetContext, scrollController) {
-                return ValueListenableBuilder<Matrix4>(
-                  valueListenable: _viewportController,
-                  builder: (context, matrix, child) {
-                    return _buildControlsPanel(
-                      context: context,
-                      l10n: l10n,
-                      layout: InpaintingControlsLayout.bottomDock,
-                    );
-                  },
-                );
-              },
+              ),
             ),
           ],
-        );
-      },
+        ),
+      ],
     );
   }
 
-  Widget _buildWorkspaceCard({
-    required BuildContext context,
-    required AppL10n l10n,
-    required ui.Image image,
-    required bool compact,
-    DrawingState? drawingStateOverride,
-  }) {
-    Widget buildContent(DrawingState drawingState) {
-      return StudioGlassPanel(
-        radius: compact ? 28 : 34,
-        padding: EdgeInsets.all(compact ? 10 : 16),
-        fillColor: InpaintingStudioTheme.surfaceSoft,
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final canvasSize = Size(
-              constraints.maxWidth,
-              constraints.maxHeight -
-                  (compact ? 68 : 108), // مساحة للهيدر + الفوتر داخل الكارد
-            );
+  Widget _buildCanvasWrapper(
+    BuildContext context,
+    ui.Image image,
+    DrawingState drawingState,
+    Size canvasSize,
+  ) {
+    // Adds a subtle border and clips the full screen canvas inside the available flex area
+    return Container(
+      width: canvasSize.width,
+      height: canvasSize.height,
+      decoration: BoxDecoration(
+        color: const Color(0xFF040A10),
+        border: Border.symmetric(
+          horizontal: BorderSide(color: InpaintingStudioTheme.mint.withValues(alpha: 0.1), width: 1),
+        ),
+      ),
+      child: ClipRect(
+        child: _buildFullScreenCanvas(context, image, drawingState, canvasSize),
+      ),
+    );
+  }
 
-            final isCompactHud =
-                compact || constraints.biggest.shortestSide < 360;
+  Widget _buildFullScreenCanvas(
+    BuildContext context,
+    ui.Image image,
+    DrawingState drawingState,
+    Size canvasSize,
+  ) {
+    final brushWidthImagePx = _brushWidgetPxToImagePx(
+      drawingState.brushSize,
+      canvasSize,
+      image.width,
+      image.height,
+    );
 
-            final magnifierDiameter = math.min(
-              math.max(constraints.biggest.shortestSide * 0.34, 116.0),
-              isCompactHud ? 128.0 : 168.0,
-            );
+    final isCompactHud = canvasSize.shortestSide < 360;
+    final magnifierDiameter = math.min(
+      math.max(canvasSize.shortestSide * 0.34, 116.0),
+      isCompactHud ? 128.0 : 168.0,
+    );
 
-            final brushWidthImagePx = _brushWidgetPxToImagePx(
-              drawingState.brushSize,
-              canvasSize,
-              image.width,
-              image.height,
-            );
-
-            return Column(
-              children: [
-                // ── Top HUD row (خارج الصورة) ──────────────────────────
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: _buildEditorStatusCard(
-                        l10n: l10n,
-                        drawingState: drawingState,
-                        imageWidth: image.width,
-                        imageHeight: image.height,
-                        compact: isCompactHud,
-                      ),
+    return Listener(
+      onPointerDown: (_) => _handlePointerDown(context),
+      onPointerUp: (_) => _handlePointerEnd(),
+      onPointerCancel: (_) => _handlePointerEnd(),
+      onPointerSignal: (event) => _onPointerSignal(event, canvasSize),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onScaleStart: (details) => _onScaleStart(context, details, canvasSize),
+        onScaleUpdate: (details) => _onScaleUpdate(context, details, canvasSize),
+        onScaleEnd: (_) => _onScaleEnd(context),
+        onDoubleTap: _resetViewport,
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: ValueListenableBuilder<Matrix4>(
+                valueListenable: _viewportController,
+                builder: (context, matrix, child) {
+                  return ClipRect(
+                    child: Transform(
+                      transform: matrix,
+                      child: child,
                     ),
-                    SizedBox(width: 10),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        ValueListenableBuilder<Matrix4>(
-                          valueListenable: _viewportController,
-                          builder: (context, matrix, child) {
-                            return _buildZoomBadge(
-                              scale: matrix.getMaxScaleOnAxis(),
-                              accentColor: InpaintingStudioTheme.mint,
-                              compact: isCompactHud,
-                            );
-                          },
-                        ),
-                        if (_showOriginalPreview || !_showMaskOverlay) ...[
-                          SizedBox(height: 8),
-                          StudioPill(
-                            icon: _showOriginalPreview
-                                ? Icons.compare_rounded
-                                : Icons.visibility_off_rounded,
-                            label: _showOriginalPreview
-                                ? l10n.get('original_label')
-                                : l10n.get('workflow_mask'),
-                            accent: _showOriginalPreview
-                                ? InpaintingStudioTheme.cyan
-                                : InpaintingStudioTheme.amber,
-                            filled: true,
-                          ),
-                        ],
-                      ],
-                    ),
-                  ],
-                ),
-                SizedBox(height: 10),
-
-                // ── Canvas only ────────────────────────────────────────
-                Expanded(
+                  );
+                },
+                child: SizedBox(
+                  key: _stackKey,
+                  width: canvasSize.width,
+                  height: canvasSize.height,
                   child: Stack(
+                    fit: StackFit.expand,
                     children: [
-                      Container(
-                        decoration: BoxDecoration(
-                          borderRadius:
-                              BorderRadius.circular(compact ? 26 : 30),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.08),
+                      RepaintBoundary(
+                        child: CustomPaint(
+                          painter: ImagePainter(
+                            image,
+                            fit: BoxFit.contain,
                           ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.3),
-                              blurRadius: 34,
-                              offset: const Offset(0, 14),
-                            ),
-                          ],
                         ),
-                        child: ClipRRect(
-                          borderRadius:
-                              BorderRadius.circular(compact ? 26 : 30),
-                          child: Listener(
-                            onPointerDown: (_) => _handlePointerDown(context),
-                            onPointerUp: (_) => _handlePointerEnd(),
-                            onPointerCancel: (_) => _handlePointerEnd(),
-                            onPointerSignal: (event) =>
-                                _onPointerSignal(event, canvasSize),
-                            child: GestureDetector(
-                              behavior: HitTestBehavior.opaque,
-                              onScaleStart: (details) =>
-                                  _onScaleStart(context, details, canvasSize),
-                              onScaleUpdate: (details) =>
-                                  _onScaleUpdate(context, details, canvasSize),
-                              onScaleEnd: (_) => _onScaleEnd(context),
-                              onDoubleTap: _resetViewport,
-                              child: ColoredBox(
-                                color: const Color(0xFF061017),
-                                child: Stack(
-                                  children: [
-                                    Positioned.fill(
-                                      child: ValueListenableBuilder<Matrix4>(
-                                        valueListenable: _viewportController,
-                                        builder: (context, matrix, child) {
-                                          return ClipRect(
-                                            child: Transform(
-                                              transform: matrix,
-                                              child: child,
-                                            ),
-                                          );
-                                        },
-                                        child: SizedBox(
-                                          key: _stackKey,
-                                          width: canvasSize.width,
-                                          height: canvasSize.height,
-                                          child: Stack(
-                                            fit: StackFit.expand,
-                                            children: [
-                                              RepaintBoundary(
-                                                child: CustomPaint(
-                                                  painter: ImagePainter(
-                                                    image,
-                                                    fit: BoxFit.contain,
-                                                  ),
-                                                ),
-                                              ),
-                                              Positioned.fill(
-                                                child: IgnorePointer(
-                                                  child: AnimatedOpacity(
-                                                    duration: const Duration(
-                                                      milliseconds: 180,
-                                                    ),
-                                                    opacity: _showMaskOverlay &&
-                                                            !_showOriginalPreview
-                                                        ? 1
-                                                        : 0,
-                                                    child: RepaintBoundary(
-                                                      child: CustomPaint(
-                                                        painter:
-                                                            MaskStrokesPainter(
-                                                          strokes: drawingState
-                                                              .strokes,
-                                                          isPreview: true,
-                                                          imageW: image.width,
-                                                          imageH: image.height,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    if (_cursorPoint != null &&
-                                        !_isViewportGestureActive &&
-                                        !_showOriginalPreview)
-                                      BrushCursor(
-                                        point: _cursorPoint,
-                                        size: drawingState.brushSize,
-                                        visible: true,
-                                        kind: drawingState.brush.kind,
-                                      ),
-                                  ],
+                      ),
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: AnimatedOpacity(
+                            duration: const Duration(milliseconds: 180),
+                            opacity: _showMaskOverlay && !_showOriginalPreview ? 1 : 0,
+                            child: RepaintBoundary(
+                              child: CustomPaint(
+                                painter: MaskStrokesPainter(
+                                  strokes: drawingState.strokes,
+                                  isPreview: true,
+                                  imageW: image.width,
+                                  imageH: image.height,
                                 ),
                               ),
                             ),
                           ),
                         ),
                       ),
-                      if (_magnifierImagePoint != null &&
-                          !_isViewportGestureActive &&
-                          !_showOriginalPreview)
-                        Positioned(
-                          top: 16,
-                          left: 16,
-                          child: IgnorePointer(
-                            child: FixedBrushMagnifier(
-                              image: image,
-                              strokes: drawingState.strokes,
-                              focusImagePoint: _magnifierImagePoint!,
-                              brushWidthImagePx: brushWidthImagePx,
-                              brushKind: drawingState.brush.kind,
-                              diameter: magnifierDiameter,
-                            ),
-                          ),
-                        ),
                     ],
                   ),
                 ),
-
-                SizedBox(height: 10),
-
-                // ── Bottom HUD row (خارج الصورة) ───────────────────────
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Flexible(
-                      child: _buildGestureHint(
-                        l10n: l10n,
-                        compact: isCompactHud,
-                      ),
-                    ),
-                    SizedBox(width: 10),
-                    _buildCanvasActionRail(
-                      compact: isCompactHud,
-                      onResetViewport: _resetViewport,
-                      fitTooltip: l10n.get('editor_workspace_fit'),
-                      onShowQa: !const bool.fromEnvironment('dart.vm.product')
-                          ? _testMaskRendering
-                          : null,
-                    ),
-                  ],
+              ),
+            ),
+            if (_cursorPoint != null && !_isViewportGestureActive && !_showOriginalPreview)
+              BrushCursor(
+                point: _cursorPoint,
+                size: drawingState.brushSize,
+                visible: true,
+                kind: drawingState.brush.kind,
+              ),
+            if (_magnifierImagePoint != null && !_isViewportGestureActive && !_showOriginalPreview)
+              Positioned(
+                top: 140, // Below top HUD elements
+                left: 16,
+                child: IgnorePointer(
+                  child: FixedBrushMagnifier(
+                    image: image,
+                    strokes: drawingState.strokes,
+                    focusImagePoint: _magnifierImagePoint!,
+                    brushWidthImagePx: brushWidthImagePx,
+                    brushKind: drawingState.brush.kind,
+                    diameter: magnifierDiameter,
+                  ),
                 ),
-              ],
-            );
-          },
+              ),
+          ],
         ),
-      );
-    }
-
-    if (drawingStateOverride != null) {
-      return buildContent(drawingStateOverride);
-    }
-    return BlocBuilder<DrawingCubit, DrawingState>(
-      builder: (context, drawingState) => buildContent(drawingState),
+      ),
     );
   }
 

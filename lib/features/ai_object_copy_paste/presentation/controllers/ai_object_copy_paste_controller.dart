@@ -1,4 +1,4 @@
-﻿import 'dart:ui';
+import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 import 'package:gal/gal.dart';
@@ -50,8 +50,7 @@ class AiObjectCopyPasteController extends ChangeNotifier {
   bool get canConfirm => _state.pendingItem != null || _state.selection != null;
 
   Future<void> importSourceImage() async {
-    final file =
-        await _picker.pickImage(source: ImageSource.gallery, imageQuality: 100);
+    final file = await _picker.pickImage(source: ImageSource.gallery);
     if (file == null) {
       return;
     }
@@ -85,8 +84,7 @@ class AiObjectCopyPasteController extends ChangeNotifier {
       await importSourceImage();
       return;
     }
-    final file =
-        await _picker.pickImage(source: ImageSource.gallery, imageQuality: 100);
+    final file = await _picker.pickImage(source: ImageSource.gallery);
     if (file == null) {
       return;
     }
@@ -133,7 +131,8 @@ class AiObjectCopyPasteController extends ChangeNotifier {
       return;
     }
     if (mode == CanvasInteractionMode.smartPersonTap) {
-      _setStatus('People mode enabled. Tap the person for faster high-accuracy selection.');
+      _setStatus(
+          'People mode enabled. Tap the person for faster high-accuracy selection.');
       return;
     }
     notifyListeners();

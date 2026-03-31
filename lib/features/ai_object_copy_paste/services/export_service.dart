@@ -51,15 +51,14 @@ class ExportService {
         working,
         width: targetWidth,
         height: targetHeight,
-        interpolation: img.Interpolation.linear,
+        interpolation: img.Interpolation.cubic,
       );
-    }
-    if (item.feather > 0) {
-      working = img.gaussianBlur(working,
-          radius: (item.feather / 6).round().clamp(0, 8));
     }
     if (item.rotation.abs() > 0.001) {
       working = img.copyRotate(working, angle: item.rotation * 57.2958);
+    }
+    if (item.feather > 0) {
+      working = _featherPatchEdges(working, item.feather);
     }
     if (item.opacity < 1) {
       for (final pixel in working) {
@@ -67,6 +66,64 @@ class ExportService {
       }
     }
     return working;
+  }
+
+  img.Image _featherPatchEdges(img.Image source, double feather) {
+    final radius = (feather / 4).round().clamp(1, 24);
+    if (radius <= 0) {
+      return source;
+    }
+
+    final width = source.width;
+    final height = source.height;
+    final alpha = List<int>.filled(width * height, 0);
+    var index = 0;
+    for (final pixel in source) {
+      alpha[index++] = pixel.a.toInt();
+    }
+
+    final horizontal = List<int>.filled(alpha.length, 0);
+    final blurred = List<int>.filled(alpha.length, 0);
+
+    for (var y = 0; y < height; y++) {
+      for (var x = 0; x < width; x++) {
+        var sum = 0;
+        var count = 0;
+        for (var k = -radius; k <= radius; k++) {
+          final sampleX = x + k;
+          if (sampleX < 0 || sampleX >= width) {
+            continue;
+          }
+          sum += alpha[y * width + sampleX];
+          count += 1;
+        }
+        horizontal[y * width + x] = count == 0 ? 0 : (sum / count).round();
+      }
+    }
+
+    for (var y = 0; y < height; y++) {
+      for (var x = 0; x < width; x++) {
+        var sum = 0;
+        var count = 0;
+        for (var k = -radius; k <= radius; k++) {
+          final sampleY = y + k;
+          if (sampleY < 0 || sampleY >= height) {
+            continue;
+          }
+          sum += horizontal[sampleY * width + x];
+          count += 1;
+        }
+        blurred[y * width + x] = count == 0 ? 0 : (sum / count).round();
+      }
+    }
+
+    final output = img.Image.from(source);
+    for (var y = 0; y < height; y++) {
+      for (var x = 0; x < width; x++) {
+        output.getPixel(x, y).a = blurred[y * width + x];
+      }
+    }
+    return output;
   }
 
   img.Image _harmonizePatch(

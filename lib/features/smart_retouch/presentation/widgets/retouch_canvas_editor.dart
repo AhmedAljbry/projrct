@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:untitled2/features/smart_retouch/presentation/renderers/canvas_preview_painter.dart';
@@ -30,9 +32,9 @@ class _RetouchCanvasEditorState extends State<RetouchCanvasEditor> {
       TransformationController();
   static const double _minScale = 0.5;
   static const double _maxScale = 15.0;
+  static const Duration _finishedStrokeHold = Duration(milliseconds: 320);
 
   Offset? _activeScreenPosition;
-
   List<Offset> _currentStrokePoints = [];
   bool _isDefiningSource = false;
   Offset? _continuedCloneOffset;
@@ -40,6 +42,9 @@ class _RetouchCanvasEditorState extends State<RetouchCanvasEditor> {
   Offset? _carryStrokeEnd;
   Offset? _carrySourceEnd;
   RetouchMode? _carryMode;
+  StrokeOperation? _heldPreviewStroke;
+  Offset? _heldPreviewSourceAnchor;
+  Timer? _heldPreviewTimer;
 
   bool _shouldContinueFromLastStroke({
     required RetouchState state,
@@ -51,8 +56,18 @@ class _RetouchCanvasEditorState extends State<RetouchCanvasEditor> {
   }
 
   @override
-  void initState() {
-    super.initState();
+  void didUpdateWidget(covariant RetouchCanvasEditor oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.displayImage, widget.displayImage)) {
+      _clearHeldPreview();
+    }
+  }
+
+  @override
+  void dispose() {
+    _heldPreviewTimer?.cancel();
+    _transformationController.dispose();
+    super.dispose();
   }
 
   double get _currentScale {
@@ -66,14 +81,32 @@ class _RetouchCanvasEditorState extends State<RetouchCanvasEditor> {
     return 1.35;
   }
 
+  void _clearHeldPreview() {
+    _heldPreviewTimer?.cancel();
+    _heldPreviewTimer = null;
+    _heldPreviewStroke = null;
+    _heldPreviewSourceAnchor = null;
+  }
+
+  void _holdFinishedPreview(StrokeOperation stroke, Offset? sourceAnchor) {
+    _heldPreviewTimer?.cancel();
+    _heldPreviewStroke = stroke;
+    _heldPreviewSourceAnchor = sourceAnchor;
+    _heldPreviewTimer = Timer(_finishedStrokeHold, () {
+      if (!mounted) return;
+      setState(() {
+        _heldPreviewStroke = null;
+        _heldPreviewSourceAnchor = null;
+      });
+    });
+  }
+
   Offset _mapPointerToImagePoint(Offset screenPoint, Rect displayRect) {
-    // 1. Un-transform the point from panning/zooming
     final Matrix4 inverseMatrix =
         Matrix4.inverted(_transformationController.value);
     final Offset unTransformedPoint =
         MatrixUtils.transformPoint(inverseMatrix, screenPoint);
 
-    // 2. Map from widget layout rect to intrinsic image pixels
     return ImageCoordinateMapper.screenToImage(
       unTransformedPoint,
       displayRect,
@@ -90,10 +123,11 @@ class _RetouchCanvasEditorState extends State<RetouchCanvasEditor> {
     final state = context.read<RetouchBloc>().state;
     if (state.activeMode == RetouchMode.none) return;
 
+    _clearHeldPreview();
+
     final Offset imagePoint =
         _mapPointerToImagePoint(details.localPosition, displayRect);
 
-    // If clone or heal, and we don't have a source anchor, the first tap defines it!
     if ((state.activeMode == RetouchMode.clone ||
             state.activeMode == RetouchMode.heal) &&
         state.activeSourceAnchor == null) {
@@ -145,7 +179,7 @@ class _RetouchCanvasEditorState extends State<RetouchCanvasEditor> {
 
     final Offset imagePoint =
         _mapPointerToImagePoint(details.localPosition, displayRect);
-    final double spacing = 0.1;
+    const double spacing = 0.1;
     final double size = state.activeBrushSettings.size;
 
     if (_currentStrokePoints.isNotEmpty) {
@@ -179,8 +213,6 @@ class _RetouchCanvasEditorState extends State<RetouchCanvasEditor> {
       return;
     }
 
-    // INTERACTION MODEL: Tap to redefine source, Drag to clone.
-    // If the path only has 1 point, it was a Tap.
     if (_currentStrokePoints.length == 1 &&
         (state.activeMode == RetouchMode.clone ||
             state.activeMode == RetouchMode.heal)) {
@@ -205,12 +237,23 @@ class _RetouchCanvasEditorState extends State<RetouchCanvasEditor> {
         : (state.activeSourceAnchor ?? _currentStrokePoints.first);
 
     RetouchOperation op;
+    StrokeOperation holdStroke;
+    Offset? holdSourceAnchor;
+
     if (state.activeMode == RetouchMode.eraser) {
       op = EraseOperation(
         id: UniqueKey().toString(),
         mode: state.activeMode,
         settings: state.activeBrushSettings,
         path: List.of(_currentStrokePoints),
+      );
+      holdStroke = StrokeOperation(
+        id: 'hold',
+        mode: state.activeMode,
+        settings: state.activeBrushSettings,
+        path: List.of(_currentStrokePoints),
+        sourceAnchor: null,
+        targetAnchor: _currentStrokePoints.first,
       );
     } else {
       op = StrokeOperation(
@@ -221,6 +264,15 @@ class _RetouchCanvasEditorState extends State<RetouchCanvasEditor> {
         sourceAnchor: effectiveSource,
         targetAnchor: _currentStrokePoints.first,
       );
+      holdStroke = StrokeOperation(
+        id: 'hold',
+        mode: state.activeMode,
+        settings: state.activeBrushSettings,
+        path: List.of(_currentStrokePoints),
+        sourceAnchor: effectiveSource,
+        targetAnchor: _currentStrokePoints.first,
+      );
+      holdSourceAnchor = effectiveSource;
     }
 
     _carryStrokeEnd = _currentStrokePoints.last;
@@ -234,8 +286,8 @@ class _RetouchCanvasEditorState extends State<RetouchCanvasEditor> {
     _currentStrokePoints.clear();
     _continuedCloneOffset = null;
     _continuedSourceAnchor = null;
-    bloc.add(
-        ApplyOperationEvent(operation: op, renderResult: widget.displayImage));
+    _holdFinishedPreview(holdStroke, holdSourceAnchor);
+    bloc.add(ApplyOperationEvent(operation: op));
   }
 
   @override
@@ -253,8 +305,30 @@ class _RetouchCanvasEditorState extends State<RetouchCanvasEditor> {
 
         return BlocBuilder<RetouchBloc, RetouchState>(
           builder: (context, state) {
-            // Determine if panning is enabled. If tool is active, pan requires 2 fingers.
             final bool isPanEnabled = state.activeMode == RetouchMode.none;
+            final StrokeOperation? previewStroke =
+                _currentStrokePoints.isNotEmpty
+                    ? StrokeOperation(
+                        id: 'temp',
+                        mode: state.activeMode,
+                        settings: state.activeBrushSettings,
+                        path: _currentStrokePoints,
+                        sourceAnchor: (_continuedSourceAnchor != null)
+                            ? _continuedSourceAnchor
+                            : (state.activeCloneOffset != null)
+                                ? (_currentStrokePoints.first +
+                                    state.activeCloneOffset!)
+                                : state.activeSourceAnchor,
+                        targetAnchor: _currentStrokePoints.first,
+                      )
+                    : _heldPreviewStroke;
+            final Offset? previewSourceAnchor = _currentStrokePoints.isNotEmpty
+                ? ((_continuedSourceAnchor != null)
+                    ? _continuedSourceAnchor
+                    : (state.activeCloneOffset != null)
+                        ? _currentStrokePoints.first + state.activeCloneOffset!
+                        : state.activeSourceAnchor)
+                : _heldPreviewSourceAnchor;
 
             return MouseRegion(
               onHover: (e) {
@@ -272,14 +346,12 @@ class _RetouchCanvasEditorState extends State<RetouchCanvasEditor> {
                     minScale: _minScale,
                     maxScale: _maxScale,
                     onInteractionUpdate: (details) {
-                      // Hide brush pointer if zooming with 2 fingers
                       if (details.scale != 1.0) {
                         setState(() => _activeScreenPosition = null);
                       }
                     },
                     child: GestureDetector(
-                      onPanDown:
-                          (d) {}, // block interactive viewer panning when 1 finger drawing
+                      onPanDown: (d) {},
                       onPanStart: isPanEnabled
                           ? null
                           : (details) =>
@@ -293,54 +365,27 @@ class _RetouchCanvasEditorState extends State<RetouchCanvasEditor> {
                         alignment: Alignment.center,
                         fit: StackFit.expand,
                         children: [
-                          // Base Image
                           RepaintBoundary(
                             child: RawImage(
                               image: widget.displayImage,
                               fit: BoxFit.contain,
                             ),
                           ),
-
-                          // Live Canvas Preview overlay
                           RepaintBoundary(
                             child: CustomPaint(
                               painter: CanvasPreviewPainter(
                                 operations: state.operations,
-                                inProgressStroke: _currentStrokePoints
-                                        .isNotEmpty
-                                    ? StrokeOperation(
-                                        id: 'temp',
-                                        mode: state.activeMode,
-                                        settings: state.activeBrushSettings,
-                                        path: _currentStrokePoints,
-                                        sourceAnchor: (_continuedSourceAnchor !=
-                                                null)
-                                            ? _continuedSourceAnchor
-                                            : (state.activeCloneOffset != null)
-                                                ? (_currentStrokePoints.first +
-                                                    state.activeCloneOffset!)
-                                                : state.activeSourceAnchor,
-                                        targetAnchor:
-                                            _currentStrokePoints.first,
-                                      )
-                                    : null,
-                                inProgressSourceAnchor:
-                                    (_continuedSourceAnchor != null)
-                                        ? _continuedSourceAnchor
-                                        : (_currentStrokePoints.isNotEmpty &&
-                                                state.activeCloneOffset != null)
-                                            ? _currentStrokePoints.first +
-                                                state.activeCloneOffset!
-                                            : state.activeSourceAnchor,
-                                activeBrushPosition: _activeScreenPosition !=
-                                        null
-                                    ? MatrixUtils.transformPoint(
-                                        Matrix4.inverted(
-                                            _transformationController.value),
-                                        _activeScreenPosition!,
-                                      )
-                                    : null,
-                                // Render brush cursor size matching true scaled size
+                                inProgressStroke: previewStroke,
+                                inProgressSourceAnchor: previewSourceAnchor,
+                                activeBrushPosition:
+                                    _activeScreenPosition != null
+                                        ? MatrixUtils.transformPoint(
+                                            Matrix4.inverted(
+                                              _transformationController.value,
+                                            ),
+                                            _activeScreenPosition!,
+                                          )
+                                        : null,
                                 brushSize: state.activeBrushSettings.size,
                                 imageRect: currentDisplayRect,
                                 imageSize: Size(
@@ -352,7 +397,6 @@ class _RetouchCanvasEditorState extends State<RetouchCanvasEditor> {
                               ),
                             ),
                           ),
-
                           if (_isDefiningSource)
                             const Center(
                               child: Text(
@@ -382,28 +426,8 @@ class _RetouchCanvasEditorState extends State<RetouchCanvasEditor> {
                         canvasSize: constraints.biggest,
                         displayImage: widget.displayImage,
                         operations: state.operations,
-                        inProgressStroke: _currentStrokePoints.isNotEmpty
-                            ? StrokeOperation(
-                                id: 'temp',
-                                mode: state.activeMode,
-                                settings: state.activeBrushSettings,
-                                path: _currentStrokePoints,
-                                sourceAnchor: (state.activeCloneOffset != null)
-                                    ? (_continuedSourceAnchor ??
-                                        (_currentStrokePoints.first +
-                                            state.activeCloneOffset!))
-                                    : (_continuedSourceAnchor ??
-                                        state.activeSourceAnchor),
-                                targetAnchor: _currentStrokePoints.first,
-                              )
-                            : null,
-                        inProgressSourceAnchor: (_continuedSourceAnchor != null)
-                            ? _continuedSourceAnchor
-                            : (_currentStrokePoints.isNotEmpty &&
-                                    state.activeCloneOffset != null)
-                                ? _currentStrokePoints.first +
-                                    state.activeCloneOffset!
-                                : state.activeSourceAnchor,
+                        inProgressStroke: previewStroke,
+                        inProgressSourceAnchor: previewSourceAnchor,
                         brushSize: state.activeBrushSettings.size,
                         imageRect: currentDisplayRect,
                         imageSize: Size(

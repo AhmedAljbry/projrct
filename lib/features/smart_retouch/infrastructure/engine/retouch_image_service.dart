@@ -1,20 +1,23 @@
 import 'dart:isolate';
+
 import 'package:flutter/foundation.dart';
 import 'package:image/image.dart' as img;
 import 'package:untitled2/features/smart_retouch/domain/models/retouch_mode.dart';
 import 'package:untitled2/features/smart_retouch/domain/models/retouch_operation.dart';
 
 import 'processors/clone_processor.dart';
-import 'processors/heal_processor.dart';
 import 'processors/eraser_processor.dart';
+import 'processors/heal_processor.dart';
 
 class RetouchEngineRequest {
-  final Uint8List originalImageBytes;
+  final Uint8List sourceImageBytes;
+  final Uint8List baseTargetBytes;
   final List<RetouchOperation> operations;
   final SendPort sendPort;
 
   RetouchEngineRequest({
-    required this.originalImageBytes,
+    required this.sourceImageBytes,
+    required this.baseTargetBytes,
     required this.operations,
     required this.sendPort,
   });
@@ -27,24 +30,30 @@ class RetouchEngineResponse {
   RetouchEngineResponse({this.resultBytes, this.error});
 }
 
-/// A service to run all pixel operations in a background isolate
-/// This keeps the Flutter UI thread at 60fps while rendering high quality results
 class RetouchImageService {
   static Future<Uint8List?> renderSingleOperationPreview({
     required Uint8List sourceImageBytes,
     required Uint8List currentImageBytes,
     required RetouchOperation operation,
   }) async {
-    try {
-      return _render(
+    final receivePort = ReceivePort();
+
+    await Isolate.spawn(
+      _isolateWorker,
+      RetouchEngineRequest(
         sourceImageBytes: sourceImageBytes,
         baseTargetBytes: currentImageBytes,
         operations: [operation],
-      );
-    } catch (e) {
-      debugPrint('RetouchImageService Preview Error: $e');
+        sendPort: receivePort.sendPort,
+      ),
+    );
+
+    final response = await receivePort.first as RetouchEngineResponse;
+    if (response.error != null) {
+      debugPrint('RetouchImageService Preview Error: ${response.error}');
       return null;
     }
+    return response.resultBytes;
   }
 
   static Future<Uint8List?> renderOperations({
@@ -56,7 +65,8 @@ class RetouchImageService {
     await Isolate.spawn(
       _isolateWorker,
       RetouchEngineRequest(
-        originalImageBytes: originalImageBytes,
+        sourceImageBytes: originalImageBytes,
+        baseTargetBytes: originalImageBytes,
         operations: operations,
         sendPort: receivePort.sendPort,
       ),
@@ -73,8 +83,8 @@ class RetouchImageService {
   static void _isolateWorker(RetouchEngineRequest request) {
     try {
       final Uint8List resultBytes = _render(
-        sourceImageBytes: request.originalImageBytes,
-        baseTargetBytes: request.originalImageBytes,
+        sourceImageBytes: request.sourceImageBytes,
+        baseTargetBytes: request.baseTargetBytes,
         operations: request.operations,
       );
       request.sendPort.send(RetouchEngineResponse(resultBytes: resultBytes));

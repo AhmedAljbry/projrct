@@ -11,6 +11,7 @@ class ObjectCopyPasteEngine {
     SelectionRegion? sourceSelection,
     List<PastedItem> existingItems = const <PastedItem>[],
   }) {
+    final scale = _initialScale(clipboard, targetDocument);
     final defaultCenter = sourceSelection != null &&
             sourceSelection.documentId == targetDocument.id
         ? Offset(
@@ -28,11 +29,11 @@ class ObjectCopyPasteEngine {
       id: IdGenerator.next('item_'),
       clipboard: clipboard,
       targetDocumentId: targetDocument.id,
-      center: defaultCenter,
-      scale: _initialScale(clipboard, targetDocument),
+      center: _clampedCenter(defaultCenter, clipboard, scale, targetDocument),
+      scale: scale,
       colorMatchStrength: 0.28,
       lightingMatchStrength: 0.28,
-      feather: 10,
+      feather: 0,
       opacity: 1,
     );
   }
@@ -83,13 +84,37 @@ class ObjectCopyPasteEngine {
 
   double _initialScale(
       PatchClipboard clipboard, EditorDocument targetDocument) {
-    final maxDimension = math.max(clipboard.width, clipboard.height).toDouble();
-    final targetMax =
-        math.max(targetDocument.width, targetDocument.height).toDouble();
-    if (maxDimension == 0) {
+    if (clipboard.width <= 0 || clipboard.height <= 0) {
       return 1;
     }
-    final scale = math.min(1.0, targetMax * 0.45 / maxDimension);
-    return scale.clamp(0.2, 2.5);
+
+    final fitScale = math.min(
+      targetDocument.width / clipboard.width,
+      targetDocument.height / clipboard.height,
+    );
+    if (fitScale >= 1) {
+      return 1;
+    }
+    return fitScale.clamp(0.1, 1.0);
+  }
+
+  Offset _clampedCenter(
+    Offset center,
+    PatchClipboard clipboard,
+    double scale,
+    EditorDocument targetDocument,
+  ) {
+    final maxWidth = targetDocument.width.toDouble();
+    final maxHeight = targetDocument.height.toDouble();
+    final halfWidth = clipboard.width * scale / 2;
+    final halfHeight = clipboard.height * scale / 2;
+    final minX = halfWidth.clamp(0.0, maxWidth);
+    final minY = halfHeight.clamp(0.0, maxHeight);
+    final maxX = (maxWidth - halfWidth).clamp(minX, maxWidth);
+    final maxY = (maxHeight - halfHeight).clamp(minY, maxHeight);
+    return Offset(
+      center.dx.clamp(minX, maxX),
+      center.dy.clamp(minY, maxY),
+    );
   }
 }

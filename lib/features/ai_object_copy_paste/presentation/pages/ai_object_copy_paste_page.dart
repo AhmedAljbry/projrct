@@ -1,4 +1,4 @@
-﻿import 'dart:ui' as ui;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -285,8 +285,10 @@ class _FloatingAssetRail extends StatelessWidget {
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(10),
                               child: RawImage(
-                                  image: item.clipboard.preview,
-                                  fit: BoxFit.cover),
+                                image: item.clipboard.preview,
+                                fit: BoxFit.cover,
+                                filterQuality: FilterQuality.high,
+                              ),
                             ),
                           ),
                           if (isPending)
@@ -361,7 +363,11 @@ class _ThumbTile extends StatelessWidget {
                   color: const Color(0xFF1A1A1A),
                   child: Icon(icon, color: Colors.white54, size: 28),
                 )
-              : RawImage(image: image, fit: BoxFit.cover),
+              : RawImage(
+                  image: image,
+                  fit: BoxFit.cover,
+                  filterQuality: FilterQuality.high,
+                ),
         ),
       ),
     );

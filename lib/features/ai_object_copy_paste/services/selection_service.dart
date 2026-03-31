@@ -10,9 +10,13 @@ import 'image_codec_service.dart';
 class SelectionService {
   SelectionMaskData buildMask(
       EditorDocument document, SelectionRegion selection) {
-    final bounds = _inflateBounds(
-      selection.bounds,
-      selection.expand,
+    final bounds = _pixelAlignedBounds(
+      _inflateBounds(
+        selection.bounds,
+        selection.expand,
+        document.width.toDouble(),
+        document.height.toDouble(),
+      ),
       document.width.toDouble(),
       document.height.toDouble(),
     );
@@ -64,11 +68,13 @@ class SelectionService {
     final mask = buildMask(document, selection);
     final patch =
         img.Image(width: mask.width, height: mask.height, numChannels: 4);
+    final srcLeft = mask.bounds.left.toInt();
+    final srcTop = mask.bounds.top.toInt();
 
     for (var y = 0; y < mask.height; y++) {
       for (var x = 0; x < mask.width; x++) {
-        final srcX = mask.bounds.left.round() + x;
-        final srcY = mask.bounds.top.round() + y;
+        final srcX = srcLeft + x;
+        final srcY = srcTop + y;
         if (srcX < 0 ||
             srcY < 0 ||
             srcX >= document.width ||
@@ -153,11 +159,18 @@ class SelectionService {
 
   Rect _inflateBounds(
       Rect bounds, double expand, double maxWidth, double maxHeight) {
-    return Rect.fromLTWH(
-      (bounds.left - expand).clamp(0.0, maxWidth - 1),
-      (bounds.top - expand).clamp(0.0, maxHeight - 1),
-      (bounds.width + expand * 2).clamp(1.0, maxWidth),
-      (bounds.height + expand * 2).clamp(1.0, maxHeight),
-    );
+    final left = (bounds.left - expand).clamp(0.0, maxWidth - 1);
+    final top = (bounds.top - expand).clamp(0.0, maxHeight - 1);
+    final right = (bounds.right + expand).clamp(left + 1, maxWidth);
+    final bottom = (bounds.bottom + expand).clamp(top + 1, maxHeight);
+    return Rect.fromLTRB(left, top, right, bottom);
+  }
+
+  Rect _pixelAlignedBounds(Rect bounds, double maxWidth, double maxHeight) {
+    final left = bounds.left.floorToDouble().clamp(0.0, maxWidth - 1);
+    final top = bounds.top.floorToDouble().clamp(0.0, maxHeight - 1);
+    final right = bounds.right.ceilToDouble().clamp(left + 1, maxWidth);
+    final bottom = bounds.bottom.ceilToDouble().clamp(top + 1, maxHeight);
+    return Rect.fromLTRB(left, top, right, bottom);
   }
 }

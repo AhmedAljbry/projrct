@@ -16,6 +16,7 @@ import 'package:untitled2/features/ai_blur_focus_standalone/presentation/screen/
 import 'package:untitled2/features/ai_object_clone_studio/presentation/pages/clone_studio_page.dart';
 import 'package:untitled2/features/ai_object_copy_paste/ai_object_copy_paste.dart';
 import 'package:untitled2/features/smart_retouch/presentation/screens/smart_retouch_screen.dart';
+import 'package:untitled2/features/style_transfer/presentation/screens/style_transfer_home_screen.dart';
 import 'package:untitled2/features/ai_perspective_studio/presentation/screens/perspective_studio_screen.dart';
 import 'package:untitled2/features/blur_photo/presentation/pages/blur_photo_page.dart';
 import 'package:untitled2/inpainting/application/drawing/drawing_cubit.dart';
@@ -46,7 +47,7 @@ Future<void> main() async {
   runApp(EditorApp(config: AppConfig.fromEnvironment()));
 }
 
-// ── Root App ─────────────────────────────────────────────────────────────────
+// â”€â”€ Root App â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class EditorApp extends StatelessWidget {
   const EditorApp({
@@ -73,7 +74,7 @@ class EditorApp extends StatelessWidget {
   }
 }
 
-// ── Home Screen ───────────────────────────────────────────────────────────────
+// â”€â”€ Home Screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
@@ -110,12 +111,11 @@ class _HomeScreenState extends State<HomeScreen>
     super.dispose();
   }
 
-  // ── Image loading ───────────────────────────────────────────────────────
+  // â”€â”€ Image loading â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-  Future<void> _pickAndNavigateUi(
-      Widget Function(ui.Image) builder) async {
-    final file = await _picker.pickImage(
-        source: ImageSource.gallery, imageQuality: 100);
+  Future<void> _pickAndNavigateUi(Widget Function(ui.Image) builder) async {
+    final file =
+        await _picker.pickImage(source: ImageSource.gallery, imageQuality: 100);
     if (file == null) return;
     setState(() => _loading = true);
     final bytes = await file.readAsBytes();
@@ -129,8 +129,7 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  Future<void> _pickAndNavigateBytes(
-      Widget Function(Uint8List) builder) async {
+  Future<void> _pickAndNavigateBytes(Widget Function(Uint8List) builder) async {
     final file = await _picker.pickImage(source: ImageSource.gallery);
     if (file == null) return;
     setState(() => _loading = true);
@@ -142,17 +141,16 @@ class _HomeScreenState extends State<HomeScreen>
 
   Route<T> _slide<T>(Widget page) => PageRouteBuilder<T>(
         pageBuilder: (_, __, ___) => page,
-        transitionsBuilder: (_, anim, __, child) =>
-            SlideTransition(
-              position: Tween<Offset>(
-                begin: const Offset(0, 1),
-                end: Offset.zero,
-              ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOutCubic)),
-              child: child,
-            ),
+        transitionsBuilder: (_, anim, __, child) => SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0, 1),
+            end: Offset.zero,
+          ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOutCubic)),
+          child: child,
+        ),
       );
 
-  // ── Build ────────────────────────────────────────────────────────────────
+  // â”€â”€ Build â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   @override
   Widget build(BuildContext context) {
@@ -196,8 +194,7 @@ class _HomeScreenState extends State<HomeScreen>
             opacity: _fadeIn,
             child: _loading
                 ? const Center(
-                    child: CircularProgressIndicator(
-                        color: Color(0xFF56E39F)))
+                    child: CircularProgressIndicator(color: Color(0xFF56E39F)))
                 : CustomScrollView(
                     slivers: [
                       const SliverToBoxAdapter(child: _HeroHeader()),
@@ -216,12 +213,12 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   List<Widget> _buildCards() => [
-        // AI Blur Focus — primary featured card
+        // AI Blur Focus â€” primary featured card
         _FeatureCard(
           index: 0,
           icon: Icons.blur_on_rounded,
           title: 'AI Blur Focus Studio',
-          subtitle: 'Smart subject · Circle · Line depth-of-field',
+          subtitle: 'Smart subject آ· Circle آ· Line depth-of-field',
           gradient: const LinearGradient(
             colors: [Color(0xFF56E39F), Color(0xFF2BC87E)],
             begin: Alignment.topLeft,
@@ -250,12 +247,31 @@ class _HomeScreenState extends State<HomeScreen>
 
         const SizedBox(height: 14),
 
-        // Unified Creative Studio (Quick · Pro · Architect)
+        _FeatureCard(
+          index: 10,
+          icon: Icons.auto_awesome_motion_rounded,
+          title: 'AI Style Transfer Studio',
+          subtitle: 'Reference-based cinematic mapping with safe viral polish',
+          gradient: const LinearGradient(
+            colors: [Color(0xFFFF8A3D), Color(0xFFFF5E62)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          foreground: Colors.black,
+          onTap: () => Navigator.push(
+            context,
+            _slide(const StyleTransferHomeScreen()),
+          ),
+        ),
+
+        const SizedBox(height: 14),
+
+        // Unified Creative Studio (Quick آ· Pro آ· Architect)
         _FeatureCard(
           index: 1,
           icon: Icons.dashboard_customize_rounded,
           title: 'Unified Creative Studio',
-          subtitle: 'Quick · Pro · Architect — one adaptive workspace',
+          subtitle: 'Quick آ· Pro آ· Architect â€” one adaptive workspace',
           gradient: const LinearGradient(
             colors: [Color(0xFF7C4DFF), Color(0xFF311B92)],
             begin: Alignment.topLeft,
@@ -296,7 +312,7 @@ class _HomeScreenState extends State<HomeScreen>
           index: 2,
           icon: Icons.auto_fix_high_rounded,
           title: 'Smart Retouch',
-          subtitle: 'Clone heal · Blemish fix · Non-destructive',
+          subtitle: 'Clone heal آ· Blemish fix آ· Non-destructive',
           gradient: const LinearGradient(
             colors: [Color(0xFF1E88E5), Color(0xFF0D47A1)],
           ),
@@ -320,7 +336,7 @@ class _HomeScreenState extends State<HomeScreen>
           index: 3,
           icon: Icons.auto_fix_high_outlined,
           title: 'Magic Eraser Inpainting',
-          subtitle: 'Remove objects آ· Paint mask آ· AI fill',
+          subtitle: 'Remove objects ط¢آ· Paint mask ط¢آ· AI fill',
           gradient: const LinearGradient(
             colors: [Color(0xFFFFB300), Color(0xFFFF6F00)],
           ),
@@ -338,7 +354,7 @@ class _HomeScreenState extends State<HomeScreen>
           index: 4,
           icon: Icons.copy_all_rounded,
           title: 'Smart Clone Studio (AI)',
-          subtitle: 'Copy · Move · Remove objects with AI',
+          subtitle: 'Copy آ· Move آ· Remove objects with AI',
           gradient: const LinearGradient(
             colors: [Color(0xFF3D5AFE), Color(0xFF1A237E)],
           ),
@@ -385,8 +401,7 @@ class _HomeScreenState extends State<HomeScreen>
             (image) => BlemishRemoverScreen(
               sourceImage: image,
               onApply: (bytes) {
-                debugPrint(
-                    '[Blemish] Applied \u2014 ${bytes.length} bytes');
+                debugPrint('[Blemish] Applied \u2014 ${bytes.length} bytes');
                 if (Navigator.of(context).canPop()) {
                   Navigator.of(context).pop();
                 }
@@ -402,7 +417,7 @@ class _HomeScreenState extends State<HomeScreen>
           index: 7,
           icon: Icons.filter_center_focus_rounded,
           title: 'AI Perspective Studio',
-          subtitle: 'Straighten · Rectify · Smart scan',
+          subtitle: 'Straighten آ· Rectify آ· Smart scan',
           gradient: const LinearGradient(
             colors: [Color(0xFF00B0FF), Color(0xFF0091EA)],
           ),
@@ -433,7 +448,7 @@ class _HomeScreenState extends State<HomeScreen>
           index: 8,
           icon: Icons.blur_circular_rounded,
           title: 'Blur Photo',
-          subtitle: 'Smart · Circle · Line — premium background blur',
+          subtitle: 'Smart آ· Circle آ· Line â€” premium background blur',
           gradient: const LinearGradient(
             colors: [Color(0xFFFF6B6B), Color(0xFFCC2936)],
             begin: Alignment.topLeft,
@@ -444,8 +459,7 @@ class _HomeScreenState extends State<HomeScreen>
             (image) => BlurPhotoPage(
               initialImage: image,
               onApply: (bytes) {
-                debugPrint(
-                    '[BlurPhoto] Applied \u2014 ${bytes.length} bytes');
+                debugPrint('[BlurPhoto] Applied \u2014 ${bytes.length} bytes');
                 if (Navigator.of(context).canPop()) {
                   Navigator.of(context).pop();
                 }
@@ -465,21 +479,22 @@ class _HomeScreenState extends State<HomeScreen>
           index: 9,
           icon: Icons.cloud_done_rounded,
           title: 'Remote AI Studio (LaMa)',
-          subtitle: 'Heal · Repair · Expand · Clean Edges',
+          subtitle: 'Heal آ· Repair آ· Expand آ· Clean Edges',
           gradient: const LinearGradient(
             colors: [Color(0xFF00E5FF), Color(0xFF0097A7)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
           foreground: Colors.black,
-          onTap: () => _pickAndNavigateBytes(
-            (bytes) => RemoteLamaFlowShell(initialImage: bytes),
+          onTap: () => Navigator.push(
+            context,
+            _slide(const RemoteLamaFlowShell()),
           ),
         ),
       ];
 }
 
-// ── Hero header ───────────────────────────────────────────────────────────────
+// â”€â”€ Hero header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _HeroHeader extends StatelessWidget {
   const _HeroHeader();
@@ -499,7 +514,8 @@ class _HeroHeader extends StatelessWidget {
                 colors: [Color(0xFF56E39F), Color(0xFF3D5AFE)],
               ),
             ),
-            child: const Icon(Icons.auto_awesome, color: Colors.black, size: 24),
+            child:
+                const Icon(Icons.auto_awesome, color: Colors.black, size: 24),
           ),
           const SizedBox(width: 12),
           const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -586,8 +602,7 @@ class _InpaintingFlowShellState extends State<InpaintingFlowShell> {
 
   Future<void> _initializeInpaintingServices() async {
     try {
-      final prefs =
-          await SharedPreferences.getInstance();
+      final prefs = await SharedPreferences.getInstance();
       TaskPersistenceService().init(prefs);
     } catch (_) {
       // Persistence is optional for this shell; continue without it.
@@ -629,7 +644,7 @@ class _InpaintingFlowShellState extends State<InpaintingFlowShell> {
   }
 }
 
-// ── Feature card ──────────────────────────────────────────────────────────────
+// â”€â”€ Feature card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _FeatureCard extends StatefulWidget {
   const _FeatureCard({
@@ -701,8 +716,7 @@ class _FeatureCardState extends State<_FeatureCard> {
                       BorderRadius.circular(widget.featured ? 18 : 15),
                 ),
                 child: Icon(widget.icon,
-                    color: widget.foreground,
-                    size: widget.featured ? 28 : 24),
+                    color: widget.foreground, size: widget.featured ? 28 : 24),
               ),
               const SizedBox(width: 16),
               // Text
@@ -731,22 +745,24 @@ class _FeatureCardState extends State<_FeatureCard> {
                           ),
                         ),
                       Text(widget.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                               color: widget.foreground,
                               fontWeight: FontWeight.w700,
                               fontSize: widget.featured ? 18 : 15)),
                       const SizedBox(height: 3),
                       Text(widget.subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                              color:
-                                  widget.foreground.withValues(alpha: 0.68),
+                              color: widget.foreground.withValues(alpha: 0.68),
                               fontSize: 12.5)),
                     ]),
               ),
               // Arrow
               Icon(Icons.chevron_right_rounded,
-                  color: widget.foreground.withValues(alpha: 0.55),
-                  size: 26),
+                  color: widget.foreground.withValues(alpha: 0.55), size: 26),
             ]),
           ),
         ),

@@ -271,9 +271,9 @@ class _ReferenceSlider extends StatelessWidget {
         overlayShape: SliderComponentShape.noOverlay,
       ),
       child: Slider(
-        min: 12.0,
-        max: 120.0,
-        value: value.clamp(12.0, 120.0),
+        min: 10.0,
+        max: 44.0,
+        value: value.clamp(10.0, 44.0),
         onChanged: onChanged,
       ),
     );
@@ -286,8 +286,8 @@ class _LensSliderThumbShape extends SliderComponentShape {
   const _LensSliderThumbShape({required this.radius});
 
   double get _visualRadius {
-    final normalized = ((radius - 12.0) / 108.0).clamp(0.0, 1.0);
-    return 15.0 + (normalized * 6.0);
+    final normalized = ((radius - 10.0) / 34.0).clamp(0.0, 1.0);
+    return 14.0 + (normalized * 4.0);
   }
 
   @override
@@ -332,3 +332,4 @@ class _LensSliderThumbShape extends SliderComponentShape {
     );
   }
 }
+

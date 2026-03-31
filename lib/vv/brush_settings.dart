@@ -23,9 +23,9 @@ class BrushSettings {
   final bool velocityPressure;
 
   const BrushSettings({
-    this.radius = 34.0,
+    this.radius = 24.0,
     this.softness = 0.7,
-    this.strength = 0.68,
+    this.strength = 0.78,
     this.spacing = 0.25,
     this.velocityPressure = false,
   })  : assert(radius > 0.0),
@@ -82,5 +82,7 @@ class BrushSettings {
   String toString() =>
       'BrushSettings(r=$radius, soft=$softness, str=$strength, sp=$spacing)';
 }
+
+
 
 

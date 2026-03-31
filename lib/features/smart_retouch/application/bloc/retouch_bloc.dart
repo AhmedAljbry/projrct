@@ -1,11 +1,13 @@
-import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter/material.dart';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
-import 'retouch_event.dart';
-import 'retouch_state.dart';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+
 import '../../domain/models/retouch_operation.dart';
 import '../../infrastructure/engine/retouch_image_service.dart';
+import 'retouch_event.dart';
+import 'retouch_state.dart';
 
 class RetouchBloc extends Bloc<RetouchEvent, RetouchState> {
   RetouchBloc() : super(const RetouchState()) {
@@ -21,15 +23,18 @@ class RetouchBloc extends Bloc<RetouchEvent, RetouchState> {
   }
 
   Future<void> _onLoadImage(
-      LoadImageEvent event, Emitter<RetouchState> emit) async {
+    LoadImageEvent event,
+    Emitter<RetouchState> emit,
+  ) async {
     emit(state.copyWith(status: RetouchStatus.loading));
 
     final byteData =
         await event.image.toByteData(format: ui.ImageByteFormat.png);
     if (byteData == null) {
       emit(state.copyWith(
-          status: RetouchStatus.error,
-          errorMessage: 'Failed to read image bytes.'));
+        status: RetouchStatus.error,
+        errorMessage: 'Failed to read image bytes.',
+      ));
       return;
     }
 
@@ -48,34 +53,45 @@ class RetouchBloc extends Bloc<RetouchEvent, RetouchState> {
 
   void _onChangeMode(ChangeModeEvent event, Emitter<RetouchState> emit) {
     emit(state.copyWith(
-        activeMode: event.mode,
-        activeSourceAnchor: null,
-        resetCloneOffset: true,
-        resetLastStroke: true));
+      activeMode: event.mode,
+      activeSourceAnchor: null,
+      resetCloneOffset: true,
+      resetLastStroke: true,
+    ));
   }
 
   void _onUpdateBrushSettings(
-      UpdateBrushSettingsEvent event, Emitter<RetouchState> emit) {
+    UpdateBrushSettingsEvent event,
+    Emitter<RetouchState> emit,
+  ) {
     emit(state.copyWith(activeBrushSettings: event.settings));
   }
 
   void _onSetSourceAnchor(
-      SetSourceAnchorEvent event, Emitter<RetouchState> emit) {
+    SetSourceAnchorEvent event,
+    Emitter<RetouchState> emit,
+  ) {
     emit(state.copyWith(
-        activeSourceAnchor: event.anchor,
-        resetCloneOffset: true,
-        resetLastStroke: true));
+      activeSourceAnchor: event.anchor,
+      resetCloneOffset: true,
+      resetLastStroke: true,
+    ));
   }
 
   void _onSetCloneOffset(
-      SetCloneOffsetEvent event, Emitter<RetouchState> emit) {
+    SetCloneOffsetEvent event,
+    Emitter<RetouchState> emit,
+  ) {
     emit(state.copyWith(
-        activeCloneOffset: event.offset,
-        resetCloneOffset: event.offset == null));
+      activeCloneOffset: event.offset,
+      resetCloneOffset: event.offset == null,
+    ));
   }
 
   Future<void> _onApplyOperation(
-      ApplyOperationEvent event, Emitter<RetouchState> emit) async {
+    ApplyOperationEvent event,
+    Emitter<RetouchState> emit,
+  ) async {
     final updatedOps = List.of(state.operations)..add(event.operation);
 
     Uint8List? previewBytes;
@@ -90,8 +106,7 @@ class RetouchBloc extends Bloc<RetouchEvent, RetouchState> {
     }
 
     emit(state.copyWith(
-      status:
-          previewImage != null ? RetouchStatus.ready : RetouchStatus.processing,
+      status: RetouchStatus.ready,
       operations: updatedOps,
       redoStack: [],
       currentImage: previewImage ?? state.currentImage,
@@ -101,7 +116,7 @@ class RetouchBloc extends Bloc<RetouchEvent, RetouchState> {
     ));
 
     if (previewImage == null) {
-      await _renderAndEmit(updatedOps, emit);
+      _renderAndEmit(updatedOps, emit);
     }
   }
 
@@ -113,7 +128,7 @@ class RetouchBloc extends Bloc<RetouchEvent, RetouchState> {
     final updatedRedo = List.of(state.redoStack)..add(lastOp);
 
     emit(state.copyWith(
-      status: RetouchStatus.processing,
+      status: RetouchStatus.ready,
       operations: updatedOps,
       redoStack: updatedRedo,
     ));
@@ -128,7 +143,7 @@ class RetouchBloc extends Bloc<RetouchEvent, RetouchState> {
     final updatedOps = List.of(state.operations)..add(opToRestore);
 
     emit(state.copyWith(
-      status: RetouchStatus.processing,
+      status: RetouchStatus.ready,
       operations: updatedOps,
       redoStack: updatedRedo,
     ));
@@ -146,12 +161,14 @@ class RetouchBloc extends Bloc<RetouchEvent, RetouchState> {
   }
 
   Future<void> _renderAndEmit(
-      List<dynamic> operations, Emitter<RetouchState> emit) async {
+    List<RetouchOperation> operations,
+    Emitter<RetouchState> emit,
+  ) async {
     if (state.originalImageBytes == null) return;
 
     final resultBytes = await RetouchImageService.renderOperations(
       originalImageBytes: state.originalImageBytes!,
-      operations: operations.cast(),
+      operations: operations,
     );
 
     if (resultBytes != null) {
@@ -161,13 +178,8 @@ class RetouchBloc extends Bloc<RetouchEvent, RetouchState> {
         status: RetouchStatus.ready,
         currentImage: frame.image,
         currentImageBytes: resultBytes,
-        lastStrokeEnd: _findLastTargetEnd(operations.cast<RetouchOperation>()),
-        lastSourceEnd: _findLastSourceEnd(operations.cast<RetouchOperation>()),
-      ));
-    } else {
-      emit(state.copyWith(
-        status: RetouchStatus.error,
-        errorMessage: 'Background rendering failed.',
+        lastStrokeEnd: _findLastTargetEnd(operations),
+        lastSourceEnd: _findLastSourceEnd(operations),
       ));
     }
   }

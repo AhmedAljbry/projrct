@@ -47,6 +47,7 @@ abstract class LamaOptions {
   final Uint8List? maskBytes;
   final String? maskName;
   final LamaTaskMode mode;
+  final Map<String, dynamic>? optionsJson;
 
   const LamaOptions({
     required this.imageBytes,
@@ -54,6 +55,7 @@ abstract class LamaOptions {
     this.maskBytes,
     this.maskName,
     required this.mode,
+    this.optionsJson,
   });
 
   Map<String, String> toFields();
@@ -68,12 +70,13 @@ class HealRegionOptions extends LamaOptions {
     required super.maskBytes,
     required super.maskName,
     this.healRadius = 0,
+    super.optionsJson,
   }) : super(mode: LamaTaskMode.healRegion);
 
   @override
   Map<String, String> toFields() => {
-    'heal_radius': healRadius.toString(),
-  };
+        'heal_radius': healRadius.toString(),
+      };
 }
 
 class RepairDamageOptions extends LamaOptions {
@@ -82,6 +85,7 @@ class RepairDamageOptions extends LamaOptions {
     required super.imageName,
     required super.maskBytes,
     required super.maskName,
+    super.optionsJson,
   }) : super(mode: LamaTaskMode.repairDamage);
 
   @override
@@ -98,23 +102,24 @@ class ExpandCanvasOptions extends LamaOptions {
   const ExpandCanvasOptions({
     required super.imageBytes,
     required super.imageName,
-    super.maskBytes, // Optional guidance mask
+    super.maskBytes,
     super.maskName,
     this.left = 0,
     this.top = 0,
     this.right = 0,
     this.bottom = 0,
     this.anchor = 'center',
+    super.optionsJson,
   }) : super(mode: LamaTaskMode.expandCanvas);
 
   @override
   Map<String, String> toFields() => {
-    'expand_left': left.toString(),
-    'expand_top': top.toString(),
-    'expand_right': right.toString(),
-    'expand_bottom': bottom.toString(),
-    'anchor': anchor,
-  };
+        'expand_left': left.toString(),
+        'expand_top': top.toString(),
+        'expand_right': right.toString(),
+        'expand_bottom': bottom.toString(),
+        'anchor': anchor,
+      };
 }
 
 class CleanEdgesOptions extends LamaOptions {
@@ -126,12 +131,13 @@ class CleanEdgesOptions extends LamaOptions {
     required super.maskBytes,
     required super.maskName,
     this.edgeRadius = 4,
+    super.optionsJson,
   }) : super(mode: LamaTaskMode.cleanEdges);
 
   @override
   Map<String, String> toFields() => {
-    'edge_radius': edgeRadius.toString(),
-  };
+        'edge_radius': edgeRadius.toString(),
+      };
 }
 
 class LamaServerHealth {

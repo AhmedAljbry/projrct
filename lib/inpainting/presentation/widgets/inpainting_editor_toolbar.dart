@@ -4,13 +4,6 @@ import 'package:untitled2/core/ui/AppL10n.dart';
 
 import 'inpainting_studio_chrome.dart';
 
-/// Slim single-row top bar for the Magic Eraser editor.
-///
-/// Contains: back ← | title + breadcrumb | undo ↩ | redo ↪ | help ?
-///
-/// All previous action-chips (undo/redo/clear/compare rows) have been removed
-/// from the top bar — those controls now live exclusively in the brush-controls
-/// panel to avoid duplication and reclaim vertical space.
 class InpaintingEditorToolbar extends StatelessWidget {
   final String title;
   final String subtitle;
@@ -31,6 +24,7 @@ class InpaintingEditorToolbar extends StatelessWidget {
   final String clearLabel;
   final String compareLabel;
   final String compareActiveLabel;
+  final AppL10n l10n;
 
   const InpaintingEditorToolbar({
     super.key,
@@ -56,10 +50,6 @@ class InpaintingEditorToolbar extends StatelessWidget {
     required this.l10n,
   });
 
-  final AppL10n l10n;
-
-  /// Current workflow step derived from editor state:
-  /// 1 = draw mask, 2 = AI processing (not shown here), 3 = done
   int get _currentStep => hasMask ? 2 : 1;
 
   @override
@@ -68,20 +58,18 @@ class InpaintingEditorToolbar extends StatelessWidget {
     final vPad = compact ? 10.0 : 13.0;
 
     return StudioGlassPanel(
-      radius: 26,
+      radius: 32,
       padding: EdgeInsets.symmetric(horizontal: hPad, vertical: vPad),
-      fillColor: InpaintingStudioTheme.surfaceSoft,
+      fillColor: InpaintingStudioTheme.surfaceStrong.withValues(alpha: 0.8),
+      borderColor: Colors.white.withValues(alpha: 0.1),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // ── Back button ─────────────────────────────────────────
-          _TopBarIconButton(
+          _ToolIconButton(
             icon: Icons.arrow_back_ios_new_rounded,
             onTap: onBack,
           ),
-          SizedBox(width: compact ? 10 : 14),
-
-          // ── Title + breadcrumb ──────────────────────────────────
+          SizedBox(width: compact ? 12 : 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -92,39 +80,49 @@ class InpaintingEditorToolbar extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: InpaintingStudioTheme.textPrimary,
+                    color: Colors.white,
                     fontSize: compact ? 16.0 : 18.0,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: -0.2,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
-                SizedBox(height: 5),
-                StudioStepBreadcrumb(
-                  l10n: l10n,
-                  currentStep: _currentStep,
+                SizedBox(height: 4),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: AlignmentDirectional.centerStart,
+                  child: StudioStepBreadcrumb(
+                    l10n: l10n,
+                    currentStep: _currentStep,
+                  ),
                 ),
               ],
             ),
           ),
-
-          SizedBox(width: 10),
-
-          // ── Undo / Redo icon buttons ────────────────────────────
-          _TopBarIconButton(
-            icon: Icons.undo_rounded,
-            onTap: canUndo ? onUndo : null,
-            tooltip: undoLabel,
+          SizedBox(width: 8),
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            decoration: BoxDecoration(
+               color: Colors.white.withValues(alpha: 0.04),
+               borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+               mainAxisSize: MainAxisSize.min,
+               children: [
+                 _ToolIconButton(
+                   icon: Icons.undo_rounded,
+                   onTap: canUndo ? onUndo : null,
+                   tooltip: undoLabel,
+                 ),
+                 SizedBox(width: 4),
+                 _ToolIconButton(
+                   icon: Icons.redo_rounded,
+                   onTap: canRedo ? onRedo : null,
+                   tooltip: redoLabel,
+                 ),
+               ]
+            ),
           ),
-          SizedBox(width: 6),
-          _TopBarIconButton(
-            icon: Icons.redo_rounded,
-            onTap: canRedo ? onRedo : null,
-            tooltip: redoLabel,
-          ),
-          SizedBox(width: 6),
-
-          // ── Help button ─────────────────────────────────────────
-          _TopBarIconButton(
+          SizedBox(width: 8),
+          _ToolIconButton(
             icon: Icons.help_outline_rounded,
             onTap: onHelp,
           ),
@@ -134,14 +132,12 @@ class InpaintingEditorToolbar extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _TopBarIconButton extends StatelessWidget {
+class _ToolIconButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback? onTap;
   final String? tooltip;
 
-  const _TopBarIconButton({
+  const _ToolIconButton({
     required this.icon,
     required this.onTap,
     this.tooltip,
@@ -150,26 +146,23 @@ class _TopBarIconButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final enabled = onTap != null;
-
     Widget button = Opacity(
-      opacity: enabled ? 1.0 : 0.35,
+      opacity: enabled ? 1.0 : 0.4,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         child: Container(
-          width: 40,
-          height: 40,
+          width: 38,
+          height: 38,
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.06),
-            borderRadius: BorderRadius.circular(14),
+            color: Colors.white.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(12),
             border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
           ),
           child: Icon(
             icon,
             size: 18,
-            color: enabled
-                ? InpaintingStudioTheme.textPrimary
-                : InpaintingStudioTheme.textSecondary,
+            color: enabled ? Colors.white : Colors.white70,
           ),
         ),
       ),
@@ -178,7 +171,6 @@ class _TopBarIconButton extends StatelessWidget {
     if (tooltip != null) {
       button = Tooltip(message: tooltip!, child: button);
     }
-
     return button;
   }
 }

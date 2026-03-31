@@ -1,4 +1,4 @@
-﻿import 'dart:ui';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
@@ -94,8 +94,11 @@ class _EditorCanvasState extends State<EditorCanvas> {
                           ),
                         ],
                       ),
-                      child:
-                          RawImage(image: document.preview, fit: BoxFit.fill),
+                      child: RawImage(
+                        image: document.preview,
+                        fit: BoxFit.fill,
+                        filterQuality: FilterQuality.high,
+                      ),
                     ),
                   ),
                   if (controller.showItemsOnActiveCanvas)
@@ -107,8 +110,7 @@ class _EditorCanvasState extends State<EditorCanvas> {
                         isPending: state.pendingItem?.id == item.id,
                         viewport: viewport,
                         onTap: () => controller.selectItem(item.id),
-                        onChanged: (
-                            {center, scale, rotation, commit = false}) {
+                        onChanged: ({center, scale, rotation, commit = false}) {
                           controller.updateSelectedItem(
                             center: center,
                             scale: scale,
@@ -131,12 +133,13 @@ class _EditorCanvasState extends State<EditorCanvas> {
                                   .transformedRect(controller.selectedItem!),
                           showItemBounds: controller.selectedItem != null &&
                               controller.showItemsOnActiveCanvas,
-                          showSmartCursor:
-                              state.interactionMode == CanvasInteractionMode.smartTap ||
-                                  state.interactionMode ==
-                                      CanvasInteractionMode.smartPersonTap,
+                          showSmartCursor: state.interactionMode ==
+                                  CanvasInteractionMode.smartTap ||
+                              state.interactionMode ==
+                                  CanvasInteractionMode.smartPersonTap,
                           hasPendingPreview: state.pendingItem != null &&
-                              state.pendingItem!.targetDocumentId == document.id,
+                              state.pendingItem!.targetDocumentId ==
+                                  document.id,
                         ),
                       ),
                     ),
@@ -340,13 +343,10 @@ class _InteractiveItemState extends State<_InteractiveItem> {
                 ..rotateZ(item.rotation),
               child: Opacity(
                 opacity: item.opacity,
-                child: ImageFiltered(
-                  imageFilter: ImageFilter.blur(
-                    sigmaX: item.feather / 10,
-                    sigmaY: item.feather / 10,
-                  ),
-                  child:
-                      RawImage(image: item.clipboard.preview, fit: BoxFit.fill),
+                child: RawImage(
+                  image: item.clipboard.preview,
+                  fit: BoxFit.fill,
+                  filterQuality: FilterQuality.high,
                 ),
               ),
             ),
@@ -456,9 +456,7 @@ class _SelectionPainter extends CustomPainter {
     if (showItemBounds && selectedItemRect != null) {
       final rect = viewport.imageRectFromPixels(selectedItemRect!);
       final linePaint = Paint()
-        ..color = hasPendingPreview
-            ? const Color(0xFF63D5A3)
-            : Colors.white70
+        ..color = hasPendingPreview ? const Color(0xFF63D5A3) : Colors.white70
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1;
       _drawDashedRect(canvas, rect, linePaint, dash: 7, gap: 6);
