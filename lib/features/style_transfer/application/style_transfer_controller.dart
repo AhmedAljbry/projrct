@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -7,11 +7,14 @@ import 'package:untitled2/features/export/data/style_transfer_export_service.dar
 import 'package:untitled2/features/presets/data/shared_prefs_style_preset_repository.dart';
 import 'package:untitled2/features/presets/domain/repositories/style_preset_repository.dart';
 import 'package:untitled2/features/style_transfer/application/style_transfer_state.dart';
+import 'package:untitled2/features/style_transfer/data/models/style_preset_registry.dart';
 import 'package:untitled2/features/style_transfer/data/models/style_seed_library.dart';
+import 'package:untitled2/features/style_transfer/data/services/adaptive_style_applier.dart';
 import 'package:untitled2/features/style_transfer/data/repositories/style_transfer_repository_impl.dart';
 import 'package:untitled2/features/style_transfer/domain/entities/detail_profile.dart';
 import 'package:untitled2/features/style_transfer/domain/entities/hsl_profile.dart';
 import 'package:untitled2/features/style_transfer/domain/entities/local_rules.dart';
+import 'package:untitled2/features/style_transfer/domain/entities/style_preset_definition.dart';
 import 'package:untitled2/features/style_transfer/domain/entities/style_profile.dart';
 import 'package:untitled2/features/style_transfer/domain/entities/tone_profile.dart';
 import 'package:untitled2/features/style_transfer/domain/usecases/analyze_scene_use_case.dart';
@@ -29,6 +32,7 @@ class StyleTransferController extends Cubit<StyleTransferState> {
     required SavePresetUseCase savePresetUseCase,
     required StylePresetRepository presetRepository,
     required StyleTransferExportService exportService,
+    required AdaptiveStyleApplier adaptiveStyleApplier,
   })  : _extractStyleUseCase = extractStyleUseCase,
         _analyzeSceneUseCase = analyzeSceneUseCase,
         _applyStyleUseCase = applyStyleUseCase,
@@ -36,6 +40,7 @@ class StyleTransferController extends Cubit<StyleTransferState> {
         _savePresetUseCase = savePresetUseCase,
         _presetRepository = presetRepository,
         _exportService = exportService,
+        _adaptiveStyleApplier = adaptiveStyleApplier,
         super(
           StyleTransferState.initial(
             trendingStyles: StyleSeedLibrary.trendingStyles,
@@ -57,6 +62,7 @@ class StyleTransferController extends Cubit<StyleTransferState> {
       savePresetUseCase: SavePresetUseCase(presetRepository),
       presetRepository: presetRepository,
       exportService: const StyleTransferExportService(),
+      adaptiveStyleApplier: const AdaptiveStyleApplier(),
     );
   }
 
@@ -67,6 +73,7 @@ class StyleTransferController extends Cubit<StyleTransferState> {
   final SavePresetUseCase _savePresetUseCase;
   final StylePresetRepository _presetRepository;
   final StyleTransferExportService _exportService;
+  final AdaptiveStyleApplier _adaptiveStyleApplier;
 
   Timer? _previewDebounce;
   int _previewTicket = 0;
@@ -94,6 +101,7 @@ class StyleTransferController extends Cubit<StyleTransferState> {
       emit(state.copyWith(
         styleProfile: style,
         referenceAnalysis: analysis,
+        selectedPresetId: null,
         isPreparing: false,
         statusMessage: 'Reference style ready.',
       ));
@@ -112,12 +120,32 @@ class StyleTransferController extends Cubit<StyleTransferState> {
   Future<void> useSeedStyle(StyleProfile profile) async {
     emit(state.copyWith(
       styleProfile: profile,
+      selectedPresetId: null,
       referenceBytes: null,
       referenceName: profile.name,
       referenceAnalysis: null,
       exportResult: null,
       errorMessage: null,
       statusMessage: 'Preset style selected.',
+    ));
+    _schedulePreviewRefresh(immediate: true);
+  }
+
+  Future<void> applyPreset(StylePresetDefinition preset) async {
+    emit(state.copyWith(
+      styleProfile: preset.profile,
+      selectedPresetId: preset.id,
+      referenceBytes: null,
+      referenceName: preset.name,
+      referenceAnalysis: null,
+      exportResult: null,
+      errorMessage: null,
+      statusMessage: '${preset.name} preset selected.',
+      settings: state.settings.copyWith(
+        strength: preset.adaptiveRule.defaultStrength,
+        naturalMode: preset.naturalMode,
+        localOverrides: preset.maskPolicy,
+      ),
     ));
     _schedulePreviewRefresh(immediate: true);
   }
@@ -172,11 +200,28 @@ class StyleTransferController extends Cubit<StyleTransferState> {
     _updateSettings(state.settings.copyWith(exposureLock: value));
   }
 
+  void updateNaturalMode(bool value) {
+    _updateSettings(state.settings.copyWith(naturalMode: value));
+  }
+
   void updateSkinProtect(bool value) {
     _updateSettings(
       state.settings.copyWith(
         localOverrides:
             state.settings.localOverrides.copyWith(skinProtect: value),
+      ),
+    );
+  }
+
+  void updateWatermarkEnabled(bool value) {
+    _updateSettings(state.settings.copyWith(watermarkEnabled: value));
+  }
+
+  void updateWatermarkText(String value) {
+    final trimmed = value.trim();
+    _updateSettings(
+      state.settings.copyWith(
+        watermarkText: trimmed.isEmpty ? 'AI Style Transfer Studio' : trimmed,
       ),
     );
   }
@@ -257,10 +302,11 @@ class StyleTransferController extends Cubit<StyleTransferState> {
       statusMessage: 'Rendering fast preview...',
     ));
     try {
+      final renderContext = _resolveRenderContext();
       final result = await _applyStyleUseCase(
         targetBytes: state.targetBytes!,
-        styleProfile: state.styleProfile!,
-        settings: state.settings,
+        styleProfile: renderContext.profile,
+        settings: renderContext.settings,
         referenceBytes: state.referenceBytes,
         targetAnalysis: state.targetAnalysis,
       );
@@ -273,7 +319,15 @@ class StyleTransferController extends Cubit<StyleTransferState> {
         isRenderingPreview: false,
         statusMessage: result.usedCachedPreview
             ? 'Preview loaded from cache.'
-            : 'Preview updated.',
+            : result.usedFallback
+                ? 'Preview updated in safe mode.'
+                : result.usedCachedAnalysis
+                    ? _buildPreviewMessage(
+                        'Preview updated with cached scene analysis.',
+                        renderContext.notes,
+                      )
+                    : _buildPreviewMessage(
+                        'Preview updated.', renderContext.notes),
       ));
     } catch (_) {
       if (!isClosed && (force || ticket == _previewTicket)) {
@@ -297,10 +351,11 @@ class StyleTransferController extends Cubit<StyleTransferState> {
       statusMessage: 'Rendering high-resolution export...',
     ));
     try {
+      final renderContext = _resolveRenderContext();
       final result = await _applyStyleUseCase(
         targetBytes: state.targetBytes!,
-        styleProfile: state.styleProfile!,
-        settings: state.settings,
+        styleProfile: renderContext.profile,
+        settings: renderContext.settings,
         referenceBytes: state.referenceBytes,
         targetAnalysis: state.targetAnalysis,
         highQuality: true,
@@ -311,13 +366,21 @@ class StyleTransferController extends Cubit<StyleTransferState> {
         exportResult: result,
         targetAnalysis: result.sceneAnalysis,
         isRenderingExport: false,
-        statusMessage: 'High-resolution result is ready.',
+        statusMessage: result.usedFallback
+            ? 'High-resolution result is ready in safe mode.'
+            : result.watermarkApplied
+                ? 'High-resolution result is ready with watermark.'
+                : _buildPreviewMessage(
+                    'High-resolution result is ready.',
+                    renderContext.notes,
+                  ),
       ));
     } catch (_) {
       if (!isClosed) {
         emit(state.copyWith(
           isRenderingExport: false,
-          errorMessage: 'High-resolution export failed.',
+          errorMessage:
+              'High-resolution export failed. Your preview is still available.',
         ));
       }
     }
@@ -351,46 +414,54 @@ class StyleTransferController extends Cubit<StyleTransferState> {
   }
 
   Future<void> exportCurrent() async {
-    var bytes = state.exportResult?.exportBytes;
-    bytes ??= state.previewResult?.previewBytes;
-    if (bytes == null) {
-      emit(state.copyWith(errorMessage: 'Render a result before exporting.'));
-      return;
-    }
-    if (state.exportResult == null) {
-      await renderHighQuality();
-      bytes =
+    try {
+      if (_needsFreshExport()) {
+        await renderHighQuality();
+      }
+      final bytes =
           state.exportResult?.exportBytes ?? state.previewResult?.previewBytes;
-    }
-    if (bytes == null) {
-      return;
-    }
-    await _exportService.saveToGallery(bytes,
-        name: 'viral_style_${DateTime.now().millisecondsSinceEpoch}.jpg');
-    if (!isClosed) {
-      emit(state.copyWith(statusMessage: 'Image exported to your gallery.'));
+      if (bytes == null) {
+        emit(state.copyWith(errorMessage: 'Render a result before exporting.'));
+        return;
+      }
+      await _exportService.saveToGallery(bytes,
+          name: 'viral_style_${DateTime.now().millisecondsSinceEpoch}.jpg');
+      if (!isClosed) {
+        emit(state.copyWith(statusMessage: 'Image exported to your gallery.'));
+      }
+    } catch (_) {
+      if (!isClosed) {
+        emit(state.copyWith(
+          errorMessage:
+              'Export failed. Try rendering again or disable watermark first.',
+        ));
+      }
     }
   }
 
   Future<void> shareCurrent() async {
-    var bytes = state.exportResult?.exportBytes;
-    bytes ??= state.previewResult?.previewBytes;
-    if (bytes == null) {
-      emit(state.copyWith(errorMessage: 'Render a result before sharing.'));
-      return;
-    }
-    if (state.exportResult == null) {
-      await renderHighQuality();
-      bytes =
+    try {
+      if (_needsFreshExport()) {
+        await renderHighQuality();
+      }
+      final bytes =
           state.exportResult?.exportBytes ?? state.previewResult?.previewBytes;
-    }
-    if (bytes == null) {
-      return;
-    }
-    await _exportService.share(bytes,
-        name: 'viral_style_${DateTime.now().millisecondsSinceEpoch}.jpg');
-    if (!isClosed) {
-      emit(state.copyWith(statusMessage: 'Share sheet opened.'));
+      if (bytes == null) {
+        emit(state.copyWith(errorMessage: 'Render a result before sharing.'));
+        return;
+      }
+      await _exportService.share(bytes,
+          name: 'viral_style_${DateTime.now().millisecondsSinceEpoch}.jpg');
+      if (!isClosed) {
+        emit(state.copyWith(statusMessage: 'Share sheet opened.'));
+      }
+    } catch (_) {
+      if (!isClosed) {
+        emit(state.copyWith(
+          errorMessage:
+              'Sharing failed. Try rendering again or export the image first.',
+        ));
+      }
     }
   }
 
@@ -399,10 +470,11 @@ class StyleTransferController extends Cubit<StyleTransferState> {
     if (style == null) {
       return Future<List<dynamic>>.value(const <dynamic>[]);
     }
+    final renderContext = _resolveRenderContext();
     return _batchApplyUseCase(
       targetImages: images,
-      styleProfile: style,
-      settings: state.settings,
+      styleProfile: renderContext.profile,
+      settings: renderContext.settings,
       referenceBytes: state.referenceBytes,
     );
   }
@@ -429,9 +501,35 @@ class StyleTransferController extends Cubit<StyleTransferState> {
       unawaited(refreshPreview(force: true));
       return;
     }
-    _previewDebounce = Timer(const Duration(milliseconds: 180), () {
+    _previewDebounce = Timer(const Duration(milliseconds: 130), () {
       unawaited(refreshPreview());
     });
+  }
+
+  bool _needsFreshExport() {
+    final export = state.exportResult;
+    if (export == null || !export.exportReady) {
+      return true;
+    }
+    return export.watermarkApplied != state.settings.watermarkEnabled;
+  }
+
+  AdaptiveStyleApplication _resolveRenderContext() {
+    final style = state.styleProfile!;
+    final preset = StylePresetRegistry.byId(state.selectedPresetId);
+    return _adaptiveStyleApplier.apply(
+      baseProfile: style,
+      settings: state.settings,
+      analysis: state.targetAnalysis,
+      preset: preset,
+    );
+  }
+
+  String _buildPreviewMessage(String base, List<String> notes) {
+    if (notes.isEmpty) {
+      return base;
+    }
+    return '$base ${notes.first}';
   }
 
   @override

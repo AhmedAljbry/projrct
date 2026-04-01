@@ -5,6 +5,9 @@ class ViralEnhancementRecipe {
     required this.glow,
     required this.depthLift,
     required this.faceLift,
+    required this.highlightRollOff,
+    required this.colorPop,
+    required this.toneCurveStrength,
     required this.vignette,
   });
 
@@ -13,6 +16,9 @@ class ViralEnhancementRecipe {
   final double glow;
   final double depthLift;
   final double faceLift;
+  final double highlightRollOff;
+  final double colorPop;
+  final double toneCurveStrength;
   final double vignette;
 
   Map<String, dynamic> toMap() {
@@ -22,6 +28,9 @@ class ViralEnhancementRecipe {
       'glow': glow,
       'depthLift': depthLift,
       'faceLift': faceLift,
+      'highlightRollOff': highlightRollOff,
+      'colorPop': colorPop,
+      'toneCurveStrength': toneCurveStrength,
       'vignette': vignette,
     };
   }
@@ -33,6 +42,9 @@ class ViralEnhancementRecipe {
       glow: _asDouble(map['glow']),
       depthLift: _asDouble(map['depthLift']),
       faceLift: _asDouble(map['faceLift']),
+      highlightRollOff: _asDouble(map['highlightRollOff']),
+      colorPop: _asDouble(map['colorPop']),
+      toneCurveStrength: _asDouble(map['toneCurveStrength']),
       vignette: _asDouble(map['vignette']),
     );
   }

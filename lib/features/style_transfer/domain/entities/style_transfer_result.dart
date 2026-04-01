@@ -19,6 +19,9 @@ class StyleTransferResult {
     required this.warnings,
     required this.viralScore,
     required this.usedCachedPreview,
+    required this.usedCachedAnalysis,
+    required this.usedFallback,
+    required this.watermarkApplied,
   });
 
   final Uint8List previewBytes;
@@ -34,6 +37,9 @@ class StyleTransferResult {
   final List<String> warnings;
   final double viralScore;
   final bool usedCachedPreview;
+  final bool usedCachedAnalysis;
+  final bool usedFallback;
+  final bool watermarkApplied;
 
   StyleTransferResult copyWith({
     Uint8List? previewBytes,
@@ -49,6 +55,9 @@ class StyleTransferResult {
     List<String>? warnings,
     double? viralScore,
     bool? usedCachedPreview,
+    bool? usedCachedAnalysis,
+    bool? usedFallback,
+    bool? watermarkApplied,
   }) {
     return StyleTransferResult(
       previewBytes: previewBytes ?? this.previewBytes,
@@ -64,6 +73,9 @@ class StyleTransferResult {
       warnings: warnings ?? this.warnings,
       viralScore: viralScore ?? this.viralScore,
       usedCachedPreview: usedCachedPreview ?? this.usedCachedPreview,
+      usedCachedAnalysis: usedCachedAnalysis ?? this.usedCachedAnalysis,
+      usedFallback: usedFallback ?? this.usedFallback,
+      watermarkApplied: watermarkApplied ?? this.watermarkApplied,
     );
   }
 }

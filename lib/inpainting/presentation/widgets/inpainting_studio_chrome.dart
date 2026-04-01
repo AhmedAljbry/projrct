@@ -60,6 +60,15 @@ class InpaintingStudioTheme {
       violet,
     ],
   );
+  
+  static const magicGradient = LinearGradient(
+    begin: Alignment.centerLeft,
+    end: Alignment.centerRight,
+    colors: [
+      Color(0xFFFFB300),
+      Color(0xFFFF6F00),
+    ],
+  );
 
   static BoxDecoration glassDecoration({
     double radius = 28,

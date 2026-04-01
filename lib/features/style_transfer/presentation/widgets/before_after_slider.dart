@@ -9,7 +9,7 @@ class BeforeAfterSlider extends StatefulWidget {
     super.key,
     required this.beforeBytes,
     required this.afterBytes,
-    this.aspectRatio = 4 / 5,
+    this.aspectRatio = 16 / 10,
   });
 
   final Uint8List beforeBytes;
@@ -39,7 +39,7 @@ class _BeforeAfterSliderState extends State<BeforeAfterSlider> {
           child: AspectRatio(
             aspectRatio: widget.aspectRatio,
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(28),
+              borderRadius: BorderRadius.circular(24),
               child: Stack(
                 fit: StackFit.expand,
                 children: <Widget>[
@@ -56,18 +56,18 @@ class _BeforeAfterSliderState extends State<BeforeAfterSlider> {
                     top: 0,
                     bottom: 0,
                     child: Container(
-                      width: 3,
+                      width: 2.5,
                       color: Colors.white.withValues(alpha: 0.9),
                     ),
                   ),
                   Positioned(
-                    left: (_position * width).clamp(32.0, width - 32.0) - 28,
+                    left: (_position * width).clamp(28.0, width - 28.0) - 24,
                     top: 0,
                     bottom: 0,
                     child: Center(
                       child: Container(
-                        width: 56,
-                        height: 56,
+                        width: 48,
+                        height: 48,
                         decoration: BoxDecoration(
                           color: ViralStudioTokens.background
                               .withValues(alpha: 0.72),
@@ -118,7 +118,7 @@ class _Tag extends StatelessWidget {
         style: const TextStyle(
           color: Colors.white,
           fontWeight: FontWeight.w700,
-          fontSize: 12,
+          fontSize: 11,
         ),
       ),
     );

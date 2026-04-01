@@ -110,8 +110,8 @@ class _FixedBrushMagnifierPainter extends CustomPainter {
         math.min(image.width.toDouble(), image.height.toDouble());
     final side = math.min(
       math
-          .max(brushWidthImagePx * 2.8, minDimension * 0.035)
-          .clamp(36.0, 240.0),
+          .max(brushWidthImagePx * 2.4, minDimension * 0.03)
+          .clamp(32.0, 220.0),
       minDimension,
     );
 

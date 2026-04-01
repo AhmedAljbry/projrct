@@ -280,6 +280,45 @@ extension _EditorPageUIHelpers on _EditorPageState {
     );
   }
 
+  /// Zone 2 – Compact horizontal info bar under the top bar.
+  /// Replaces the tall status-card with a lightweight single-row chip strip.
+  Widget _buildCompactInfoBar({
+    required AppL10n l10n,
+    required DrawingState drawingState,
+    required int imageWidth,
+    required int imageHeight,
+    bool compact = false,
+  }) {
+    final hasMask = drawingState.strokes.isNotEmpty;
+    final statusColor = hasMask ? InpaintingStudioTheme.mint : InpaintingStudioTheme.amber;
+    final statusIcon  = hasMask ? Icons.auto_fix_high_rounded : Icons.edit_rounded;
+    final statusText  = hasMask
+        ? l10n.get('editor_mask_ready')
+        : l10n.get('editor_mask_pending');
+
+    return SizedBox(
+      height: compact ? 34 : 36,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        child: Row(
+          children: [
+            _InfoChip(icon: statusIcon, label: statusText, accent: statusColor, prominent: true),
+            const SizedBox(width: 6),
+            _InfoChip(label: '${drawingState.strokes.length} ${l10n.get('workflow_mask')}',
+                accent: InpaintingStudioTheme.textMuted),
+            const SizedBox(width: 6),
+            _InfoChip(label: '${drawingState.brushSize.toInt()} px',
+                accent: InpaintingStudioTheme.textMuted),
+            const SizedBox(width: 6),
+            _InfoChip(label: '$imageWidth × $imageHeight',
+                accent: InpaintingStudioTheme.textMuted),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildErrorState(
     Color bgColor,
     Color textColor,
@@ -437,6 +476,60 @@ class _MiniMetric extends StatelessWidget {
               color: InpaintingStudioTheme.textPrimary,
               fontSize: 11.5,
               fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _InfoChip – compact pill chip for the horizontal Zone-2 info bar
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _InfoChip extends StatelessWidget {
+  final IconData? icon;
+  final String label;
+  final Color accent;
+  final bool prominent;
+
+  const _InfoChip({
+    this.icon,
+    required this.label,
+    required this.accent,
+    this.prominent = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: prominent
+            ? accent.withValues(alpha: 0.16)
+            : Colors.white.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: prominent
+              ? accent.withValues(alpha: 0.28)
+              : Colors.white.withValues(alpha: 0.07),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 13, color: accent),
+            const SizedBox(width: 5),
+          ],
+          Text(
+            label,
+            style: TextStyle(
+              color: prominent ? accent : InpaintingStudioTheme.textSecondary,
+              fontSize: 12,
+              fontWeight: prominent ? FontWeight.w800 : FontWeight.w600,
             ),
           ),
         ],

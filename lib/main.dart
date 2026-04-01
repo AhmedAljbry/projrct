@@ -15,6 +15,7 @@ import 'package:untitled2/core/ui/AppL10n.dart';
 import 'package:untitled2/features/ai_blur_focus_standalone/presentation/screen/ai_blur_focus_screen.dart';
 import 'package:untitled2/features/ai_object_clone_studio/presentation/pages/clone_studio_page.dart';
 import 'package:untitled2/features/ai_object_copy_paste/ai_object_copy_paste.dart';
+import 'package:untitled2/features/coins_wallet/presentation/pages/coins_wallet_host_page.dart';
 import 'package:untitled2/features/smart_retouch/presentation/screens/smart_retouch_screen.dart';
 import 'package:untitled2/features/style_transfer/presentation/screens/style_transfer_home_screen.dart';
 import 'package:untitled2/features/ai_perspective_studio/presentation/screens/perspective_studio_screen.dart';
@@ -266,6 +267,30 @@ class _HomeScreenState extends State<HomeScreen>
 
         const SizedBox(height: 14),
 
+        _FeatureCard(
+          index: 11,
+          icon: Icons.monetization_on_rounded,
+          title: 'Coins Wallet',
+          subtitle: 'Earn, buy, and spend coins at ${AppRoutes.coinsWallet}',
+          gradient: const LinearGradient(
+            colors: [Color(0xFFF4D58D), Color(0xFFC89B3C)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          foreground: Colors.black,
+          onTap: () => Navigator.push(
+            context,
+            _slide(
+              CoinsWalletHostPage(
+                config: widget.config,
+                userId: CoinsWalletHostPage.demoCoinsUserId,
+              ),
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 14),
+
         // Unified Creative Studio (Quick آ· Pro آ· Architect)
         _FeatureCard(
           index: 1,
@@ -477,15 +502,100 @@ class _HomeScreenState extends State<HomeScreen>
 
         _FeatureCard(
           index: 9,
-          icon: Icons.cloud_done_rounded,
-          title: 'Remote AI Studio (LaMa)',
-          subtitle: 'Heal آ· Repair آ· Expand آ· Clean Edges',
+          icon: Icons.healing,
+          title: 'AI Heal Region',
+          subtitle: 'Small targeted repair with radius control',
           gradient: const LinearGradient(
             colors: [Color(0xFF00E5FF), Color(0xFF0097A7)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
           foreground: Colors.black,
+          onTap: () => _pickAndNavigateBytes(
+            (bytes) => RemoteLamaFlowShell(
+              initialImage: bytes,
+              initialRoute: '/lama/heal',
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 14),
+
+        _FeatureCard(
+          index: 10,
+          icon: Icons.build_circle,
+          title: 'AI Repair Damage',
+          subtitle: 'Restore missing or damaged areas using AI',
+          gradient: const LinearGradient(
+            colors: [Color(0xFF00B0FF), Color(0xFF0081CB)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          foreground: Colors.white,
+          onTap: () => _pickAndNavigateBytes(
+            (bytes) => RemoteLamaFlowShell(
+              initialImage: bytes,
+              initialRoute: '/lama/repair',
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 14),
+
+        _FeatureCard(
+          index: 11,
+          icon: Icons.crop_free,
+          title: 'AI Expand Canvas',
+          subtitle: 'Outpaint and extend scene edges seamlessly',
+          gradient: const LinearGradient(
+            colors: [Color(0xFF40C4FF), Color(0xFF01579B)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          foreground: Colors.white,
+          onTap: () => _pickAndNavigateBytes(
+            (bytes) => RemoteLamaFlowShell(
+              initialImage: bytes,
+              initialRoute: '/lama/expand',
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 14),
+
+        _FeatureCard(
+          index: 12,
+          icon: Icons.blur_on,
+          title: 'AI Clean Edges',
+          subtitle: 'Professional mask boundary cleanup',
+          gradient: const LinearGradient(
+            colors: [Color(0xFF18FFFF), Color(0xFF00B8D4)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          foreground: Colors.black,
+          onTap: () => _pickAndNavigateBytes(
+            (bytes) => RemoteLamaFlowShell(
+              initialImage: bytes,
+              initialRoute: '/lama/clean',
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 14),
+
+        _FeatureCard(
+          index: 13,
+          icon: Icons.more_horiz_rounded,
+          title: 'More Remote Tools',
+          subtitle: 'Descratch · Background Cleanup · Studio Hub',
+          gradient: LinearGradient(
+            colors: [
+              Colors.white.withValues(alpha: 0.12),
+              Colors.white.withValues(alpha: 0.06),
+            ],
+          ),
+          foreground: Colors.white70,
           onTap: () => Navigator.push(
             context,
             _slide(const RemoteLamaFlowShell()),

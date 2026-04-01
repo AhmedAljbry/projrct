@@ -23,6 +23,7 @@ import 'package:untitled2/features/remote_lama_tools/presentation/heal_region/he
 import 'package:untitled2/features/remote_lama_tools/presentation/hub/remote_lama_hub_cubit.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/hub/remote_lama_hub_page.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/repair_damage/repair_damage_cubit.dart';
+import 'package:untitled2/features/remote_lama_tools/presentation/repair_damage/repair_damage_manual_mask_cubit.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/repair_damage/repair_damage_page.dart';
 import 'package:untitled2/features/retouch_mask_assist/data/repositories/retouch_mask_assist_repository_impl.dart';
 import 'package:untitled2/features/retouch_mask_assist/domain/repositories/retouch_mask_assist_repository.dart';
@@ -99,6 +100,14 @@ class _RemoteLamaFlowShellState extends State<RemoteLamaFlowShell> {
               pollJobStatusUseCase: context.read<PollJobStatusUseCase>(),
               getJobResultUseCase: context.read<GetJobResultUseCase>(),
             );
+            final manualMaskCubit = RepairDamageManualMaskCubit(
+              buildMaskPreviewUseCase: context.read<BuildMaskPreviewUseCase>(),
+              applyMaskBrushStrokeUseCase:
+                  context.read<ApplyMaskBrushStrokeUseCase>(),
+              transformMaskUseCase: context.read<TransformMaskUseCase>(),
+              exportProcessingMaskUseCase:
+                  context.read<ExportProcessingMaskUseCase>(),
+            );
             final maskAssistCubit = RepairMaskAssistCubit(
               generateMaskSuggestionUseCase:
                   context.read<GenerateMaskSuggestionUseCase>(),
@@ -111,11 +120,13 @@ class _RemoteLamaFlowShellState extends State<RemoteLamaFlowShell> {
             );
             if (widget.initialImage != null) {
               repairCubit.setImage(widget.initialImage!);
+              manualMaskCubit.setImage(widget.initialImage!);
               maskAssistCubit.setImage(widget.initialImage!);
             }
             return MultiBlocProvider(
               providers: [
                 BlocProvider.value(value: repairCubit),
+                BlocProvider.value(value: manualMaskCubit),
                 BlocProvider.value(value: maskAssistCubit),
               ],
               child: const RepairDamagePage(),

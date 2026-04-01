@@ -13,10 +13,14 @@ class SceneAnalysisEngine {
     final total = math.max(1, width * height);
 
     final skinMask = Uint8List(total);
+    final neutralMask = Uint8List(total);
     final hairMask = Uint8List(total);
     final skyMask = Uint8List(total);
     final foregroundMask = Uint8List(total);
     final backgroundMask = Uint8List(total);
+    const histogramBins = 16;
+    final luminanceHistogram = List<double>.filled(histogramBins, 0);
+    final saturationHistogram = List<double>.filled(histogramBins, 0);
 
     final paletteCounts = <int, int>{};
     double luminanceSum = 0;
@@ -30,6 +34,7 @@ class SceneAnalysisEngine {
     var skyPixels = 0;
     var neutralPixels = 0;
     var organicPixels = 0;
+    var furPixels = 0;
 
     var skinMinX = width;
     var skinMinY = height;
@@ -52,6 +57,10 @@ class SceneAnalysisEngine {
         luminanceSquaredSum += luminance * luminance;
         saturationSum += saturation;
         warmthSum += warmth;
+        luminanceHistogram[_histogramIndex(luminance, histogramBins)] +=
+            1 / total;
+        saturationHistogram[_histogramIndex(saturation, histogramBins)] +=
+            1 / total;
 
         if (luminance > 0.84) {
           brightPixels++;
@@ -61,9 +70,13 @@ class SceneAnalysisEngine {
         }
         if (_isNeutral(r, g, b, saturation)) {
           neutralPixels++;
+          neutralMask[index] = 255;
         }
         if (_isOrganic(r, g, b, hsl[0], saturation)) {
           organicPixels++;
+        }
+        if (_isFurTone(r, g, b, hsl[0], saturation, luminance)) {
+          furPixels++;
         }
 
         final isSkin = _isSkin(r, g, b, hsl[0], saturation, luminance);
@@ -133,12 +146,14 @@ class SceneAnalysisEngine {
     final skyLikelihood = skyPixels / total;
     final neutralLikelihood = neutralPixels / total;
     final organicLikelihood = organicPixels / total;
+    final furLikelihood = furPixels / total;
     final edgeEnergy = edgeSum / total;
 
     final sceneType = _inferSceneType(
       skinLikelihood: skinLikelihood,
       skyLikelihood: skyLikelihood,
       neutralLikelihood: neutralLikelihood,
+      furLikelihood: furLikelihood,
       contrast: contrast,
       averageLuminance: averageLuminance,
       averageSaturation: averageSaturation,
@@ -196,6 +211,11 @@ class SceneAnalysisEngine {
           'height': height,
           'values': skinMask
         },
+        'neutralMask': <String, dynamic>{
+          'width': width,
+          'height': height,
+          'values': neutralMask,
+        },
         'hairMask': <String, dynamic>{
           'width': width,
           'height': height,
@@ -228,8 +248,13 @@ class SceneAnalysisEngine {
         'skyLikelihood': skyLikelihood,
         'neutralLikelihood': neutralLikelihood,
         'organicLikelihood': organicLikelihood,
+        'furLikelihood': furLikelihood,
         'edgeEnergy': edgeEnergy,
+        'highlightHeadroom': (1 - (brightPixels / total)).clamp(0.0, 1.0),
+        'shadowHeadroom': (1 - (darkPixels / total)).clamp(0.0, 1.0),
         'palette': _buildPalette(paletteCounts),
+        'luminanceHistogram': luminanceHistogram,
+        'saturationHistogram': saturationHistogram,
       },
     };
   }
@@ -261,6 +286,7 @@ class SceneAnalysisEngine {
     required double skinLikelihood,
     required double skyLikelihood,
     required double neutralLikelihood,
+    required double furLikelihood,
     required double contrast,
     required double averageLuminance,
     required double averageSaturation,
@@ -268,6 +294,11 @@ class SceneAnalysisEngine {
   }) {
     if (skinLikelihood > 0.05) {
       return 'portrait';
+    }
+    if (furLikelihood > 0.035 &&
+        organicLikelihood > 0.08 &&
+        skinLikelihood < 0.03) {
+      return 'wildlife';
     }
     if (averageLuminance < 0.32 && contrast > 0.14) {
       return 'night';
@@ -329,6 +360,34 @@ class SceneAnalysisEngine {
         g >= r * 0.7 &&
         g >= b * 0.7;
   }
+
+  bool _isFurTone(
+    int r,
+    int g,
+    int b,
+    double hue,
+    double saturation,
+    double luminance,
+  ) {
+    final warmBrown = hue >= 18 &&
+        hue <= 52 &&
+        saturation >= 0.16 &&
+        saturation <= 0.62 &&
+        luminance >= 0.12 &&
+        luminance <= 0.76 &&
+        r >= g &&
+        g >= b * 0.7;
+    final darkNeutralFur = (r - g).abs() < 26 &&
+        (g - b).abs() < 28 &&
+        saturation < 0.22 &&
+        luminance > 0.08 &&
+        luminance < 0.46;
+    return warmBrown || darkNeutralFur;
+  }
+}
+
+int _histogramIndex(double value, int bins) {
+  return (value.clamp(0.0, 1.0) * (bins - 1)).round();
 }
 
 double _luminance(int r, int g, int b) {

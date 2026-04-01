@@ -6,8 +6,9 @@ import 'package:image_picker/image_picker.dart';
 
 import 'package:untitled2/features/style_transfer/application/style_transfer_controller.dart';
 import 'package:untitled2/features/style_transfer/application/style_transfer_state.dart';
-import 'package:untitled2/features/style_transfer/domain/entities/style_profile.dart';
+import 'package:untitled2/features/style_transfer/data/models/style_preset_registry.dart';
 import 'package:untitled2/features/style_transfer/presentation/screens/style_transfer_processing_screen.dart';
+import 'package:untitled2/features/style_transfer/presentation/widgets/style_preset_strip.dart';
 import 'package:untitled2/shared/ui_tokens/viral_studio_tokens.dart';
 
 class StyleTransferHomeScreen extends StatelessWidget {
@@ -151,30 +152,19 @@ class _StyleTransferHomeViewState extends State<_StyleTransferHomeView> {
                       Row(
                         children: <Widget>[
                           Expanded(
-                              child: Text('Trending styles',
+                              child: Text('Built-in Style Packs',
                                   style: ViralStudioTokens.sectionTitle())),
                           Text('Tap to use without a reference',
                               style: ViralStudioTokens.body(12)),
                         ],
                       ),
                       const SizedBox(height: 12),
-                      SizedBox(
-                        height: 180,
-                        child: ListView.separated(
-                          scrollDirection: Axis.horizontal,
-                          itemCount: state.trendingStyles.length,
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(width: 12),
-                          itemBuilder: (context, index) {
-                            final style = state.trendingStyles[index];
-                            return _SeedCard(
-                              style: style,
-                              onTap: () => context
-                                  .read<StyleTransferController>()
-                                  .useSeedStyle(style),
-                            );
-                          },
-                        ),
+                      StylePresetStrip(
+                        presets: StylePresetRegistry.featuredPresets,
+                        selectedId: state.selectedPresetId,
+                        onSelected: (preset) => context
+                            .read<StyleTransferController>()
+                            .applyPreset(preset),
                       ),
                       const SizedBox(height: 24),
                       Container(
@@ -210,7 +200,7 @@ class _StyleTransferHomeViewState extends State<_StyleTransferHomeView> {
                               child: FilledButton(
                                 style: ViralStudioTokens.primaryButton(),
                                 onPressed: state.isPreparing ? null : _start,
-                                child: const Text('Make it Viral 🔥'),
+                                child: const Text('Make it Viral'),
                               ),
                             ),
                           ],
@@ -301,55 +291,6 @@ class _ImageInputCard extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _SeedCard extends StatelessWidget {
-  const _SeedCard({required this.style, required this.onTap});
-
-  final StyleProfile style;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 190,
-        padding: const EdgeInsets.all(18),
-        decoration: ViralStudioTokens.panelDecoration(),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Row(
-              children: style.color.palette
-                  .take(4)
-                  .map(
-                    (color) => Container(
-                      width: 26,
-                      height: 26,
-                      margin: const EdgeInsets.only(right: 6),
-                      decoration: BoxDecoration(
-                        color: color,
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                    ),
-                  )
-                  .toList(growable: false),
-            ),
-            const Spacer(),
-            Text(style.name,
-                style: ViralStudioTokens.sectionTitle().copyWith(fontSize: 16)),
-            const SizedBox(height: 6),
-            Text(style.sceneType.toUpperCase(),
-                style: ViralStudioTokens.body(12)),
-            const SizedBox(height: 10),
-            Text('Confidence ${(style.confidence * 100).round()}%',
-                style: ViralStudioTokens.body(12)),
-          ],
-        ),
       ),
     );
   }

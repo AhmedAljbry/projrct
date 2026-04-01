@@ -155,82 +155,84 @@ class _EditorPageState extends State<EditorPage>
                   );
                 }
 
-                // Narrow layout: Column-based (Top -> Image -> Bottom)
+                // ── Narrow layout: Column-based (Top → Image → Bottom) ──
+                //
+                // The bottom workspace height is adaptive:
+                //  • landscape short screens  → compact 1-row ~72dp
+                //  • portrait phones          → ~240-300dp via intrinsic
+                //  • the canvas takes all remaining space
+                final isLandscape = constraints.maxWidth > constraints.maxHeight;
+                final bottomMaxHeight = isLandscape
+                    ? math.min(88.0,  constraints.maxHeight * 0.38)
+                    : math.min(300.0, constraints.maxHeight * 0.38);
+
                 return Stack(
                   fit: StackFit.expand,
                   children: [
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        // 1. Top Section (Toolbar + Status) outside image
+                        // ── Zone 1: Top Bar ──────────────────────────────
                         Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              InpaintingEditorToolbar(
-                                l10n: l10n,
-                                title: l10n.get('magic_title'),
-                                subtitle: drawingState.strokes.isEmpty
-                                    ? l10n.get('editor_tip_run')
-                                    : l10n.get('editor_tip_precision'),
-                                statusLabel: drawingState.strokes.isEmpty
-                                    ? l10n.get('editor_mask_pending')
-                                    : l10n.get('editor_mask_ready'),
-                                hasMask: drawingState.strokes.isNotEmpty,
-                                compareEnabled: _showOriginalPreview,
-                                canUndo: drawingState.canUndo,
-                                canRedo: drawingState.canRedo,
-                                compact: compactToolbar,
-                                onBack: _handleBackNavigation,
-                                onHelp: () => _showEditorHelpSheet(context, l10n),
-                                onUndo: () => context.read<DrawingCubit>().undo(),
-                                onRedo: () => context.read<DrawingCubit>().redo(),
-                                onClear: () => context.read<DrawingCubit>().clear(),
-                                onToggleCompare: _toggleComparePreview,
-                                undoLabel: l10n.get('undo'),
-                                redoLabel: l10n.get('redo'),
-                                clearLabel: l10n.get('clear'),
-                                compareLabel: l10n.get('compare'),
-                                compareActiveLabel: l10n.get('compare_live'),
-                              ),
-                              const SizedBox(height: 12),
-                              Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Flexible(
-                                    child: Align(
-                                      alignment: AlignmentDirectional.topStart,
-                                      child: _buildEditorStatusCard(
-                                        l10n: l10n,
-                                        drawingState: drawingState,
-                                        imageWidth: image.width,
-                                        imageHeight: image.height,
-                                        compact: compactToolbar,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
+                          padding: EdgeInsets.fromLTRB(
+                            14, compactToolbar ? 10 : 14, 14, 6),
+                          child: InpaintingEditorToolbar(
+                            l10n: l10n,
+                            title: l10n.get('magic_title'),
+                            subtitle: drawingState.strokes.isEmpty
+                                ? l10n.get('editor_tip_run')
+                                : l10n.get('editor_tip_precision'),
+                            statusLabel: drawingState.strokes.isEmpty
+                                ? l10n.get('editor_mask_pending')
+                                : l10n.get('editor_mask_ready'),
+                            hasMask: drawingState.strokes.isNotEmpty,
+                            compareEnabled: _showOriginalPreview,
+                            canUndo: drawingState.canUndo,
+                            canRedo: drawingState.canRedo,
+                            compact: compactToolbar,
+                            onBack: _handleBackNavigation,
+                            onHelp: () => _showEditorHelpSheet(context, l10n),
+                            onUndo: () => context.read<DrawingCubit>().undo(),
+                            onRedo: () => context.read<DrawingCubit>().redo(),
+                            onClear: () => context.read<DrawingCubit>().clear(),
+                            onToggleCompare: _toggleComparePreview,
+                            undoLabel: l10n.get('undo'),
+                            redoLabel: l10n.get('redo'),
+                            clearLabel: l10n.get('clear'),
+                            compareLabel: l10n.get('compare'),
+                            compareActiveLabel: l10n.get('compare_live'),
                           ),
                         ),
 
-                        // 2. The Canvas Area (Unobstructed Focus) - Using Remaining Space
+                        // ── Zone 2: Compact Status / Info Bar ───────────
+                        if (!isLandscape)
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(14, 0, 14, 6),
+                            child: _buildCompactInfoBar(
+                              l10n: l10n,
+                              drawingState: drawingState,
+                              imageWidth: image.width,
+                              imageHeight: image.height,
+                              compact: compactToolbar,
+                            ),
+                          ),
+
+                        // ── Zone 3: Canvas viewport (maximum flex) ──────
                         Expanded(
                           child: LayoutBuilder(
                             builder: (context, canvasConstraints) {
-                              final canvasSize = Size(canvasConstraints.maxWidth, canvasConstraints.maxHeight);
+                              final canvasSize = Size(
+                                canvasConstraints.maxWidth,
+                                canvasConstraints.maxHeight,
+                              );
                               return Stack(
                                 children: [
                                   _buildCanvasWrapper(context, image, drawingState, canvasSize),
-                                  
-                                  // Right-aligned Zoom badge & Compare toggle floating safely over the image corner
+
+                                  // Zoom badge + active-mode pill (top-right)
                                   Positioned(
-                                    top: 12,
-                                    right: 12,
+                                    top: 10,
+                                    right: 10,
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.end,
                                       children: [
@@ -245,7 +247,7 @@ class _EditorPageState extends State<EditorPage>
                                           },
                                         ),
                                         if (_showOriginalPreview || !_showMaskOverlay) ...[
-                                          const SizedBox(height: 8),
+                                          const SizedBox(height: 6),
                                           StudioPill(
                                             icon: _showOriginalPreview
                                                 ? Icons.compare_rounded
@@ -262,28 +264,15 @@ class _EditorPageState extends State<EditorPage>
                                       ],
                                     ),
                                   ),
-                                  // Quick Gesture Hint
-                                  if (!compactToolbar)
-                                    Positioned(
-                                      bottom: 12,
-                                      left: 12,
-                                      child: _buildGestureHint(
-                                        l10n: l10n,
-                                        compact: compactToolbar,
-                                      ),
-                                    ),
                                 ],
                               );
                             },
                           ),
                         ),
 
-                        // 3. Bottom Controls Area (Fixed at the bottom outside the image)
-                        Container(
-                          height: math.min(360.0, constraints.maxHeight * 0.42),
-                          decoration: const BoxDecoration(
-                            border: Border(top: BorderSide(color: Colors.white12)),
-                          ),
+                        // ── Zone 4: Bottom Tool Workspace ────────────────
+                        ConstrainedBox(
+                          constraints: BoxConstraints(maxHeight: bottomMaxHeight),
                           child: ValueListenableBuilder<Matrix4>(
                             valueListenable: _viewportController,
                             builder: (context, matrix, child) {
@@ -339,24 +328,13 @@ class _EditorPageState extends State<EditorPage>
           compareLabel: l10n.get('compare'),
           compareActiveLabel: l10n.get('compare_live'),
         ),
-        const SizedBox(height: 12),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Flexible(
-              child: Align(
-                alignment: AlignmentDirectional.topStart,
-                child: _buildEditorStatusCard(
-                  l10n: l10n,
-                  drawingState: drawingState,
-                  imageWidth: image.width,
-                  imageHeight: image.height,
-                  compact: compactToolbar,
-                ),
-              ),
-            ),
-          ],
+        const SizedBox(height: 8),
+        _buildCompactInfoBar(
+          l10n: l10n,
+          drawingState: drawingState,
+          imageWidth: image.width,
+          imageHeight: image.height,
+          compact: compactToolbar,
         ),
       ],
     );
@@ -399,8 +377,8 @@ class _EditorPageState extends State<EditorPage>
 
     final isCompactHud = canvasSize.shortestSide < 360;
     final magnifierDiameter = math.min(
-      math.max(canvasSize.shortestSide * 0.34, 116.0),
-      isCompactHud ? 128.0 : 168.0,
+      math.max(canvasSize.shortestSide * 0.42, 142.0),
+      isCompactHud ? 160.0 : 212.0,
     );
 
     return Listener(

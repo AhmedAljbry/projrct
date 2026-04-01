@@ -20,6 +20,7 @@ class StyleTransferState {
     required this.trendingStyles,
     required this.library,
     required this.savedPresets,
+    required this.selectedPresetId,
     required this.isPreparing,
     required this.isRenderingPreview,
     required this.isRenderingExport,
@@ -45,6 +46,7 @@ class StyleTransferState {
       trendingStyles: trendingStyles,
       library: library,
       savedPresets: const <StyleProfile>[],
+      selectedPresetId: null,
       isPreparing: false,
       isRenderingPreview: false,
       isRenderingExport: false,
@@ -66,6 +68,7 @@ class StyleTransferState {
   final List<StyleProfile> trendingStyles;
   final Map<String, List<StyleProfile>> library;
   final List<StyleProfile> savedPresets;
+  final String? selectedPresetId;
   final bool isPreparing;
   final bool isRenderingPreview;
   final bool isRenderingExport;
@@ -88,6 +91,7 @@ class StyleTransferState {
     List<StyleProfile>? trendingStyles,
     Map<String, List<StyleProfile>>? library,
     List<StyleProfile>? savedPresets,
+    Object? selectedPresetId = _sentinel,
     bool? isPreparing,
     bool? isRenderingPreview,
     bool? isRenderingExport,
@@ -120,6 +124,9 @@ class StyleTransferState {
       trendingStyles: trendingStyles ?? this.trendingStyles,
       library: library ?? this.library,
       savedPresets: savedPresets ?? this.savedPresets,
+      selectedPresetId: identical(selectedPresetId, _sentinel)
+          ? this.selectedPresetId
+          : selectedPresetId as String?,
       isPreparing: isPreparing ?? this.isPreparing,
       isRenderingPreview: isRenderingPreview ?? this.isRenderingPreview,
       isRenderingExport: isRenderingExport ?? this.isRenderingExport,

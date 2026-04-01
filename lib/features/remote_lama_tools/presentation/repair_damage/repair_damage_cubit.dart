@@ -79,7 +79,8 @@ class RepairDamageCubit extends Cubit<RepairDamageState> {
         if (status.isCompleted) {
           _fetchResult(status.jobId);
         } else if (status.isFailed) {
-          emit(RepairDamageFailure(message: status.error ?? 'Job failed mysteriously.'));
+          emit(RepairDamageFailure(
+              message: status.error ?? 'Job failed mysteriously.'));
         }
       },
       onError: (e) {
@@ -91,15 +92,21 @@ class RepairDamageCubit extends Cubit<RepairDamageState> {
   Future<void> _fetchResult(String jobId) async {
     try {
       final resultBytes = await _getJobResultUseCase.execute(jobId);
-      if (!isClosed) emit(RepairDamageSuccess(resultBytes));
+      if (!isClosed) {
+        emit(RepairDamageSuccess(resultBytes));
+      }
     } catch (e) {
-      if (!isClosed) emit(RepairDamageFailure(message: 'Failed fetching result: $e', isRetryable: true));
+      if (!isClosed) {
+        emit(RepairDamageFailure(
+            message: 'Failed fetching result: $e', isRetryable: true));
+      }
     }
   }
 
   void _handleError(Object e) {
     if (e is LamaRateLimitFailure || e is LamaServerBusyFailure) {
-      emit(RepairDamageFailure(message: (e as dynamic).message, isRetryable: true));
+      emit(RepairDamageFailure(
+          message: (e as dynamic).message, isRetryable: true));
     } else {
       emit(RepairDamageFailure(message: e.toString()));
     }

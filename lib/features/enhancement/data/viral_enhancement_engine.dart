@@ -20,12 +20,23 @@ class ViralEnhancementEngine {
             (scene['faceCount'] as num?)?.toInt() != 0)
         ? 0.14
         : 0.04;
+    final sceneContrast = _asDouble(scene['contrast']);
+    final sceneBrightness = _asDouble(scene['averageBrightness']);
     return <String, dynamic>{
       'bloomStrength': bloom,
       'microContrast': (clarity * 0.8).clamp(0.0, 1.0),
       'glow': (_asDouble(settings['glowBoost']) * 0.8).clamp(0.0, 1.0),
       'depthLift': depthLift.clamp(0.0, 1.0),
       'faceLift': faceLift,
+      'highlightRollOff':
+          (0.14 + ((1 - sceneBrightness) * 0.08) + (_asDouble(detail['bloom']) * 0.06))
+              .clamp(0.0, 0.35),
+      'colorPop':
+          ((_asDouble(detail['clarity']) * 0.22) + (_asDouble(settings['detailBoost']) * 0.18))
+              .clamp(0.0, 0.28),
+      'toneCurveStrength':
+          (0.12 + (sceneContrast * 0.18) + (_asDouble(settings['strength']) * 0.08))
+              .clamp(0.0, 0.35),
       'vignette': (_asDouble(detail['vignette']) * 0.85).clamp(0.0, 1.0),
     };
   }

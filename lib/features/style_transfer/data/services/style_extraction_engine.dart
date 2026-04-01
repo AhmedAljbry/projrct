@@ -18,6 +18,7 @@ class StyleExtractionEngine {
     final edgeEnergy = _asDouble(stats['edgeEnergy']);
     final skinLikelihood = _asDouble(stats['skinLikelihood']);
     final skyLikelihood = _asDouble(stats['skyLikelihood']);
+    final furLikelihood = _asDouble(stats['furLikelihood']);
 
     final tone = <String, dynamic>{
       'exposure': _clampSigned((averageLuminance - 0.5) * 0.44, 0.24),
@@ -65,6 +66,7 @@ class StyleExtractionEngine {
         'faceExposureGuard': (scene['faceCount'] as num?)?.toInt() != 0,
         'skyAdjust': skyLikelihood > 0.04,
         'backgroundAdjust': true,
+        'wildlifeProtect': furLikelihood > 0.03,
       },
     };
   }

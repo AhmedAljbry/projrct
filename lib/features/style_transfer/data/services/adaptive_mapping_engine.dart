@@ -172,6 +172,9 @@ class AdaptiveMappingEngine {
     var score = 0.44;
     if (sourceProfile['sceneType'] == scene['sceneType']) {
       score += 0.22;
+    } else if (sourceProfile['sceneType'] == 'wildlife' &&
+        _asDouble(targetStats['furLikelihood']) > 0.03) {
+      score += 0.16;
     } else if (sourceProfile['sceneType'] == 'portrait' &&
         (scene['faceCount'] as num?)?.toInt() != 0) {
       score += 0.12;
@@ -195,9 +198,13 @@ class AdaptiveMappingEngine {
         (_asDouble(sourceColor['saturation']) -
                 ((_asDouble(targetStats['averageSaturation']) - 0.32) * 1.2))
             .abs();
+    final furAffinity = sourceProfile['sceneType'] == 'wildlife'
+        ? (0.6 + (_asDouble(targetStats['furLikelihood']) * 2.2))
+        : 0.6;
     score += _clamp01(brightnessAffinity) * 0.1;
     score += _clamp01(contrastAffinity) * 0.12;
     score += _clamp01(saturationAffinity) * 0.12;
+    score += _clamp01(furAffinity) * 0.08;
     return score.clamp(0.0, 0.99);
   }
 

@@ -132,34 +132,128 @@ class SegmentationMask {
   }
 }
 
+class SceneStatistics {
+  const SceneStatistics({
+    required this.averageLuminance,
+    required this.contrast,
+    required this.averageSaturation,
+    required this.temperature,
+    required this.brightPixelRatio,
+    required this.darkPixelRatio,
+    required this.skinLikelihood,
+    required this.skyLikelihood,
+    required this.neutralLikelihood,
+    required this.organicLikelihood,
+    required this.furLikelihood,
+    required this.edgeEnergy,
+    required this.highlightHeadroom,
+    required this.shadowHeadroom,
+    required this.palette,
+    required this.luminanceHistogram,
+    required this.saturationHistogram,
+  });
+
+  final double averageLuminance;
+  final double contrast;
+  final double averageSaturation;
+  final double temperature;
+  final double brightPixelRatio;
+  final double darkPixelRatio;
+  final double skinLikelihood;
+  final double skyLikelihood;
+  final double neutralLikelihood;
+  final double organicLikelihood;
+  final double furLikelihood;
+  final double edgeEnergy;
+  final double highlightHeadroom;
+  final double shadowHeadroom;
+  final List<int> palette;
+  final List<double> luminanceHistogram;
+  final List<double> saturationHistogram;
+
+  Map<String, dynamic> toMap() {
+    return <String, dynamic>{
+      'averageLuminance': averageLuminance,
+      'contrast': contrast,
+      'averageSaturation': averageSaturation,
+      'temperature': temperature,
+      'brightPixelRatio': brightPixelRatio,
+      'darkPixelRatio': darkPixelRatio,
+      'skinLikelihood': skinLikelihood,
+      'skyLikelihood': skyLikelihood,
+      'neutralLikelihood': neutralLikelihood,
+      'organicLikelihood': organicLikelihood,
+      'furLikelihood': furLikelihood,
+      'edgeEnergy': edgeEnergy,
+      'highlightHeadroom': highlightHeadroom,
+      'shadowHeadroom': shadowHeadroom,
+      'palette': palette,
+      'luminanceHistogram': luminanceHistogram,
+      'saturationHistogram': saturationHistogram,
+    };
+  }
+
+  factory SceneStatistics.fromMap(Map<String, dynamic> map) {
+    return SceneStatistics(
+      averageLuminance: _asDouble(map['averageLuminance']),
+      contrast: _asDouble(map['contrast']),
+      averageSaturation: _asDouble(map['averageSaturation']),
+      temperature: _asDouble(map['temperature']),
+      brightPixelRatio: _asDouble(map['brightPixelRatio']),
+      darkPixelRatio: _asDouble(map['darkPixelRatio']),
+      skinLikelihood: _asDouble(map['skinLikelihood']),
+      skyLikelihood: _asDouble(map['skyLikelihood']),
+      neutralLikelihood: _asDouble(map['neutralLikelihood']),
+      organicLikelihood: _asDouble(map['organicLikelihood']),
+      furLikelihood: _asDouble(map['furLikelihood']),
+      edgeEnergy: _asDouble(map['edgeEnergy']),
+      highlightHeadroom: _asDouble(map['highlightHeadroom']),
+      shadowHeadroom: _asDouble(map['shadowHeadroom']),
+      palette: (map['palette'] as List<dynamic>? ?? const <dynamic>[])
+          .map((entry) => (entry as num).toInt())
+          .toList(growable: false),
+      luminanceHistogram:
+          _toDoubleList(map['luminanceHistogram'], fallbackLength: 16),
+      saturationHistogram:
+          _toDoubleList(map['saturationHistogram'], fallbackLength: 16),
+    );
+  }
+}
+
 class SceneAnalysisResult {
   const SceneAnalysisResult({
     required this.scene,
     required this.faces,
     required this.skinMask,
+    required this.neutralMask,
     required this.hairMask,
     required this.backgroundMask,
     required this.skyMask,
     required this.foregroundMask,
+    required this.statistics,
   });
 
   final SceneAnalysis scene;
   final List<FaceRegion> faces;
   final SegmentationMask skinMask;
+  final SegmentationMask neutralMask;
   final SegmentationMask hairMask;
   final SegmentationMask backgroundMask;
   final SegmentationMask skyMask;
   final SegmentationMask foregroundMask;
+  final SceneStatistics statistics;
 
   Map<String, dynamic> toMap() {
     return <String, dynamic>{
       'scene': scene.toMap(),
       'faces': faces.map((face) => face.toMap()).toList(),
       'skinMask': skinMask.toMap(),
+      'neutralMask': neutralMask.toMap(),
       'hairMask': hairMask.toMap(),
       'backgroundMask': backgroundMask.toMap(),
       'skyMask': skyMask.toMap(),
       'foregroundMask': foregroundMask.toMap(),
+      'statistics': statistics.toMap(),
     };
   }
 
@@ -173,6 +267,10 @@ class SceneAnalysisResult {
           .toList(growable: false),
       skinMask: SegmentationMask.fromMap(
         (map['skinMask'] as Map<String, dynamic>? ?? const <String, dynamic>{}),
+      ),
+      neutralMask: SegmentationMask.fromMap(
+        (map['neutralMask'] as Map<String, dynamic>? ??
+            const <String, dynamic>{}),
       ),
       hairMask: SegmentationMask.fromMap(
         (map['hairMask'] as Map<String, dynamic>? ?? const <String, dynamic>{}),
@@ -188,6 +286,10 @@ class SceneAnalysisResult {
         (map['foregroundMask'] as Map<String, dynamic>? ??
             const <String, dynamic>{}),
       ),
+      statistics: SceneStatistics.fromMap(
+        (map['statistics'] as Map<String, dynamic>? ??
+            const <String, dynamic>{}),
+      ),
     );
   }
 }
@@ -197,4 +299,14 @@ double _asDouble(dynamic value, [double fallback = 0]) {
     return value.toDouble();
   }
   return fallback;
+}
+
+List<double> _toDoubleList(dynamic value, {required int fallbackLength}) {
+  final list = (value as List<dynamic>? ?? const <dynamic>[])
+      .map((entry) => (entry as num).toDouble())
+      .toList(growable: false);
+  if (list.isNotEmpty) {
+    return list;
+  }
+  return List<double>.filled(fallbackLength, 0);
 }

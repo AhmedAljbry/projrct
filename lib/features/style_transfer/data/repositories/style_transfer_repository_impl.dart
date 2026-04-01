@@ -64,13 +64,18 @@ class StyleTransferRepositoryImpl implements StyleTransferRepository {
       }
     }
 
+    final resolvedAnalysis = targetAnalysis ??
+        _cache.readScene(targetBytes) ??
+        _cache.readMaskBundle(targetBytes);
     final result = await _pipeline.applyStyle(
       targetBytes: targetBytes,
       styleProfile: styleProfile,
       settings: settings,
       referenceBytes: referenceBytes,
+      targetAnalysis: resolvedAnalysis,
       highQuality: highQuality,
     );
+    _cache.writeScene(targetBytes, result.sceneAnalysis);
     if (!highQuality) {
       _cache.writePreview(
         targetBytes: targetBytes,

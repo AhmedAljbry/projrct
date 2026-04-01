@@ -4,9 +4,11 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:untitled2/features/style_library/presentation/screens/style_library_screen.dart';
 import 'package:untitled2/features/style_transfer/application/style_transfer_controller.dart';
 import 'package:untitled2/features/style_transfer/application/style_transfer_state.dart';
+import 'package:untitled2/features/style_transfer/data/models/style_preset_registry.dart';
 import 'package:untitled2/features/style_transfer/presentation/screens/style_transfer_pro_controls_screen.dart';
 import 'package:untitled2/features/style_transfer/presentation/screens/style_transfer_result_screen.dart';
 import 'package:untitled2/features/style_transfer/presentation/widgets/before_after_slider.dart';
+import 'package:untitled2/features/style_transfer/presentation/widgets/style_preset_strip.dart';
 import 'package:untitled2/features/style_transfer/presentation/widgets/style_slider_tile.dart';
 import 'package:untitled2/shared/ui_tokens/viral_studio_tokens.dart';
 
@@ -70,11 +72,22 @@ class StyleTransferProcessingScreen extends StatelessWidget {
                             ViralStudioTokens.panelDecoration(emphasized: true),
                         child: Text(
                           state.isRenderingPreview
-                              ? 'Rendering preview...'
+                              ? 'Generating instant preview...'
                               : 'Preview will appear here.',
                           style: ViralStudioTokens.body(),
                         ),
                       ),
+                    const SizedBox(height: 18),
+                    Text('Style Packs',
+                        style: ViralStudioTokens.sectionTitle()),
+                    const SizedBox(height: 12),
+                    StylePresetStrip(
+                      presets: StylePresetRegistry.allPresets,
+                      selectedId: state.selectedPresetId,
+                      onSelected: (preset) => context
+                          .read<StyleTransferController>()
+                          .applyPreset(preset),
+                    ),
                     const SizedBox(height: 18),
                     StyleSliderTile(
                       label: 'Strength',
@@ -126,6 +139,17 @@ class StyleTransferProcessingScreen extends StatelessWidget {
                                 'Keeps original lighting structure more intact.',
                                 style: ViralStudioTokens.body(12)),
                           ),
+                          SwitchListTile.adaptive(
+                            value: state.settings.naturalMode,
+                            onChanged: context
+                                .read<StyleTransferController>()
+                                .updateNaturalMode,
+                            title: const Text('Natural Mode',
+                                style: TextStyle(color: Colors.white)),
+                            subtitle: Text(
+                                'Prioritizes realism, detail, and luminance safety.',
+                                style: ViralStudioTokens.body(12)),
+                          ),
                         ],
                       ),
                     ),
@@ -169,7 +193,7 @@ class StyleTransferProcessingScreen extends StatelessWidget {
                                 ),
                               );
                             },
-                            child: const Text('Render Result'),
+                            child: const Text('Make it Viral'),
                           ),
                         ),
                       ],
@@ -177,14 +201,41 @@ class StyleTransferProcessingScreen extends StatelessWidget {
                     if (result != null) ...<Widget>[
                       const SizedBox(height: 18),
                       Container(
-                        padding: const EdgeInsets.all(18),
                         decoration: ViralStudioTokens.panelDecoration(),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        child: ExpansionTile(
+                          collapsedIconColor: Colors.white,
+                          iconColor: Colors.white,
+                          title: Text('Pro Diagnostics',
+                              style: ViralStudioTokens.sectionTitle()),
+                          subtitle: Text(
+                            'Compatibility, render timing, and safety notes',
+                            style: ViralStudioTokens.body(12),
+                          ),
+                          childrenPadding:
+                              const EdgeInsets.fromLTRB(18, 0, 18, 18),
                           children: <Widget>[
-                            Text('Diagnostics',
-                                style: ViralStudioTokens.sectionTitle()),
-                            const SizedBox(height: 10),
+                            Wrap(
+                              spacing: 10,
+                              runSpacing: 10,
+                              children: <Widget>[
+                                _StatusPill(
+                                  label: result.usedFallback
+                                      ? 'Safe mode'
+                                      : 'Full render path',
+                                ),
+                                _StatusPill(
+                                  label: result.usedCachedAnalysis
+                                      ? 'Cached scene'
+                                      : 'Fresh scene analysis',
+                                ),
+                                _StatusPill(
+                                  label: result.exportReady
+                                      ? 'High-res ready'
+                                      : 'Preview only',
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 14),
                             Wrap(
                               spacing: 10,
                               runSpacing: 10,
@@ -211,7 +262,7 @@ class StyleTransferProcessingScreen extends StatelessWidget {
                               ...result.warnings.map(
                                 (warning) => Padding(
                                   padding: const EdgeInsets.only(bottom: 8),
-                                  child: Text('• $warning',
+                                  child: Text('- $warning',
                                       style: ViralStudioTokens.body()),
                                 ),
                               ),
@@ -234,6 +285,25 @@ class StyleTransferProcessingScreen extends StatelessWidget {
           },
         ),
       ),
+    );
+  }
+}
+
+class _StatusPill extends StatelessWidget {
+  const _StatusPill({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: ViralStudioTokens.outline),
+      ),
+      child: Text(label, style: ViralStudioTokens.body(12)),
     );
   }
 }

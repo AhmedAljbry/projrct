@@ -1,3 +1,4 @@
+import 'dart:isolate';
 import 'package:flutter/foundation.dart';
 
 import 'package:untitled2/features/face_protection/domain/entities/style_safety_report.dart';
@@ -17,7 +18,7 @@ class StyleTransferPipeline {
     final result = await compute<Map<String, dynamic>, Map<String, dynamic>>(
       extractStyleWorker,
       <String, dynamic>{
-        'bytes': referenceBytes,
+        'bytes': _transfer(referenceBytes),
         'name': name,
       },
     );
@@ -27,7 +28,7 @@ class StyleTransferPipeline {
   Future<SceneAnalysisResult> analyzeScene(Uint8List imageBytes) async {
     final result = await compute<Map<String, dynamic>, Map<String, dynamic>>(
       analyzeSceneWorker,
-      <String, dynamic>{'bytes': imageBytes},
+      <String, dynamic>{'bytes': _transfer(imageBytes)},
     );
     return SceneAnalysisResult.fromMap(result);
   }
@@ -37,16 +38,55 @@ class StyleTransferPipeline {
     required StyleProfile styleProfile,
     required StyleTransferSettings settings,
     Uint8List? referenceBytes,
+    SceneAnalysisResult? targetAnalysis,
     bool highQuality = false,
+  }) async {
+    try {
+      return await _runApplyStyle(
+        targetBytes: targetBytes,
+        styleProfile: styleProfile,
+        settings: settings,
+        referenceBytes: referenceBytes,
+        targetAnalysis: targetAnalysis,
+        highQuality: highQuality,
+        fallbackMode: false,
+      );
+    } catch (_) {
+      if (!settings.fallbackEnabled) {
+        rethrow;
+      }
+      return _runApplyStyle(
+        targetBytes: targetBytes,
+        styleProfile: styleProfile,
+        settings: settings,
+        referenceBytes: referenceBytes,
+        targetAnalysis: targetAnalysis,
+        highQuality: highQuality,
+        fallbackMode: true,
+      );
+    }
+  }
+
+  Future<StyleTransferResult> _runApplyStyle({
+    required Uint8List targetBytes,
+    required StyleProfile styleProfile,
+    required StyleTransferSettings settings,
+    Uint8List? referenceBytes,
+    SceneAnalysisResult? targetAnalysis,
+    required bool highQuality,
+    required bool fallbackMode,
   }) async {
     final result = await compute<Map<String, dynamic>, Map<String, dynamic>>(
       applyStyleWorker,
       <String, dynamic>{
-        'targetBytes': targetBytes,
+        'targetBytes': _transfer(targetBytes),
         'styleProfile': styleProfile.toMap(),
         'settings': settings.toMap(),
-        'referenceBytes': referenceBytes,
+        'referenceBytes':
+            referenceBytes == null ? null : _transfer(referenceBytes),
+        'targetAnalysis': targetAnalysis?.toMap(),
         'highQuality': highQuality,
+        'fallbackMode': fallbackMode,
       },
     );
     return StyleTransferResult(
@@ -70,11 +110,18 @@ class StyleTransferPipeline {
           .toList(growable: false),
       viralScore: (result['viralScore'] as num).toDouble(),
       usedCachedPreview: false,
+      usedCachedAnalysis:
+          result['usedCachedAnalysis'] as bool? ?? targetAnalysis != null,
+      usedFallback: result['usedFallback'] as bool? ?? fallbackMode,
+      watermarkApplied: result['watermarkApplied'] as bool? ?? false,
     );
   }
 }
 
 Uint8List _toBytes(dynamic value) {
+  if (value is TransferableTypedData) {
+    return value.materialize().asUint8List();
+  }
   if (value is Uint8List) {
     return value;
   }
@@ -86,4 +133,8 @@ Uint8List _toBytes(dynamic value) {
         value.map((item) => (item as num).toInt()).toList(growable: false));
   }
   return Uint8List(0);
+}
+
+TransferableTypedData _transfer(Uint8List bytes) {
+  return TransferableTypedData.fromList(<Uint8List>[bytes]);
 }
