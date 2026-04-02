@@ -204,6 +204,46 @@ class StyleTransferController extends Cubit<StyleTransferState> {
     _updateSettings(state.settings.copyWith(naturalMode: value));
   }
 
+  void updateFallbackEnabled(bool value) {
+    _updateSettings(state.settings.copyWith(fallbackEnabled: value));
+  }
+
+  void updateCinematicGlow(bool value) {
+    _updateSettings(state.settings.copyWith(cinematicGlow: value));
+  }
+
+  void updateDepthIllusion(bool value) {
+    _updateSettings(state.settings.copyWith(depthIllusion: value));
+  }
+
+  void updateFaceRefinement(bool value) {
+    _updateSettings(state.settings.copyWith(faceRefinement: value));
+  }
+
+  void updateLuminancePreservation(double value) {
+    _updateSettings(
+      state.settings.copyWith(luminancePreservation: value),
+    );
+  }
+
+  void updateDetailRecoveryAmount(double value) {
+    _updateSettings(
+      state.settings.copyWith(detailRecovery: value),
+    );
+  }
+
+  void updateGlowBoost(double value) {
+    _updateSettings(
+      state.settings.copyWith(glowBoost: value),
+    );
+  }
+
+  void updateDetailBoost(double value) {
+    _updateSettings(
+      state.settings.copyWith(detailBoost: value),
+    );
+  }
+
   void updateSkinProtect(bool value) {
     _updateSettings(
       state.settings.copyWith(

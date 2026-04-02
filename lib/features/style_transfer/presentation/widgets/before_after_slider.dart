@@ -10,11 +10,13 @@ class BeforeAfterSlider extends StatefulWidget {
     required this.beforeBytes,
     required this.afterBytes,
     this.aspectRatio = 16 / 10,
+    this.borderRadius = 24,
   });
 
   final Uint8List beforeBytes;
   final Uint8List afterBytes;
   final double aspectRatio;
+  final double borderRadius;
 
   @override
   State<BeforeAfterSlider> createState() => _BeforeAfterSliderState();
@@ -39,7 +41,7 @@ class _BeforeAfterSliderState extends State<BeforeAfterSlider> {
           child: AspectRatio(
             aspectRatio: widget.aspectRatio,
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(24),
+              borderRadius: BorderRadius.circular(widget.borderRadius),
               child: Stack(
                 fit: StackFit.expand,
                 children: <Widget>[
@@ -56,8 +58,25 @@ class _BeforeAfterSliderState extends State<BeforeAfterSlider> {
                     top: 0,
                     bottom: 0,
                     child: Container(
-                      width: 2.5,
-                      color: Colors.white.withValues(alpha: 0.9),
+                      width: 3,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: <Color>[
+                            Colors.white.withValues(alpha: 0.18),
+                            Colors.white.withValues(alpha: 0.96),
+                            Colors.white.withValues(alpha: 0.18),
+                          ],
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                        ),
+                        boxShadow: <BoxShadow>[
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.28),
+                            blurRadius: 14,
+                            offset: const Offset(0, 0),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                   Positioned(
@@ -66,17 +85,39 @@ class _BeforeAfterSliderState extends State<BeforeAfterSlider> {
                     bottom: 0,
                     child: Center(
                       child: Container(
-                        width: 48,
-                        height: 48,
+                        width: 54,
+                        height: 54,
                         decoration: BoxDecoration(
-                          color: ViralStudioTokens.background
-                              .withValues(alpha: 0.72),
+                          gradient: LinearGradient(
+                            colors: <Color>[
+                              Colors.white.withValues(alpha: 0.18),
+                              ViralStudioTokens.background
+                                  .withValues(alpha: 0.84),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
                           shape: BoxShape.circle,
                           border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.9)),
+                            color: Colors.white.withValues(alpha: 0.82),
+                          ),
+                          boxShadow: <BoxShadow>[
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.28),
+                              blurRadius: 18,
+                              offset: const Offset(0, 12),
+                            ),
+                          ],
                         ),
-                        child: const Icon(Icons.compare_arrows_rounded,
-                            color: Colors.white),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: const <Widget>[
+                            Icon(Icons.chevron_left_rounded,
+                                color: Colors.white),
+                            Icon(Icons.chevron_right_rounded,
+                                color: Colors.white),
+                          ],
+                        ),
                       ),
                     ),
                   ),

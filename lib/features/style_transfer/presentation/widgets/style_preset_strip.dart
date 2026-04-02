@@ -10,16 +10,29 @@ class StylePresetStrip extends StatelessWidget {
     required this.presets,
     required this.selectedId,
     required this.onSelected,
+    this.height = 126,
+    this.cardWidth = 178,
+    this.contentPadding = const EdgeInsets.all(14),
+    this.descriptionMaxLines = 2,
+    this.showDescription = true,
+    this.nameFontSize = 15,
   });
 
   final List<StylePresetDefinition> presets;
   final String? selectedId;
   final ValueChanged<StylePresetDefinition> onSelected;
+  final double height;
+  final double cardWidth;
+  final EdgeInsetsGeometry contentPadding;
+  final int descriptionMaxLines;
+  final bool showDescription;
+  final double nameFontSize;
 
   @override
   Widget build(BuildContext context) {
+    final swatchSize = cardWidth < 168 ? 14.0 : 18.0;
     return SizedBox(
-      height: 126,
+      height: height,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: presets.length,
@@ -31,7 +44,7 @@ class StylePresetStrip extends StatelessWidget {
             borderRadius: BorderRadius.circular(22),
             onTap: () => onSelected(preset),
             child: Ink(
-              width: 178,
+              width: cardWidth,
               decoration: BoxDecoration(
                 color: isSelected
                     ? ViralStudioTokens.surfaceSoft
@@ -42,9 +55,17 @@ class StylePresetStrip extends StatelessWidget {
                       ? ViralStudioTokens.accent
                       : ViralStudioTokens.outline,
                 ),
+                boxShadow: <BoxShadow>[
+                  BoxShadow(
+                    color: Colors.black
+                        .withValues(alpha: isSelected ? 0.24 : 0.14),
+                    blurRadius: isSelected ? 18 : 12,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
               ),
               child: Padding(
-                padding: const EdgeInsets.all(14),
+                padding: contentPadding,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
@@ -54,8 +75,8 @@ class StylePresetStrip extends StatelessWidget {
                           .take(4)
                           .map(
                             (color) => Container(
-                              width: 18,
-                              height: 18,
+                              width: swatchSize,
+                              height: swatchSize,
                               decoration: BoxDecoration(
                                 color: color,
                                 borderRadius: BorderRadius.circular(999),
@@ -70,17 +91,19 @@ class StylePresetStrip extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: ViralStudioTokens.sectionTitle().copyWith(
-                        fontSize: 15,
+                        fontSize: nameFontSize,
                         color: Colors.white,
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      preset.description,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: ViralStudioTokens.body(11),
-                    ),
+                    if (showDescription) ...<Widget>[
+                      const SizedBox(height: 4),
+                      Text(
+                        preset.description,
+                        maxLines: descriptionMaxLines,
+                        overflow: TextOverflow.ellipsis,
+                        style: ViralStudioTokens.body(11),
+                      ),
+                    ],
                   ],
                 ),
               ),
