@@ -170,6 +170,8 @@ class BlurFocusController extends Cubit<BlurFocusState> {
       trackInteraction: false,
     );
     final hint = switch (mode) {
+      BlurMode.full =>
+        'Full mode applies blur to the whole photo with no shape controls.',
       BlurMode.smart =>
         'Smart mode keeps the subject sharp and pushes the background to a stronger blur.',
       BlurMode.circle =>
@@ -373,3 +375,7 @@ class BlurFocusController extends Cubit<BlurFocusState> {
     return super.close();
   }
 }
+
+
+
+

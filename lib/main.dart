@@ -13,12 +13,9 @@ import 'package:untitled2/core/routing/app_routes.dart';
 import 'package:untitled2/core/services/notification_service.dart';
 import 'package:untitled2/core/services/task_persistence_service.dart';
 import 'package:untitled2/core/ui/AppL10n.dart';
-import 'package:untitled2/features/ai_blur_focus_standalone/presentation/screen/ai_blur_focus_screen.dart';
 import 'package:untitled2/features/ai_object_clone_studio/presentation/pages/clone_studio_page.dart';
 import 'package:untitled2/features/ai_object_copy_paste/ai_object_copy_paste.dart';
-import 'package:untitled2/features/coins_wallet/presentation/pages/coins_wallet_host_page.dart';
 import 'package:untitled2/features/smart_retouch/presentation/screens/smart_retouch_screen.dart';
-import 'package:untitled2/features/style_transfer/presentation/screens/style_transfer_home_screen.dart';
 import 'package:untitled2/features/ai_perspective_studio/presentation/screens/perspective_studio_screen.dart';
 import 'package:untitled2/features/blur_photo/presentation/pages/blur_photo_page.dart';
 import 'package:untitled2/inpainting/application/drawing/drawing_cubit.dart';
@@ -31,8 +28,7 @@ import 'package:untitled2/inpainting/presentation/pages/editor/editor_page.dart'
 import 'package:untitled2/inpainting/presentation/pages/home_pick_page.dart';
 import 'package:untitled2/inpainting/presentation/pages/processing_page.dart';
 import 'package:untitled2/inpainting/presentation/pages/result_page.dart';
-import 'package:untitled2/unified_editor_workspace/unified_editor_routes.dart';
-import 'package:untitled2/unified_editor_workspace/unified_editor_workspace.dart';
+
 import 'package:untitled2/vv/blemish_remover_screen.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/pages/remote_lama_flow_shell.dart';
 
@@ -215,112 +211,8 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   List<Widget> _buildCards() => [
-        // ── AI Blur Focus – primary featured card ─────────────────────────────
-        FeatureCardWidget(
-          title: 'AI Blur Focus Studio',
-          subtitle: 'Smart subject · Circle · Line depth-of-field',
-          icon: Icons.blur_on_rounded,
-          gradient: const LinearGradient(
-            colors: [Color(0xFF56E39F), Color(0xFF2BC87E)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          isFeatured: true,
-          accentColor: const Color(0xFF56E39F),
-          onTap: () => _pickAndNavigateUi(
-            (image) => AiBlurFocusScreen(
-              initialImage: image,
-              onApply: (bytes) {
-                debugPrint('[Blur Studio] Applied \u2014 ${bytes.length} bytes');
-                if (Navigator.of(context).canPop()) Navigator.of(context).pop();
-              },
-              onClose: () {
-                if (Navigator.of(context).canPop()) Navigator.of(context).pop();
-              },
-            ),
-          ),
-        ),
-
-        const SizedBox(height: 16),
-
-        // ── AI Style Transfer Studio ──────────────────────────────────────────
-        FeatureCardWidget(
-          title: 'AI Style Transfer Studio',
-          subtitle: 'Reference-based cinematic mapping',
-          icon: Icons.auto_awesome_motion_rounded,
-          gradient: const LinearGradient(
-            colors: [Color(0xFFFF8A3D), Color(0xFFFF5E62)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          accentColor: const Color(0xFFFF8A3D),
-          onTap: () => Navigator.push(context, _slide(const StyleTransferHomeScreen())),
-        ),
-
-        const SizedBox(height: 16),
-
         // ── Coins Wallet ──────────────────────────────────────────────────────
-        FeatureCardWidget(
-          title: 'Coins Wallet',
-          subtitle: 'Earn, buy, and spend coins',
-          icon: Icons.monetization_on_rounded,
-          gradient: const LinearGradient(
-            colors: [Color(0xFFF4D58D), Color(0xFFC89B3C)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          accentColor: const Color(0xFFF4D58D),
-          onTap: () => Navigator.push(
-            context,
-            _slide(
-              CoinsWalletHostPage(
-                config: widget.config,
-                userId: CoinsWalletHostPage.demoCoinsUserId,
-              ),
-            ),
-          ),
-        ),
-
-        const SizedBox(height: 16),
-
-        // ── Unified Creative Studio ───────────────────────────────────────────
-        FeatureCardWidget(
-          title: 'Unified Creative Studio',
-          subtitle: 'Quick · Pro · Architect – one adaptive workspace',
-          icon: Icons.dashboard_customize_rounded,
-          gradient: const LinearGradient(
-            colors: [Color(0xFF7C4DFF), Color(0xFF311B92)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          accentColor: const Color(0xFF7C4DFF),
-          onTap: () => _pickAndNavigateBytes(
-            (bytes) => UnifiedEditorWorkspace(
-              title: 'Unified Creative Studio',
-              sourceImageBytes: bytes,
-            ),
-          ),
-        ),
-
-        const SizedBox(height: 8),
         // ── Open studio without photo (subtextual action kept intact) ─────────
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton(
-              onPressed: () => openUnifiedEditorWorkspace(context),
-              child: const Text(
-                'Open unified studio without a photo',
-                style: TextStyle(
-                  color: Colors.white60,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 13,
-                ),
-              ),
-            ),
-          ),
-        ),
 
         const SizedBox(height: 16),
 
@@ -446,7 +338,8 @@ class _HomeScreenState extends State<HomeScreen>
             (image) => PerspectiveStudioScreen(
               initialImage: image,
               onApply: (bytes) {
-                debugPrint('[Perspective] Applied \u2014 ${bytes.length} bytes');
+                debugPrint(
+                    '[Perspective] Applied \u2014 ${bytes.length} bytes');
                 if (Navigator.of(context).canPop()) Navigator.of(context).pop();
               },
               onClose: () {
@@ -624,7 +517,8 @@ class _HeroHeader extends StatelessWidget {
                   ),
                 ],
               ),
-              child: const Icon(Icons.auto_awesome, color: Colors.black, size: 22),
+              child:
+                  const Icon(Icons.auto_awesome, color: Colors.black, size: 22),
             ),
             const SizedBox(width: 12),
             Column(

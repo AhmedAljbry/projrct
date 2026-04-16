@@ -13,13 +13,11 @@ import 'package:untitled2/features/remote_lama_tools/domain/usecases/lama_usecas
 import 'package:untitled2/features/remote_lama_tools/presentation/background/background_cubit.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/background/background_page.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/clean_edges/clean_edges_cubit.dart';
-import 'package:untitled2/features/remote_lama_tools/presentation/clean_edges/clean_edges_page.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/descratch/descratch_cubit.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/descratch/descratch_page.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/expand_canvas/expand_canvas_cubit.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/expand_canvas/expand_canvas_page.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/heal_region/heal_region_cubit.dart';
-import 'package:untitled2/features/remote_lama_tools/presentation/heal_region/heal_region_page.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/hub/remote_lama_hub_cubit.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/hub/remote_lama_hub_page.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/repair_damage/repair_damage_cubit.dart';
@@ -30,6 +28,8 @@ import 'package:untitled2/features/retouch_mask_assist/domain/repositories/retou
 import 'package:untitled2/features/retouch_mask_assist/domain/usecases/retouch_mask_assist_usecases.dart';
 import 'package:untitled2/features/retouch_mask_assist/presentation/bloc/expand/expand_mask_assist_cubit.dart';
 import 'package:untitled2/features/retouch_mask_assist/presentation/bloc/repair_mask_assist_cubit.dart';
+import 'package:untitled2/features/remote_lama_tools/presentation/shared/shared_heal_clean_page.dart';
+import 'package:untitled2/core/ui/AppL10n.dart';
 
 class RemoteLamaFlowShell extends StatefulWidget {
   final Uint8List? initialImage;
@@ -80,16 +80,27 @@ class _RemoteLamaFlowShellState extends State<RemoteLamaFlowShell> {
         GoRoute(
           path: '/lama/heal',
           builder: (context, state) {
-            final cubit = HealRegionCubit(
+            final healCubit = HealRegionCubit(
+              submitJobUseCase: context.read<SubmitJobUseCase>(),
+              pollJobStatusUseCase: context.read<PollJobStatusUseCase>(),
+              getJobResultUseCase: context.read<GetJobResultUseCase>(),
+            );
+            final cleanCubit = CleanEdgesCubit(
               submitJobUseCase: context.read<SubmitJobUseCase>(),
               pollJobStatusUseCase: context.read<PollJobStatusUseCase>(),
               getJobResultUseCase: context.read<GetJobResultUseCase>(),
             );
             if (widget.initialImage != null) {
-              cubit.setImage(widget.initialImage!);
+              healCubit.setImage(widget.initialImage!);
+              cleanCubit.setImage(widget.initialImage!);
             }
-            return BlocProvider.value(
-                value: cubit, child: const HealRegionPage());
+            return MultiBlocProvider(
+              providers: [
+                BlocProvider.value(value: healCubit),
+                BlocProvider.value(value: cleanCubit),
+              ],
+              child: const SharedHealCleanPage(initialMode: SharedToolMode.healRegion),
+            );
           },
         ),
         GoRoute(
@@ -197,16 +208,27 @@ class _RemoteLamaFlowShellState extends State<RemoteLamaFlowShell> {
         GoRoute(
           path: '/lama/clean',
           builder: (context, state) {
-            final cubit = CleanEdgesCubit(
+            final healCubit = HealRegionCubit(
+              submitJobUseCase: context.read<SubmitJobUseCase>(),
+              pollJobStatusUseCase: context.read<PollJobStatusUseCase>(),
+              getJobResultUseCase: context.read<GetJobResultUseCase>(),
+            );
+            final cleanCubit = CleanEdgesCubit(
               submitJobUseCase: context.read<SubmitJobUseCase>(),
               pollJobStatusUseCase: context.read<PollJobStatusUseCase>(),
               getJobResultUseCase: context.read<GetJobResultUseCase>(),
             );
             if (widget.initialImage != null) {
-              cubit.setImage(widget.initialImage!);
+              healCubit.setImage(widget.initialImage!);
+              cleanCubit.setImage(widget.initialImage!);
             }
-            return BlocProvider.value(
-                value: cubit, child: const CleanEdgesPage());
+            return MultiBlocProvider(
+              providers: [
+                BlocProvider.value(value: healCubit),
+                BlocProvider.value(value: cleanCubit),
+              ],
+              child: const SharedHealCleanPage(initialMode: SharedToolMode.cleanEdges),
+            );
           },
         ),
       ],
@@ -222,8 +244,13 @@ class _RemoteLamaFlowShellState extends State<RemoteLamaFlowShell> {
 
   @override
   Widget build(BuildContext context) {
+    final locale = Localizations.maybeLocaleOf(context) ?? const Locale('en');
+
     return MultiRepositoryProvider(
       providers: [
+        RepositoryProvider<AppL10n>(
+          create: (_) => AppL10n(locale),
+        ),
         RepositoryProvider<LamaRepository>.value(value: _repository),
         RepositoryProvider<RetouchMaskAssistRepository>.value(
             value: _retouchMaskAssistRepository),

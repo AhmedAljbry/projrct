@@ -1,7 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/gestures.dart';
 
-
 /// Processes raw touch/pointer events into smoothed image-space stroke points.
 ///
 /// Responsibilities:
@@ -11,10 +10,13 @@ import 'package:flutter/gestures.dart';
 ///  - Smooth rapid direction changes to reduce jagged masks
 class BrushInteractionService {
   /// Minimum distance between consecutive stroke points (in image pixels).
-  static const double _minPointSpacing = 2.0;
+  static const double _minPointSpacing = 1.2;
+  static const double _smoothingFactor = 0.42;
+  static const double _maxSegmentLength = 5.5;
 
   final List<Offset> _currentStroke = [];
   Offset? _lastEmitted;
+  Offset? _lastRawPoint;
   Offset? _velocity;
   DateTime? _lastTimestamp;
 
@@ -25,6 +27,7 @@ class BrushInteractionService {
   void beginStroke(Offset imagePoint) {
     _currentStroke.clear();
     _lastEmitted = imagePoint;
+    _lastRawPoint = imagePoint;
     _velocity = Offset.zero;
     _lastTimestamp = DateTime.now();
     _currentStroke.add(imagePoint);
@@ -38,7 +41,8 @@ class BrushInteractionService {
       return true;
     }
 
-    final dist = (imagePoint - _lastEmitted!).distance;
+    final smoothedPoint = _smoothPoint(imagePoint);
+    final dist = (smoothedPoint - _lastEmitted!).distance;
     if (dist < _minPointSpacing) return false;
 
     // Update velocity estimate for pressure simulation.
@@ -46,7 +50,7 @@ class BrushInteractionService {
     if (_lastTimestamp != null) {
       final dt = now.difference(_lastTimestamp!).inMicroseconds / 1000.0; // ms
       if (dt > 0) {
-        final rawVelocity = (imagePoint - _lastEmitted!) / dt;
+        final rawVelocity = (smoothedPoint - _lastEmitted!) / dt;
         _velocity = _velocity == null
             ? rawVelocity
             : Offset(
@@ -56,8 +60,7 @@ class BrushInteractionService {
       }
     }
     _lastTimestamp = now;
-    _lastEmitted = imagePoint;
-    _currentStroke.add(imagePoint);
+    _appendInterpolatedPoints(smoothedPoint);
     return true;
   }
 
@@ -66,6 +69,7 @@ class BrushInteractionService {
     final result = List<Offset>.from(_currentStroke);
     _currentStroke.clear();
     _lastEmitted = null;
+    _lastRawPoint = null;
     _velocity = null;
     _lastTimestamp = null;
     return result;
@@ -75,7 +79,9 @@ class BrushInteractionService {
   void cancelStroke() {
     _currentStroke.clear();
     _lastEmitted = null;
+    _lastRawPoint = null;
     _velocity = null;
+    _lastTimestamp = null;
   }
 
   /// Compute simulated pressure from velocity magnitude.
@@ -108,4 +114,32 @@ class BrushInteractionService {
   }
 
   double _lerp(double a, double b, double t) => a + (b - a) * t;
+
+  Offset _smoothPoint(Offset imagePoint) {
+    if (_lastRawPoint == null || _lastEmitted == null) {
+      _lastRawPoint = imagePoint;
+      return imagePoint;
+    }
+
+    final rawBlend = Offset.lerp(_lastRawPoint, imagePoint, 0.68) ?? imagePoint;
+    _lastRawPoint = imagePoint;
+    return Offset(
+      _lerp(_lastEmitted!.dx, rawBlend.dx, _smoothingFactor),
+      _lerp(_lastEmitted!.dy, rawBlend.dy, _smoothingFactor),
+    );
+  }
+
+  void _appendInterpolatedPoints(Offset nextPoint) {
+    final start = _lastEmitted!;
+    final distance = (nextPoint - start).distance;
+    final steps = (distance / _maxSegmentLength).ceil().clamp(1, 8);
+
+    for (int step = 1; step <= steps; step++) {
+      final t = step / steps;
+      final point = Offset.lerp(start, nextPoint, t) ?? nextPoint;
+      _currentStroke.add(point);
+    }
+
+    _lastEmitted = nextPoint;
+  }
 }

@@ -137,7 +137,8 @@ class _BlurFocusCanvasState extends State<BlurFocusCanvas> {
 
     final size = _layoutSize!;
 
-    if (widget.settings.mode == BlurMode.smart) {
+    if (widget.settings.mode == BlurMode.full ||
+        widget.settings.mode == BlurMode.smart) {
       // Smart mode: Gestures are used for refinement mask drawing ONLY,
       // not for moving a hidden circle.
       return;
@@ -314,5 +315,6 @@ class _BrushCursorPainter extends CustomPainter {
       old.radius != radius ||
       old.blendMode != blendMode;
 }
+
 
 

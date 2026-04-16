@@ -17,6 +17,10 @@ class BpModeBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final visibleModes = BlurPhotoMode.values
+        .where((mode) => mode != BlurPhotoMode.text)
+        .toList();
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
@@ -31,7 +35,7 @@ class BpModeBar extends StatelessWidget {
         child: Wrap(
           spacing: 8,
           runSpacing: 8,
-          children: BlurPhotoMode.values
+          children: visibleModes
               .map(
                 (mode) => _ModeButton(
                   mode: mode,

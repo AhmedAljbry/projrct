@@ -45,74 +45,103 @@ class _ProcessingPageState extends State<ProcessingPage>
     final pickState = context.watch<ImagePickCubit>().state;
     final rawImage = pickState is ImagePickReady ? pickState.uiImage : null;
 
-    return Scaffold(
-      backgroundColor: InpaintingStudioTheme.background,
-      body: BlocConsumer<InpaintingBloc, InpaintingState>(
-        listener: (context, state) {
-          if (state.status == InpaintingStatus.success) {
-            context.go(AppRoutes.result);
-          }
-        },
-        builder: (context, state) {
-          final isFailed = state.status == InpaintingStatus.failed ||
-              state.status == InpaintingStatus.timeout;
-          final isCancelled = state.status == InpaintingStatus.cancelled;
-          final isQueued = state.status == InpaintingStatus.queued;
-
-          if (isFailed || isCancelled) {
-            _scannerController.stop();
-            _glowController.stop();
-          } else {
-            if (!_scannerController.isAnimating) {
-              _scannerController.repeat(reverse: true);
+    return Expanded(
+      child: Scaffold(
+        backgroundColor: InpaintingStudioTheme.background,
+        body: BlocConsumer<InpaintingBloc, InpaintingState>(
+          listener: (context, state) {
+            if (state.status == InpaintingStatus.success) {
+              context.go(AppRoutes.result);
             }
-            if (!_glowController.isAnimating) {
-              _glowController.repeat(reverse: true);
+          },
+          builder: (context, state) {
+            final isFailed = state.status == InpaintingStatus.failed ||
+                state.status == InpaintingStatus.timeout;
+            final isCancelled = state.status == InpaintingStatus.cancelled;
+            final isQueued = state.status == InpaintingStatus.queued;
+
+            if (isFailed || isCancelled) {
+              _scannerController.stop();
+              _glowController.stop();
+            } else {
+              if (!_scannerController.isAnimating) {
+                _scannerController.repeat(reverse: true);
+              }
+              if (!_glowController.isAnimating) {
+                _glowController.repeat(reverse: true);
+              }
             }
-          }
 
-          final progress = _progressValueFromServerOrFallback(state);
-          final activeStep = _stepFromStatus(state.status);
-           final headline = _primaryMessage(l10n, state);
-          final elapsed = _elapsedText(state.startedAt);
+            final progress = _progressValueFromServerOrFallback(state);
+            final activeStep = _stepFromStatus(state.status);
+             final headline = _primaryMessage(l10n, state);
+            final elapsed = _elapsedText(state.startedAt);
 
-          return StudioGlowBackground(
-            animation: _glowController,
-            primaryGlow: isFailed || isCancelled
-                ? InpaintingStudioTheme.rose
-                : InpaintingStudioTheme.mint,
-            secondaryGlow: isFailed || isCancelled
-                ? InpaintingStudioTheme.danger
-                : InpaintingStudioTheme.violet,
-            child: SafeArea(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final isWide = constraints.maxWidth >= 960;
-                  final padding = constraints.maxWidth < 460 ? 16.0 : 24.0;
+            return StudioGlowBackground(
+              animation: _glowController,
+              primaryGlow: isFailed || isCancelled
+                  ? InpaintingStudioTheme.rose
+                  : InpaintingStudioTheme.mint,
+              secondaryGlow: isFailed || isCancelled
+                  ? InpaintingStudioTheme.danger
+                  : InpaintingStudioTheme.violet,
+              child: SafeArea(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isWide = constraints.maxWidth >= 960;
+                    final padding = constraints.maxWidth < 460 ? 16.0 : 24.0;
 
-                  return SingleChildScrollView(
-                    padding: EdgeInsetsDirectional.fromSTEB(
-                      padding,
-                      14,
-                      padding,
-                      24,
-                    ),
-                    child: Center(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 1180),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                             _buildTopBar(context, l10n, state),
-                            SizedBox(height: 22),
-                            isWide
-                                ? Row(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Expanded(
-                                        flex: 5,
-                                         child: _buildPreviewCard(
+                    return SingleChildScrollView(
+                      padding: EdgeInsetsDirectional.fromSTEB(
+                        padding,
+                        14,
+                        padding,
+                        24,
+                      ),
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 1180),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                               _buildTopBar(context, l10n, state),
+                              SizedBox(height: 22),
+                              isWide
+                                  ? Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Expanded(
+                                          flex: 5,
+                                           child: _buildPreviewCard(
+                                            l10n: l10n,
+                                            rawImage: rawImage,
+                                            state: state,
+                                            isFailed: isFailed,
+                                            isCancelled: isCancelled,
+                                            isQueued: isQueued,
+                                          ),
+                                        ),
+                                        SizedBox(width: 20),
+                                         Expanded(
+                                          flex: 6,
+                                          child: _buildStatusCard(
+                                            l10n: l10n,
+                                            state: state,
+                                            headline: headline,
+                                            progress: progress,
+                                            activeStep: activeStep,
+                                            elapsed: elapsed,
+                                            isFailed: isFailed,
+                                            isCancelled: isCancelled,
+                                            isQueued: isQueued,
+                                          ),
+                                        ),
+                                      ],
+                                    )
+                                  : Column(
+                                      children: [
+                                         _buildPreviewCard(
                                           l10n: l10n,
                                           rawImage: rawImage,
                                           state: state,
@@ -120,11 +149,8 @@ class _ProcessingPageState extends State<ProcessingPage>
                                           isCancelled: isCancelled,
                                           isQueued: isQueued,
                                         ),
-                                      ),
-                                      SizedBox(width: 20),
-                                       Expanded(
-                                        flex: 6,
-                                        child: _buildStatusCard(
+                                        SizedBox(height: 18),
+                                         _buildStatusCard(
                                           l10n: l10n,
                                           state: state,
                                           headline: headline,
@@ -135,43 +161,19 @@ class _ProcessingPageState extends State<ProcessingPage>
                                           isCancelled: isCancelled,
                                           isQueued: isQueued,
                                         ),
-                                      ),
-                                    ],
-                                  )
-                                : Column(
-                                    children: [
-                                       _buildPreviewCard(
-                                        l10n: l10n,
-                                        rawImage: rawImage,
-                                        state: state,
-                                        isFailed: isFailed,
-                                        isCancelled: isCancelled,
-                                        isQueued: isQueued,
-                                      ),
-                                      SizedBox(height: 18),
-                                       _buildStatusCard(
-                                        l10n: l10n,
-                                        state: state,
-                                        headline: headline,
-                                        progress: progress,
-                                        activeStep: activeStep,
-                                        elapsed: elapsed,
-                                        isFailed: isFailed,
-                                        isCancelled: isCancelled,
-                                        isQueued: isQueued,
-                                      ),
-                                    ],
-                                  ),
-                          ],
+                                      ],
+                                    ),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                  );
-                },
+                    );
+                  },
+                ),
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }

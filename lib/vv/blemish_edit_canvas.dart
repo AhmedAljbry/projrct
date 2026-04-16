@@ -174,7 +174,7 @@ class _BlemishEditCanvasState extends State<BlemishEditCanvas>
 
     context.read<BlemishCubit>().onStrokeEnd();
     _cursorHideTimer?.cancel();
-    _cursorHideTimer = Timer(const Duration(milliseconds: 650), _hideCursor);
+    _cursorHideTimer = Timer(const Duration(milliseconds: 900), _hideCursor);
   }
 
   void _showCursor(Offset position) {

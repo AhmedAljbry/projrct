@@ -17,8 +17,8 @@ import 'package:untitled2/shared/ui_tokens/viral_studio_tokens.dart';
 
 enum _ResultToolTab { quick, pro, diagnostics }
 
-/// Preview-first result surface that keeps most controls compact until the
-/// user intentionally opens quick tweaks, pro adjustments, or diagnostics.
+/// Preview-first result surface — compact header, hero preview, slim action
+/// panel, style carousel, and a tabbed tool sheet. All BLoC wiring preserved.
 class StyleTransferResultScreen extends StatefulWidget {
   const StyleTransferResultScreen({super.key});
 
@@ -27,51 +27,49 @@ class StyleTransferResultScreen extends StatefulWidget {
       _StyleTransferResultScreenState();
 }
 
-class _StyleTransferResultScreenState extends State<StyleTransferResultScreen> {
+class _StyleTransferResultScreenState
+    extends State<StyleTransferResultScreen> {
   final ImagePicker _picker = ImagePicker();
 
   bool _compareEnabled = true;
   _ResultToolTab _activeTab = _ResultToolTab.quick;
 
+  // ─── dialogs / navigation ──────────────────────────────────────────────────
+
   Future<void> _savePreset() async {
     final controller = context.read<StyleTransferController>();
-    final nameController = TextEditingController(
-      text: controller.state.previewResult?.appliedProfile.name ??
-          'My Viral Style',
+    final nameCtrl = TextEditingController(
+      text:
+          controller.state.previewResult?.appliedProfile.name ?? 'My Viral Style',
     );
     try {
-      final shouldSave = await showDialog<bool>(
+      final ok = await showDialog<bool>(
         context: context,
-        builder: (context) {
-          return AlertDialog(
-            backgroundColor: ViralStudioTokens.surface,
-            title: const Text('Save Preset',
-                style: TextStyle(color: Colors.white)),
-            content: TextField(
-              controller: nameController,
-              style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(labelText: 'Preset name'),
-            ),
-            actions: <Widget>[
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.of(context).pop(true),
-                child: const Text('Save'),
-              ),
-            ],
-          );
-        },
+        builder: (ctx) => AlertDialog(
+          backgroundColor: ViralStudioTokens.surface,
+          title: const Text('Save Preset',
+              style: TextStyle(color: Colors.white)),
+          content: TextField(
+            controller: nameCtrl,
+            style: const TextStyle(color: Colors.white),
+            decoration: const InputDecoration(labelText: 'Preset name'),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('Cancel')),
+            FilledButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: const Text('Save')),
+          ],
+        ),
       );
-      if (shouldSave == true && mounted) {
-        await controller.saveCurrentPreset(nameController.text.trim().isEmpty
-            ? 'My Viral Style'
-            : nameController.text.trim());
+      if (ok == true && mounted) {
+        await controller.saveCurrentPreset(
+            nameCtrl.text.trim().isEmpty ? 'My Viral Style' : nameCtrl.text.trim());
       }
     } finally {
-      nameController.dispose();
+      nameCtrl.dispose();
     }
   }
 
@@ -84,71 +82,59 @@ class _StyleTransferResultScreenState extends State<StyleTransferResultScreen> {
     await context
         .read<StyleTransferController>()
         .setTargetImage(bytes, name: file.name);
-    if (mounted) {
-      Navigator.of(context).pop();
-    }
+    if (mounted) Navigator.of(context).pop();
   }
 
   Future<void> _editWatermark() async {
     final controller = context.read<StyleTransferController>();
-    final textController =
+    final textCtrl =
         TextEditingController(text: controller.state.settings.watermarkText);
     try {
-      final shouldSave = await showDialog<bool>(
+      final ok = await showDialog<bool>(
         context: context,
-        builder: (context) {
-          return AlertDialog(
-            backgroundColor: ViralStudioTokens.surface,
-            title: const Text(
-              'Watermark Text',
-              style: TextStyle(color: Colors.white),
-            ),
-            content: TextField(
-              controller: textController,
-              style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(labelText: 'Label'),
-            ),
-            actions: <Widget>[
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.of(context).pop(true),
-                child: const Text('Save'),
-              ),
-            ],
-          );
-        },
+        builder: (ctx) => AlertDialog(
+          backgroundColor: ViralStudioTokens.surface,
+          title: const Text('Watermark Text',
+              style: TextStyle(color: Colors.white)),
+          content: TextField(
+            controller: textCtrl,
+            style: const TextStyle(color: Colors.white),
+            decoration: const InputDecoration(labelText: 'Label'),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('Cancel')),
+            FilledButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: const Text('Save')),
+          ],
+        ),
       );
-      if (shouldSave == true && mounted) {
-        controller.updateWatermarkText(textController.text);
+      if (ok == true && mounted) {
+        controller.updateWatermarkText(textCtrl.text);
       }
     } finally {
-      textController.dispose();
+      textCtrl.dispose();
     }
   }
 
   Future<void> _openPresetLibrary() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => BlocProvider.value(
-          value: context.read<StyleTransferController>(),
-          child: const StyleLibraryScreen(),
-        ),
+    await Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => BlocProvider.value(
+        value: context.read<StyleTransferController>(),
+        child: const StyleLibraryScreen(),
       ),
-    );
+    ));
   }
 
   Future<void> _openProControls() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => BlocProvider.value(
-          value: context.read<StyleTransferController>(),
-          child: const StyleTransferProControlsScreen(),
-        ),
+    await Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => BlocProvider.value(
+        value: context.read<StyleTransferController>(),
+        child: const StyleTransferProControlsScreen(),
       ),
-    );
+    ));
   }
 
   Future<void> _openSettingsSheet() async {
@@ -156,117 +142,105 @@ class _StyleTransferResultScreenState extends State<StyleTransferResultScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (sheetContext) {
-        return BlocProvider.value(
-          value: context.read<StyleTransferController>(),
-          child: BlocBuilder<StyleTransferController, StyleTransferState>(
-            builder: (context, state) {
-              return SafeArea(
-                top: false,
-                child: Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    18,
-                    0,
-                    18,
-                    MediaQuery.of(context).viewInsets.bottom + 18,
-                  ),
-                  child: Container(
-                    decoration: ViralStudioTokens.panelDecoration(
-                      emphasized: true,
+      builder: (sheetCtx) => BlocProvider.value(
+        value: context.read<StyleTransferController>(),
+        child: BlocBuilder<StyleTransferController, StyleTransferState>(
+          builder: (ctx, state) => SafeArea(
+            top: false,
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                  16, 0, 16, MediaQuery.of(ctx).viewInsets.bottom + 16),
+              child: Container(
+                decoration: ViralStudioTokens.panelDecoration(emphasized: true),
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Export Settings',
+                        style: ViralStudioTokens.sectionTitle()
+                            .copyWith(fontSize: 16)),
+                    const SizedBox(height: 14),
+                    SwitchListTile.adaptive(
+                      contentPadding: EdgeInsets.zero,
+                      value: state.settings.watermarkEnabled,
+                      onChanged:
+                          ctx.read<StyleTransferController>().updateWatermarkEnabled,
+                      title: const Text('Watermark Export',
+                          style: TextStyle(color: Colors.white, fontSize: 14)),
+                      subtitle: Text(
+                        state.settings.watermarkEnabled
+                            ? 'Studio label added on export'
+                            : 'Exports stay clean',
+                        style: ViralStudioTokens.body(12),
+                      ),
                     ),
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Text('Result Settings',
-                            style: ViralStudioTokens.sectionTitle()),
-                        const SizedBox(height: 6),
-                        Text(
-                          'Keep export options and branding tucked away so the preview stays clean.',
-                          style: ViralStudioTokens.body(12),
-                        ),
-                        const SizedBox(height: 12),
-                        SwitchListTile.adaptive(
-                          contentPadding: EdgeInsets.zero,
-                          value: state.settings.watermarkEnabled,
-                          onChanged: context
-                              .read<StyleTransferController>()
-                              .updateWatermarkEnabled,
-                          title: const Text(
-                            'Watermark Export',
-                            style: TextStyle(color: Colors.white),
-                          ),
-                          subtitle: Text(
-                            state.settings.watermarkEnabled
-                                ? 'A subtle studio label will be added on the next export render.'
-                                : 'Exports stay clean with no studio branding.',
-                            style: ViralStudioTokens.body(12),
+                    if (state.settings.watermarkEnabled) ...[
+                      const SizedBox(height: 8),
+                      OutlinedButton.icon(
+                        style: ViralStudioTokens.secondaryButton(),
+                        onPressed: _editWatermark,
+                        icon: const Icon(Icons.edit_rounded),
+                        label: const Text('Edit Watermark'),
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: FilledButton.icon(
+                            style: ViralStudioTokens.primaryButton(),
+                            onPressed: () {
+                              Navigator.of(sheetCtx).pop();
+                              ctx
+                                  .read<StyleTransferController>()
+                                  .exportCurrent();
+                            },
+                            icon: const Icon(Icons.download_rounded),
+                            label: const Text('Export'),
                           ),
                         ),
-                        if (state.settings.watermarkEnabled) ...<Widget>[
-                          const SizedBox(height: 6),
-                          OutlinedButton.icon(
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: OutlinedButton.icon(
                             style: ViralStudioTokens.secondaryButton(),
-                            onPressed: _editWatermark,
-                            icon: const Icon(Icons.edit_rounded),
-                            label: const Text('Edit Watermark'),
+                            onPressed: () {
+                              Navigator.of(sheetCtx).pop();
+                              ctx
+                                  .read<StyleTransferController>()
+                                  .shareCurrent();
+                            },
+                            icon: const Icon(Icons.ios_share_rounded),
+                            label: const Text('Share'),
                           ),
-                        ],
-                        const SizedBox(height: 16),
-                        Wrap(
-                          spacing: 12,
-                          runSpacing: 12,
-                          children: <Widget>[
-                            FilledButton.icon(
-                              style: ViralStudioTokens.primaryButton(),
-                              onPressed: () {
-                                Navigator.of(sheetContext).pop();
-                                context
-                                    .read<StyleTransferController>()
-                                    .exportCurrent();
-                              },
-                              icon: const Icon(Icons.download_rounded),
-                              label: const Text('Export'),
-                            ),
-                            OutlinedButton.icon(
-                              style: ViralStudioTokens.secondaryButton(),
-                              onPressed: () {
-                                Navigator.of(sheetContext).pop();
-                                context
-                                    .read<StyleTransferController>()
-                                    .shareCurrent();
-                              },
-                              icon: const Icon(Icons.ios_share_rounded),
-                              label: const Text('Share'),
-                            ),
-                          ],
                         ),
                       ],
                     ),
-                  ),
+                  ],
                 ),
-              );
-            },
+              ),
+            ),
           ),
-        );
-      },
+        ),
+      ),
     );
   }
+
+  // ─── build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     return BlocListener<StyleTransferController, StyleTransferState>(
-      listenWhen: (previous, current) =>
-          previous.errorMessage != current.errorMessage ||
-          previous.statusMessage != current.statusMessage,
-      listener: (context, state) {
-        final message = state.errorMessage ?? state.statusMessage;
-        if (message == null || message.isEmpty) return;
-        ScaffoldMessenger.of(context)
+      listenWhen: (prev, cur) =>
+          prev.errorMessage != cur.errorMessage ||
+          prev.statusMessage != cur.statusMessage,
+      listener: (ctx, state) {
+        final msg = state.errorMessage ?? state.statusMessage;
+        if (msg == null || msg.isEmpty) return;
+        ScaffoldMessenger.of(ctx)
           ..hideCurrentSnackBar()
-          ..showSnackBar(SnackBar(content: Text(message)));
-        context.read<StyleTransferController>().clearMessages();
+          ..showSnackBar(SnackBar(content: Text(msg)));
+        ctx.read<StyleTransferController>().clearMessages();
       },
       child: Scaffold(
         backgroundColor: ViralStudioTokens.background,
@@ -274,21 +248,16 @@ class _StyleTransferResultScreenState extends State<StyleTransferResultScreen> {
           decoration: BoxDecoration(gradient: ViralStudioTokens.pageGlow),
           child: SafeArea(
             child: BlocBuilder<StyleTransferController, StyleTransferState>(
-              builder: (context, state) {
+              builder: (ctx, state) {
                 final result = state.exportResult ?? state.previewResult;
                 if (result == null || state.targetBytes == null) {
                   return Center(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 28),
-                      child: Container(
-                        padding: const EdgeInsets.all(22),
-                        decoration: ViralStudioTokens.panelDecoration(),
-                        child: Text(
-                          'No result yet.',
-                          textAlign: TextAlign.center,
-                          style: ViralStudioTokens.body(),
-                        ),
-                      ),
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 28),
+                      padding: const EdgeInsets.all(22),
+                      decoration: ViralStudioTokens.panelDecoration(),
+                      child:
+                          Text('No result yet.', style: ViralStudioTokens.body()),
                     ),
                   );
                 }
@@ -302,137 +271,120 @@ class _StyleTransferResultScreenState extends State<StyleTransferResultScreen> {
                       ]
                     : result.safetyReport.notes;
 
-                return ListView(
+                return CustomScrollView(
                   physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(18, 10, 18, 28),
-                  children: <Widget>[
-                    _CompactHeader(
-                      title: 'Result',
-                      subtitle: state.statusMessage ??
-                          'Polish the look, compare it, and export when it feels premium.',
-                      onBack: () => Navigator.of(context).maybePop(),
-                      onPresets: _openPresetLibrary,
-                      onSettings: _openSettingsSheet,
-                    ),
-                    const SizedBox(height: 18),
-                    _PreviewHero(
-                      beforeBytes: state.targetBytes!,
-                      afterBytes: result.exportBytes ?? result.previewBytes,
-                      compareEnabled: _compareEnabled,
-                      activeStyle: result.appliedProfile.name,
-                      compatibilityLabel: '$compatibility% fit',
-                      sceneLabel: sceneLabel,
-                      statusLabel: state.isRenderingExport
-                          ? 'HQ render'
-                          : state.isRenderingPreview
-                              ? 'Updating'
-                              : result.exportReady
-                                  ? 'HQ ready'
-                                  : 'Preview',
-                    ),
-                    const SizedBox(height: 18),
-                    _PrimaryActionPanel(
-                      strength: state.settings.strength,
-                      compareEnabled: _compareEnabled,
-                      isBusy:
-                          state.isRenderingPreview || state.isRenderingExport,
-                      onStrengthChanged: context
-                          .read<StyleTransferController>()
-                          .updateStrength,
-                      onCompareChanged: (value) {
-                        setState(() {
-                          _compareEnabled = value;
-                        });
-                      },
-                      onMakeItViral: () => context
-                          .read<StyleTransferController>()
-                          .renderHighQuality(),
-                    ),
-                    const SizedBox(height: 12),
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: <Widget>[
-                          _ActionShortcut(
-                            icon: Icons.bookmark_add_rounded,
-                            label: 'Save Preset',
-                            onPressed: _savePreset,
+                  slivers: [
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                      sliver: SliverList(
+                        delegate: SliverChildListDelegate([
+                          // 1. Compact header
+                          _CompactHeader(
+                            title: 'AI Style Transfer',
+                            subtitle: state.statusMessage ??
+                                'Polish, compare, and export.',
+                            onBack: () => Navigator.of(ctx).maybePop(),
+                            onPresets: _openPresetLibrary,
+                            onSettings: _openSettingsSheet,
                           ),
-                          const SizedBox(width: 10),
-                          _ActionShortcut(
-                            icon: Icons.photo_library_outlined,
-                            label: 'Apply Another',
-                            onPressed: _applyToAnother,
+                          const SizedBox(height: 14),
+
+                          // 2. Preview hero
+                          _PreviewHero(
+                            beforeBytes: state.targetBytes!,
+                            afterBytes:
+                                result.exportBytes ?? result.previewBytes,
+                            compareEnabled: _compareEnabled,
+                            activeStyle: result.appliedProfile.name,
+                            compatibilityLabel: '$compatibility% fit',
+                            sceneLabel: sceneLabel,
+                            statusLabel: state.isRenderingExport
+                                ? 'HQ render'
+                                : state.isRenderingPreview
+                                    ? 'Updating'
+                                    : result.exportReady
+                                        ? 'HQ ready'
+                                        : 'Preview',
                           ),
-                          const SizedBox(width: 10),
-                          _ActionShortcut(
-                            icon: Icons.download_rounded,
-                            label: 'Export',
-                            onPressed: () => context
+                          const SizedBox(height: 14),
+
+                          // 3. Primary action panel
+                          _PrimaryActionPanel(
+                            strength: state.settings.strength,
+                            compareEnabled: _compareEnabled,
+                            isBusy: state.isRenderingPreview ||
+                                state.isRenderingExport,
+                            onStrengthChanged: ctx
                                 .read<StyleTransferController>()
-                                .exportCurrent(),
-                          ),
-                          const SizedBox(width: 10),
-                          _ActionShortcut(
-                            icon: Icons.ios_share_rounded,
-                            label: 'Share',
-                            onPressed: () => context
+                                .updateStrength,
+                            onCompareChanged: (v) =>
+                                setState(() => _compareEnabled = v),
+                            onMakeItViral: () => ctx
                                 .read<StyleTransferController>()
-                                .shareCurrent(),
+                                .renderHighQuality(),
+                            onSavePreset: _savePreset,
+                            onApplyAnother: _applyToAnother,
                           ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 22),
-                    const _SectionHeading(
-                      title: 'Style Presets',
-                      subtitle:
-                          'Tap through the built-in looks without losing your current result context.',
-                    ),
-                    const SizedBox(height: 12),
-                    StylePresetStrip(
-                      presets: StylePresetRegistry.allPresets,
-                      selectedId: state.selectedPresetId,
-                      height: 112,
-                      cardWidth: 164,
-                      contentPadding: const EdgeInsets.all(12),
-                      descriptionMaxLines: 1,
-                      nameFontSize: 14,
-                      onSelected: (preset) => context
-                          .read<StyleTransferController>()
-                          .applyPreset(preset),
-                    ),
-                    const SizedBox(height: 20),
-                    _ToolSheet(
-                      activeTab: _activeTab,
-                      onTabChanged: (tab) {
-                        setState(() {
-                          _activeTab = tab;
-                        });
-                      },
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 220),
-                        switchInCurve: Curves.easeOutCubic,
-                        switchOutCurve: Curves.easeInCubic,
-                        child: KeyedSubtree(
-                          key: ValueKey<_ResultToolTab>(_activeTab),
-                          child: switch (_activeTab) {
-                            _ResultToolTab.quick => _QuickTab(
-                                state: state,
-                                result: result,
+                          const SizedBox(height: 16),
+
+                          // 4. Style carousel label
+                          Padding(
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: 2),
+                            child: Text(
+                              'STYLES',
+                              style: ViralStudioTokens.body(11).copyWith(
+                                color: ViralStudioTokens.textMuted,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 1.4,
                               ),
-                            _ResultToolTab.pro => _ProTab(
-                                state: state,
-                                onOpenFullEditor: _openProControls,
-                                onEditWatermark: _editWatermark,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+
+                          // 4b. Compact style carousel
+                          _CompactStyleCarousel(
+                            presets: StylePresetRegistry.allPresets,
+                            selectedId: state.selectedPresetId,
+                            onSelected: (preset) => ctx
+                                .read<StyleTransferController>()
+                                .applyPreset(preset),
+                          ),
+                          const SizedBox(height: 16),
+
+                          // 5. Tool sheet (tabs)
+                          _ToolSheet(
+                            activeTab: _activeTab,
+                            onTabChanged: (tab) =>
+                                setState(() => _activeTab = tab),
+                            child: AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 200),
+                              switchInCurve: Curves.easeOutCubic,
+                              switchOutCurve: Curves.easeInCubic,
+                              child: KeyedSubtree(
+                                key: ValueKey<_ResultToolTab>(_activeTab),
+                                child: switch (_activeTab) {
+                                  _ResultToolTab.quick => _QuickTab(
+                                      state: state,
+                                      result: result,
+                                    ),
+                                  _ResultToolTab.pro => _ProTab(
+                                      state: state,
+                                      onOpenFullEditor: _openProControls,
+                                      onEditWatermark: _editWatermark,
+                                    ),
+                                  _ResultToolTab.diagnostics =>
+                                    _DiagnosticsTab(
+                                      state: state,
+                                      result: result,
+                                      safetyNotes: safetyNotes,
+                                    ),
+                                },
                               ),
-                            _ResultToolTab.diagnostics => _DiagnosticsTab(
-                                state: state,
-                                result: result,
-                                safetyNotes: safetyNotes,
-                              ),
-                          },
-                        ),
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                        ]),
                       ),
                     ),
                   ],
@@ -446,6 +398,11 @@ class _StyleTransferResultScreenState extends State<StyleTransferResultScreen> {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// LAYOUT COMPONENTS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Slim top bar: back | title+subtitle | presets | settings.
 class _CompactHeader extends StatelessWidget {
   const _CompactHeader({
     required this.title,
@@ -464,43 +421,41 @@ class _CompactHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        _HeaderIconButton(
-          icon: Icons.arrow_back_rounded,
-          onPressed: onBack,
-        ),
-        const SizedBox(width: 12),
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        _HeaderIconButton(icon: Icons.arrow_back_rounded, onPressed: onBack),
+        const SizedBox(width: 10),
         Expanded(
-          child: Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(title,
-                    style: ViralStudioTokens.sectionTitle()
-                        .copyWith(fontSize: 16)),
-                const SizedBox(height: 4),
-                Text(subtitle, style: ViralStudioTokens.body(12)),
-              ],
-            ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: ViralStudioTokens.sectionTitle().copyWith(fontSize: 15),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              Text(
+                subtitle,
+                style: ViralStudioTokens.body(11),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
           ),
-        ),
-        const SizedBox(width: 12),
-        _HeaderIconButton(
-          icon: Icons.style_rounded,
-          onPressed: onPresets,
         ),
         const SizedBox(width: 8),
         _HeaderIconButton(
-          icon: Icons.tune_rounded,
-          onPressed: onSettings,
-        ),
+            icon: Icons.style_rounded, onPressed: onPresets),
+        const SizedBox(width: 6),
+        _HeaderIconButton(
+            icon: Icons.tune_rounded, onPressed: onSettings),
       ],
     );
   }
 }
 
+/// Hero preview: large before/after slider with overlay chips.
 class _PreviewHero extends StatelessWidget {
   const _PreviewHero({
     required this.beforeBytes,
@@ -522,95 +477,90 @@ class _PreviewHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final screenH = MediaQuery.of(context).size.height;
+    final previewH = (screenH * 0.46).clamp(260.0, 420.0);
+
     return Container(
+      height: previewH,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: ViralStudioTokens.outline),
-        gradient: LinearGradient(
-          colors: <Color>[
-            Colors.white.withValues(alpha: 0.08),
-            ViralStudioTokens.surface.withValues(alpha: 0.96),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        boxShadow: <BoxShadow>[
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(
+            color: ViralStudioTokens.outline.withValues(alpha: 0.8)),
+        boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.24),
-            blurRadius: 26,
-            offset: const Offset(0, 18),
+            color: Colors.black.withValues(alpha: 0.32),
+            blurRadius: 32,
+            offset: const Offset(0, 14),
           ),
         ],
       ),
-      padding: const EdgeInsets.all(8),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(27),
         child: Stack(
-          children: <Widget>[
+          fit: StackFit.expand,
+          children: [
+            // Before/after or single preview
             AnimatedSwitcher(
               duration: const Duration(milliseconds: 220),
-              switchInCurve: Curves.easeOutCubic,
-              switchOutCurve: Curves.easeInCubic,
               child: compareEnabled
                   ? BeforeAfterSlider(
-                      key: const ValueKey<String>('compare-preview'),
+                      key: const ValueKey<String>('compare'),
                       beforeBytes: beforeBytes,
                       afterBytes: afterBytes,
-                      aspectRatio: 4 / 3,
-                      borderRadius: 24,
+                      aspectRatio: null, // stretch to container
+                      borderRadius: 0,
                     )
-                  : AspectRatio(
-                      key: const ValueKey<String>('after-preview'),
-                      aspectRatio: 4 / 3,
-                      child: Image.memory(afterBytes, fit: BoxFit.cover),
+                  : Image.memory(
+                      key: const ValueKey<String>('after'),
+                      afterBytes,
+                      fit: BoxFit.cover,
                     ),
             ),
-            Positioned.fill(
-              child: IgnorePointer(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: <Color>[
-                        Colors.black.withValues(alpha: 0.12),
-                        Colors.transparent,
-                        Colors.black.withValues(alpha: 0.28),
-                      ],
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      stops: const <double>[0, 0.45, 1],
-                    ),
+
+            // Subtle vignette overlay
+            IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.black.withValues(alpha: 0.14),
+                      Colors.transparent,
+                      Colors.black.withValues(alpha: 0.30),
+                    ],
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    stops: const [0, 0.42, 1],
                   ),
                 ),
               ),
             ),
+
+            // Top chips row
             Positioned(
-              top: 14,
-              left: 14,
-              right: 14,
+              top: 12,
+              left: 12,
+              right: 12,
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
+                children: [
                   Expanded(
                     child: Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: <Widget>[
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
                         _PreviewChip(
-                          icon: Icons.auto_awesome_rounded,
-                          label: activeStyle,
-                        ),
+                            icon: Icons.auto_awesome_rounded,
+                            label: activeStyle),
                         _PreviewChip(
-                          icon: Icons.hub_rounded,
-                          label: compatibilityLabel,
-                        ),
+                            icon: Icons.hub_rounded,
+                            label: compatibilityLabel),
                         _PreviewChip(
-                          icon: Icons.landscape_rounded,
-                          label: sceneLabel,
-                        ),
+                            icon: Icons.landscape_rounded,
+                            label: sceneLabel),
                       ],
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 6),
                   _PreviewChip(
                     icon: Icons.bolt_rounded,
                     label: statusLabel,
@@ -619,9 +569,11 @@ class _PreviewHero extends StatelessWidget {
                 ],
               ),
             ),
+
+            // Bottom hint
             Positioned(
-              left: 14,
-              bottom: 14,
+              left: 12,
+              bottom: 12,
               child: _PreviewChip(
                 icon: compareEnabled
                     ? Icons.compare_arrows_rounded
@@ -636,6 +588,7 @@ class _PreviewHero extends StatelessWidget {
   }
 }
 
+/// Slim action panel: CTA + strength slider + compare toggle + quick actions.
 class _PrimaryActionPanel extends StatelessWidget {
   const _PrimaryActionPanel({
     required this.strength,
@@ -644,6 +597,8 @@ class _PrimaryActionPanel extends StatelessWidget {
     required this.onStrengthChanged,
     required this.onCompareChanged,
     required this.onMakeItViral,
+    required this.onSavePreset,
+    required this.onApplyAnother,
   });
 
   final double strength;
@@ -652,67 +607,75 @@ class _PrimaryActionPanel extends StatelessWidget {
   final ValueChanged<double> onStrengthChanged;
   final ValueChanged<bool> onCompareChanged;
   final VoidCallback onMakeItViral;
+  final VoidCallback onSavePreset;
+  final VoidCallback onApplyAnother;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       decoration: ViralStudioTokens.panelDecoration(emphasized: true),
-      padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // CTA row
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
+            children: [
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text('Make it Viral',
-                        style: ViralStudioTokens.sectionTitle()),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Render the polished high-resolution version with the current preset and safety routing.',
-                      style: ViralStudioTokens.body(12),
-                    ),
-                  ],
+                child: FilledButton.icon(
+                  style: ViralStudioTokens.primaryButton().copyWith(
+                    minimumSize: const WidgetStatePropertyAll<Size>(
+                        Size(0, 50)),
+                  ),
+                  onPressed: isBusy ? null : onMakeItViral,
+                  icon: isBusy
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                                Colors.black),
+                          ),
+                        )
+                      : const Icon(Icons.auto_awesome_rounded),
+                  label: const Text('Make it Viral'),
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               _CompareToggle(
                 value: compareEnabled,
                 onChanged: onCompareChanged,
               ),
             ],
           ),
-          const SizedBox(height: 18),
-          FilledButton.icon(
-            style: ViralStudioTokens.primaryButton().copyWith(
-              minimumSize: const WidgetStatePropertyAll<Size>(
-                Size(double.infinity, 54),
-              ),
-            ),
-            onPressed: isBusy ? null : onMakeItViral,
-            icon: isBusy
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
-                    ),
-                  )
-                : const Icon(Icons.auto_awesome_rounded),
-            label: const Text('Make it Viral'),
-          ),
-          const SizedBox(height: 16),
-          _InlineValueSlider(
+          const SizedBox(height: 12),
+
+          // Strength slider
+          _InlineSlider(
             label: 'Strength',
-            hint: 'Adaptive intensity',
             value: strength,
             min: 0.2,
             max: 1.0,
             onChanged: onStrengthChanged,
+          ),
+          const SizedBox(height: 12),
+
+          // Quick action row
+          Row(
+            children: [
+              _QuickAction(
+                icon: Icons.bookmark_add_rounded,
+                label: 'Save Preset',
+                onPressed: onSavePreset,
+              ),
+              const SizedBox(width: 8),
+              _QuickAction(
+                icon: Icons.photo_library_outlined,
+                label: 'Apply Another',
+                onPressed: onApplyAnother,
+              ),
+            ],
           ),
         ],
       ),
@@ -720,28 +683,36 @@ class _PrimaryActionPanel extends StatelessWidget {
   }
 }
 
-class _SectionHeading extends StatelessWidget {
-  const _SectionHeading({
-    required this.title,
-    required this.subtitle,
+/// Compact horizontal preset carousel — smaller cards with color swatches + name only.
+class _CompactStyleCarousel extends StatelessWidget {
+  const _CompactStyleCarousel({
+    required this.presets,
+    required this.selectedId,
+    required this.onSelected,
   });
 
-  final String title;
-  final String subtitle;
+  final List<dynamic> presets;
+  final String? selectedId;
+  final ValueChanged<dynamic> onSelected;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        Text(title, style: ViralStudioTokens.sectionTitle()),
-        const SizedBox(height: 4),
-        Text(subtitle, style: ViralStudioTokens.body(12)),
-      ],
+    return StylePresetStrip(
+      presets: presets.cast(),
+      selectedId: selectedId,
+      height: 88,
+      cardWidth: 118,
+      contentPadding:
+          const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      descriptionMaxLines: 0,
+      showDescription: false,
+      nameFontSize: 12,
+      onSelected: onSelected,
     );
   }
 }
 
+/// Tab container for Quick / Pro / Diagnostics — no redundant header text.
 class _ToolSheet extends StatelessWidget {
   const _ToolSheet({
     required this.activeTab,
@@ -757,42 +728,35 @@ class _ToolSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: ViralStudioTokens.panelDecoration(emphasized: true),
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),
+      padding: const EdgeInsets.fromLTRB(12, 14, 12, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text('Edit Tools', style: ViralStudioTokens.sectionTitle()),
-          const SizedBox(height: 4),
-          Text(
-            'Quick tweaks stay close at hand while deeper controls and diagnostics stay tucked below.',
-            style: ViralStudioTokens.body(12),
+        children: [
+          // Tab bar
+          Row(
+            children: _ResultToolTab.values.map((tab) {
+              final isLast = tab == _ResultToolTab.diagnostics;
+              return Expanded(
+                child: Padding(
+                  padding: EdgeInsets.only(right: isLast ? 0 : 8),
+                  child: _ToolTabButton(
+                    label: switch (tab) {
+                      _ResultToolTab.quick => 'Quick',
+                      _ResultToolTab.pro => 'Pro',
+                      _ResultToolTab.diagnostics => 'Diagnostics',
+                    },
+                    selected: activeTab == tab,
+                    onPressed: () => onTabChanged(tab),
+                  ),
+                ),
+              );
+            }).toList(growable: false),
           ),
           const SizedBox(height: 14),
-          Row(
-            children: _ResultToolTab.values
-                .map(
-                  (tab) => Expanded(
-                    child: Padding(
-                      padding: EdgeInsets.only(
-                        right: tab == _ResultToolTab.diagnostics ? 0 : 8,
-                      ),
-                      child: _ToolTabButton(
-                        label: switch (tab) {
-                          _ResultToolTab.quick => 'Quick',
-                          _ResultToolTab.pro => 'Pro',
-                          _ResultToolTab.diagnostics => 'Diagnostics',
-                        },
-                        selected: activeTab == tab,
-                        onPressed: () => onTabChanged(tab),
-                      ),
-                    ),
-                  ),
-                )
-                .toList(growable: false),
-          ),
-          const SizedBox(height: 16),
+
+          // Tab content
           AnimatedSize(
-            duration: const Duration(milliseconds: 220),
+            duration: const Duration(milliseconds: 200),
             curve: Curves.easeOutCubic,
             child: child,
           ),
@@ -802,11 +766,12 @@ class _ToolSheet extends StatelessWidget {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// TAB CONTENT
+// ═══════════════════════════════════════════════════════════════════════════════
+
 class _QuickTab extends StatelessWidget {
-  const _QuickTab({
-    required this.state,
-    required this.result,
-  });
+  const _QuickTab({required this.state, required this.result});
 
   final StyleTransferState state;
   final StyleTransferResult result;
@@ -821,91 +786,49 @@ class _QuickTab extends StatelessWidget {
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
+      children: [
         StyleSliderTile(
           label: 'Strength',
-          subtitle:
-              'Keep the look adaptive. Higher values push the preset harder onto the target.',
+          subtitle: 'Adaptive style intensity',
           value: state.settings.strength,
           min: 0.2,
           max: 1.0,
           onChanged: controller.updateStrength,
         ),
-        const SizedBox(height: 12),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final columns = constraints.maxWidth > 760
-                ? 3
-                : constraints.maxWidth > 430
-                    ? 2
-                    : 1;
-            const spacing = 12.0;
-            final itemWidth =
-                (constraints.maxWidth - ((columns - 1) * spacing)) / columns;
-
-            return Wrap(
-              spacing: spacing,
-              runSpacing: spacing,
-              children: <Widget>[
-                SizedBox(
-                  width: itemWidth,
-                  child: _QuickToggleCard(
-                    title: 'Natural Protect',
-                    description:
-                        'Prioritize realism, balanced luminance, and softer style aggression.',
-                    value: state.settings.naturalMode,
-                    onChanged: controller.updateNaturalMode,
-                  ),
-                ),
-                SizedBox(
-                  width: itemWidth,
-                  child: _QuickToggleCard(
-                    title: 'Face/Fur Protect',
-                    description: isWildlife
-                        ? 'Preserve fur texture, edge energy, and warm animal tones.'
-                        : 'Protect facial brightness, skin stability, and subject texture.',
-                    value: faceFurProtect,
-                    onChanged: (value) => controller.updateMaskRules(
-                      (current) => current.copyWith(
-                        skinProtect: value,
-                        faceExposureGuard: value,
-                      ),
-                    ),
-                  ),
-                ),
-                SizedBox(
-                  width: itemWidth,
-                  child: _QuickToggleCard(
-                    title: 'Preserve Brightness',
-                    description:
-                        'Hold onto the original light structure and avoid the washed-out fog look.',
-                    value: state.settings.exposureLock,
-                    onChanged: controller.updateExposureLock,
-                  ),
-                ),
-                SizedBox(
-                  width: itemWidth,
-                  child: _QuickToggleCard(
-                    title: 'Scene Auto',
-                    description:
-                        'Tune the preset to portraits, wildlife, products, and harder scene changes.',
-                    value: state.settings.sceneFit,
-                    onChanged: controller.updateSceneFit,
-                  ),
-                ),
-                SizedBox(
-                  width: itemWidth,
-                  child: _QuickToggleCard(
-                    title: 'Style Fit',
-                    description:
-                        'Enable safe fallback damping when the reference and target mismatch too much.',
-                    value: state.settings.fallbackEnabled,
-                    onChanged: controller.updateFallbackEnabled,
-                  ),
-                ),
-              ],
-            );
-          },
+        const SizedBox(height: 10),
+        _CompactSwitchRow(
+          title: 'Natural Protect',
+          subtitle: 'Calm luminance routing',
+          value: state.settings.naturalMode,
+          onChanged: controller.updateNaturalMode,
+        ),
+        _CompactSwitchRow(
+          title: isWildlife ? 'Fur Protect' : 'Face Protect',
+          subtitle: isWildlife
+              ? 'Preserve fur texture and tones'
+              : 'Protect facial brightness',
+          value: faceFurProtect,
+          onChanged: (v) => controller.updateMaskRules(
+            (c) => c.copyWith(skinProtect: v, faceExposureGuard: v),
+          ),
+        ),
+        _CompactSwitchRow(
+          title: 'Preserve Brightness',
+          subtitle: 'Lock original light structure',
+          value: state.settings.exposureLock,
+          onChanged: controller.updateExposureLock,
+        ),
+        _CompactSwitchRow(
+          title: 'Scene Auto',
+          subtitle: 'Tune preset to detected scene',
+          value: state.settings.sceneFit,
+          onChanged: controller.updateSceneFit,
+        ),
+        _CompactSwitchRow(
+          title: 'Style Fit',
+          subtitle: 'Fallback damping on mismatch',
+          value: state.settings.fallbackEnabled,
+          onChanged: controller.updateFallbackEnabled,
         ),
       ],
     );
@@ -933,19 +856,18 @@ class _ProTab extends StatelessWidget {
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
+      children: [
         _ProGroup(
           title: 'Tone',
-          subtitle:
-              'Rebalance contrast and brightness without flattening the frame.',
-          children: <Widget>[
+          subtitle: 'Rebalance contrast without flattening.',
+          children: [
             StyleSliderTile(
               label: 'Exposure',
               value: tone.exposure,
               min: -0.4,
               max: 0.4,
-              onChanged: (value) => controller
-                  .updateTone((current) => current.copyWith(exposure: value)),
+              onChanged: (v) => controller
+                  .updateTone((c) => c.copyWith(exposure: v)),
             ),
             const SizedBox(height: 10),
             StyleSliderTile(
@@ -953,8 +875,8 @@ class _ProTab extends StatelessWidget {
               value: tone.contrast,
               min: -0.4,
               max: 0.4,
-              onChanged: (value) => controller
-                  .updateTone((current) => current.copyWith(contrast: value)),
+              onChanged: (v) => controller
+                  .updateTone((c) => c.copyWith(contrast: v)),
             ),
             const SizedBox(height: 10),
             StyleSliderTile(
@@ -962,8 +884,8 @@ class _ProTab extends StatelessWidget {
               value: tone.highlights,
               min: -0.4,
               max: 0.4,
-              onChanged: (value) => controller
-                  .updateTone((current) => current.copyWith(highlights: value)),
+              onChanged: (v) => controller
+                  .updateTone((c) => c.copyWith(highlights: v)),
             ),
             const SizedBox(height: 10),
             StyleSliderTile(
@@ -971,8 +893,8 @@ class _ProTab extends StatelessWidget {
               value: tone.shadows,
               min: -0.4,
               max: 0.4,
-              onChanged: (value) => controller
-                  .updateTone((current) => current.copyWith(shadows: value)),
+              onChanged: (v) => controller
+                  .updateTone((c) => c.copyWith(shadows: v)),
             ),
             const SizedBox(height: 10),
             StyleSliderTile(
@@ -980,17 +902,16 @@ class _ProTab extends StatelessWidget {
               value: tone.fade,
               min: -0.2,
               max: 0.4,
-              onChanged: (value) => controller
-                  .updateTone((current) => current.copyWith(fade: value)),
+              onChanged: (v) =>
+                  controller.updateTone((c) => c.copyWith(fade: v)),
             ),
           ],
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
         _ProGroup(
           title: 'Color',
-          subtitle:
-              'Keep color premium and natural while protecting luminance.',
-          children: <Widget>[
+          subtitle: 'Protect luminance, shape hue.',
+          children: [
             StyleSliderTile(
               label: 'Luminance Preserve',
               value: state.settings.luminancePreservation,
@@ -1004,10 +925,8 @@ class _ProTab extends StatelessWidget {
               value: hsl.orange.s,
               min: -0.3,
               max: 0.3,
-              onChanged: (value) => controller.updateHslChannel(
-                'orange',
-                (current) => current.copyWith(s: value),
-              ),
+              onChanged: (v) =>
+                  controller.updateHslChannel('orange', (c) => c.copyWith(s: v)),
             ),
             const SizedBox(height: 10),
             StyleSliderTile(
@@ -1015,10 +934,8 @@ class _ProTab extends StatelessWidget {
               value: hsl.green.s,
               min: -0.3,
               max: 0.3,
-              onChanged: (value) => controller.updateHslChannel(
-                'green',
-                (current) => current.copyWith(s: value),
-              ),
+              onChanged: (v) =>
+                  controller.updateHslChannel('green', (c) => c.copyWith(s: v)),
             ),
             const SizedBox(height: 10),
             StyleSliderTile(
@@ -1026,26 +943,23 @@ class _ProTab extends StatelessWidget {
               value: hsl.blue.s,
               min: -0.3,
               max: 0.3,
-              onChanged: (value) => controller.updateHslChannel(
-                'blue',
-                (current) => current.copyWith(s: value),
-              ),
+              onChanged: (v) =>
+                  controller.updateHslChannel('blue', (c) => c.copyWith(s: v)),
             ),
           ],
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
         _ProGroup(
           title: 'Detail',
-          subtitle:
-              'Recover texture and local contrast without halos or fake HDR.',
-          children: <Widget>[
+          subtitle: 'Recover texture without halos.',
+          children: [
             StyleSliderTile(
               label: 'Clarity',
               value: detail.clarity,
               min: -0.3,
               max: 0.4,
-              onChanged: (value) => controller
-                  .updateDetail((current) => current.copyWith(clarity: value)),
+              onChanged: (v) => controller
+                  .updateDetail((c) => c.copyWith(clarity: v)),
             ),
             const SizedBox(height: 10),
             StyleSliderTile(
@@ -1053,8 +967,8 @@ class _ProTab extends StatelessWidget {
               value: detail.texture,
               min: -0.3,
               max: 0.4,
-              onChanged: (value) => controller
-                  .updateDetail((current) => current.copyWith(texture: value)),
+              onChanged: (v) => controller
+                  .updateDetail((c) => c.copyWith(texture: v)),
             ),
             const SizedBox(height: 10),
             StyleSliderTile(
@@ -1062,8 +976,8 @@ class _ProTab extends StatelessWidget {
               value: detail.bloom,
               min: -0.1,
               max: 0.4,
-              onChanged: (value) => controller
-                  .updateDetail((current) => current.copyWith(bloom: value)),
+              onChanged: (v) =>
+                  controller.updateDetail((c) => c.copyWith(bloom: v)),
             ),
             const SizedBox(height: 10),
             StyleSliderTile(
@@ -1091,96 +1005,85 @@ class _ProTab extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
         _ProGroup(
           title: 'Region',
-          subtitle:
-              'Control which subjects and areas receive the strongest protection.',
-          children: <Widget>[
+          subtitle: 'Control per-area protection.',
+          children: [
             _SettingSwitchTile(
               title: 'Skin Protect',
-              subtitle: 'Guard skin hue and portrait tonal balance.',
+              subtitle: 'Guard skin hue and portrait balance.',
               value: local.skinProtect,
-              onChanged: (value) => controller.updateMaskRules(
-                (current) => current.copyWith(skinProtect: value),
-              ),
+              onChanged: (v) => controller
+                  .updateMaskRules((c) => c.copyWith(skinProtect: v)),
             ),
             _SettingSwitchTile(
               title: 'Face Exposure Guard',
-              subtitle:
-                  'Keep faces from going flat or clipped after tone mapping.',
+              subtitle: 'Prevent flat or clipped faces.',
               value: local.faceExposureGuard,
-              onChanged: (value) => controller.updateMaskRules(
-                (current) => current.copyWith(faceExposureGuard: value),
-              ),
+              onChanged: (v) => controller
+                  .updateMaskRules((c) => c.copyWith(faceExposureGuard: v)),
             ),
             _SettingSwitchTile(
               title: 'Sky Adjust',
-              subtitle: 'Allow sky regions to receive dedicated color shaping.',
+              subtitle: 'Dedicated sky color shaping.',
               value: local.skyAdjust,
-              onChanged: (value) => controller.updateMaskRules(
-                (current) => current.copyWith(skyAdjust: value),
-              ),
+              onChanged: (v) => controller
+                  .updateMaskRules((c) => c.copyWith(skyAdjust: v)),
             ),
             _SettingSwitchTile(
               title: 'Background Adjust',
-              subtitle:
-                  'Keep background grading active without overpushing the subject.',
+              subtitle: 'Grade background without overpush.',
               value: local.backgroundAdjust,
-              onChanged: (value) => controller.updateMaskRules(
-                (current) => current.copyWith(backgroundAdjust: value),
-              ),
+              onChanged: (v) => controller
+                  .updateMaskRules((c) => c.copyWith(backgroundAdjust: v)),
             ),
             _SettingSwitchTile(
               title: 'Face Refinement',
-              subtitle: 'Adds subtle face-aware cleanup in supported scenes.',
+              subtitle: 'Subtle face-aware cleanup.',
               value: state.settings.faceRefinement,
               onChanged: controller.updateFaceRefinement,
             ),
           ],
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
         _ProGroup(
           title: 'Safety',
-          subtitle:
-              'Keep the render stable when a preset becomes too aggressive.',
+          subtitle: 'Stabilize aggressive presets.',
           initiallyExpanded: true,
-          children: <Widget>[
+          children: [
             _SettingSwitchTile(
               title: 'Natural Protect',
-              subtitle: 'Prefer realism and calmer luminance routing.',
+              subtitle: 'Prefer realism and calmer routing.',
               value: state.settings.naturalMode,
               onChanged: controller.updateNaturalMode,
             ),
             _SettingSwitchTile(
               title: 'Fallback Guard',
-              subtitle:
-                  'Reduce style aggression when scene compatibility drops.',
+              subtitle: 'Reduce aggression on mismatch.',
               value: state.settings.fallbackEnabled,
               onChanged: controller.updateFallbackEnabled,
             ),
             _SettingSwitchTile(
               title: 'Cinematic Glow',
-              subtitle:
-                  'Enable subtle bloom routing tied to highlight protection.',
+              subtitle: 'Subtle bloom with highlight protection.',
               value: state.settings.cinematicGlow,
               onChanged: controller.updateCinematicGlow,
             ),
             _SettingSwitchTile(
               title: 'Depth Illusion',
-              subtitle:
-                  'Maintain cinematic separation without turning the image artificial.',
+              subtitle: 'Cinematic separation without artifacts.',
               value: state.settings.depthIllusion,
               onChanged: controller.updateDepthIllusion,
             ),
             _SettingSwitchTile(
               title: 'Watermark Export',
-              subtitle: 'Apply studio branding only on exported output.',
+              subtitle: 'Studio label on exported output.',
               value: state.settings.watermarkEnabled,
               onChanged: controller.updateWatermarkEnabled,
             ),
-            if (state.settings.watermarkEnabled) ...<Widget>[
-              const SizedBox(height: 10),
+            if (state.settings.watermarkEnabled) ...[
+              const SizedBox(height: 8),
               OutlinedButton.icon(
                 style: ViralStudioTokens.secondaryButton(),
                 onPressed: onEditWatermark,
@@ -1190,12 +1093,11 @@ class _ProTab extends StatelessWidget {
             ],
           ],
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 12),
         OutlinedButton.icon(
           style: ViralStudioTokens.secondaryButton().copyWith(
-            minimumSize: const WidgetStatePropertyAll<Size>(
-              Size(double.infinity, 48),
-            ),
+            minimumSize:
+                const WidgetStatePropertyAll<Size>(Size(double.infinity, 48)),
           ),
           onPressed: onOpenFullEditor,
           icon: const Icon(Icons.tune_rounded),
@@ -1220,7 +1122,7 @@ class _DiagnosticsTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final report = result.safetyReport;
-    final sceneStatistics = result.sceneAnalysis.statistics;
+    final stats = result.sceneAnalysis.statistics;
     final notes = <String>[
       if (state.statusMessage != null && state.statusMessage!.isNotEmpty)
         state.statusMessage!,
@@ -1228,60 +1130,42 @@ class _DiagnosticsTab extends StatelessWidget {
     ];
     final warnings = result.warnings.isEmpty
         ? <String>[
-            'No active warnings. The current render is within safety thresholds.'
+            'No active warnings. Render is within safety thresholds.'
           ]
         : result.warnings;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
+      children: [
+        // Metric grid
+        _DiagnosticGrid(items: {
+          'Compatibility': '${(result.compatibility * 100).round()}%',
+          'Scene': _toDisplayLabel(result.sceneAnalysis.scene.sceneType),
+          'Applied': '${(result.appliedStrength * 100).round()}%',
+          'Viral Score': '${(result.viralScore * 100).round()}%',
+          'Preview': '${result.previewRenderMs}ms',
+          'Export': result.exportReady
+              ? '${result.exportRenderMs}ms'
+              : 'Pending',
+          'Clip Risk': '${(report.clipRisk * 100).round()}%',
+          'Banding': '${(report.bandingRisk * 100).round()}%',
+        }),
+        const SizedBox(height: 14),
+
+        // Safety pills
+        Text('Active Safety Rules',
+            style: ViralStudioTokens.body(11).copyWith(
+              color: ViralStudioTokens.textMuted,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.2,
+            )),
+        const SizedBox(height: 8),
         Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          children: <Widget>[
-            _DiagnosticMetricCard(
-              label: 'Compatibility',
-              value: '${(result.compatibility * 100).round()}%',
-            ),
-            _DiagnosticMetricCard(
-              label: 'Scene',
-              value: _toDisplayLabel(result.sceneAnalysis.scene.sceneType),
-            ),
-            _DiagnosticMetricCard(
-              label: 'Applied',
-              value: '${(result.appliedStrength * 100).round()}%',
-            ),
-            _DiagnosticMetricCard(
-              label: 'Viral',
-              value: '${(result.viralScore * 100).round()}%',
-            ),
-            _DiagnosticMetricCard(
-              label: 'Preview',
-              value: '${result.previewRenderMs}ms',
-            ),
-            _DiagnosticMetricCard(
-              label: 'Export',
-              value:
-                  result.exportReady ? '${result.exportRenderMs}ms' : 'Pending',
-            ),
-            _DiagnosticMetricCard(
-              label: 'Clip Risk',
-              value: '${(report.clipRisk * 100).round()}%',
-            ),
-            _DiagnosticMetricCard(
-              label: 'Banding',
-              value: '${(report.bandingRisk * 100).round()}%',
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        Text('Active Safety Rules', style: ViralStudioTokens.sectionTitle()),
-        const SizedBox(height: 10),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: <Widget>[
-            if (report.skinPreserved) const _InfoPill(label: 'Skin preserve'),
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            if (report.skinPreserved)
+              const _InfoPill(label: 'Skin preserve'),
             if (report.highlightsProtected)
               const _InfoPill(label: 'Highlight roll-off'),
             if (report.shadowsProtected)
@@ -1293,18 +1177,16 @@ class _DiagnosticsTab extends StatelessWidget {
               const _InfoPill(label: 'Style fit guard'),
             if (state.settings.naturalMode)
               const _InfoPill(label: 'Natural protect'),
-            if (sceneStatistics.furLikelihood > 0.24)
-              const _InfoPill(label: 'Wildlife texture route'),
-            if (sceneStatistics.neutralLikelihood > 0.28)
+            if (stats.furLikelihood > 0.24)
+              const _InfoPill(label: 'Wildlife texture'),
+            if (stats.neutralLikelihood > 0.28)
               const _InfoPill(label: 'Neutral color preserve'),
           ],
         ),
-        const SizedBox(height: 16),
-        _DiagnosticListPanel(
-          title: 'Processing Notes',
-          items: notes,
-        ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 14),
+
+        _DiagnosticListPanel(title: 'Processing Notes', items: notes),
+        const SizedBox(height: 10),
         _DiagnosticListPanel(
           title: 'Warnings',
           items: warnings,
@@ -1315,27 +1197,28 @@ class _DiagnosticsTab extends StatelessWidget {
   }
 }
 
-class _HeaderIconButton extends StatelessWidget {
-  const _HeaderIconButton({
-    required this.icon,
-    required this.onPressed,
-  });
+// ═══════════════════════════════════════════════════════════════════════════════
+// SMALL WIDGETS
+// ═══════════════════════════════════════════════════════════════════════════════
 
+class _HeaderIconButton extends StatelessWidget {
+  const _HeaderIconButton({required this.icon, required this.onPressed});
   final IconData icon;
   final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white.withValues(alpha: 0.05),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      color: Colors.white.withValues(alpha: 0.06),
+      shape:
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       child: InkWell(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         onTap: onPressed,
         child: SizedBox(
-          width: 44,
-          height: 44,
-          child: Icon(icon, color: Colors.white),
+          width: 40,
+          height: 40,
+          child: Icon(icon, color: Colors.white, size: 20),
         ),
       ),
     );
@@ -1356,29 +1239,26 @@ class _PreviewChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
       decoration: BoxDecoration(
         color: emphasized
-            ? ViralStudioTokens.accent.withValues(alpha: 0.88)
-            : ViralStudioTokens.background.withValues(alpha: 0.56),
+            ? ViralStudioTokens.accent.withValues(alpha: 0.9)
+            : Colors.black.withValues(alpha: 0.52),
         borderRadius: BorderRadius.circular(999),
         border: Border.all(
           color: emphasized
-              ? ViralStudioTokens.accentSoft.withValues(alpha: 0.85)
-              : Colors.white.withValues(alpha: 0.14),
+              ? ViralStudioTokens.accentSoft.withValues(alpha: 0.8)
+              : Colors.white.withValues(alpha: 0.12),
         ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          Icon(
-            icon,
-            size: 14,
-            color: emphasized ? Colors.black : Colors.white,
-          ),
-          const SizedBox(width: 6),
+        children: [
+          Icon(icon, size: 12,
+              color: emphasized ? Colors.black : Colors.white),
+          const SizedBox(width: 5),
           ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 130),
+            constraints: const BoxConstraints(maxWidth: 120),
             child: Text(
               label,
               overflow: TextOverflow.ellipsis,
@@ -1395,52 +1275,57 @@ class _PreviewChip extends StatelessWidget {
 }
 
 class _CompareToggle extends StatelessWidget {
-  const _CompareToggle({
-    required this.value,
-    required this.onChanged,
-  });
-
+  const _CompareToggle({required this.value, required this.onChanged});
   final bool value;
   final ValueChanged<bool> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 180),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: value ? 0.1 : 0.04),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
+    return GestureDetector(
+      onTap: () => onChanged(!value),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding:
+            const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+        decoration: BoxDecoration(
           color: value
-              ? ViralStudioTokens.accent.withValues(alpha: 0.65)
-              : ViralStudioTokens.outline,
+              ? ViralStudioTokens.accent.withValues(alpha: 0.14)
+              : Colors.white.withValues(alpha: 0.04),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: value
+                ? ViralStudioTokens.accent.withValues(alpha: 0.6)
+                : ViralStudioTokens.outline,
+          ),
         ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          Text(
-            'Compare',
-            style: ViralStudioTokens.body(12)
-                .copyWith(color: Colors.white, fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(width: 8),
-          Switch.adaptive(
-            value: value,
-            onChanged: onChanged,
-            activeColor: ViralStudioTokens.accent,
-          ),
-        ],
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.compare_arrows_rounded,
+              size: 16,
+              color: value
+                  ? ViralStudioTokens.accent
+                  : ViralStudioTokens.textMuted,
+            ),
+            const SizedBox(width: 5),
+            Text(
+              'Compare',
+              style: ViralStudioTokens.body(12).copyWith(
+                color: value ? ViralStudioTokens.accent : Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-class _InlineValueSlider extends StatelessWidget {
-  const _InlineValueSlider({
+class _InlineSlider extends StatelessWidget {
+  const _InlineSlider({
     required this.label,
-    required this.hint,
     required this.value,
     required this.min,
     required this.max,
@@ -1448,7 +1333,6 @@ class _InlineValueSlider extends StatelessWidget {
   });
 
   final String label;
-  final String hint;
   final double value;
   final double min;
   final double max;
@@ -1456,66 +1340,55 @@ class _InlineValueSlider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: ViralStudioTokens.outline),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: Text(
-                  label,
-                  style:
-                      ViralStudioTokens.sectionTitle().copyWith(fontSize: 15),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(label,
+                style: ViralStudioTokens.body(13)
+                    .copyWith(color: Colors.white, fontWeight: FontWeight.w700)),
+            const Spacer(),
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                '${(value * 100).round()}%',
+                style: ViralStudioTokens.body(11).copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  '${(value * 100).round()}%',
-                  style: ViralStudioTokens.body(11).copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(hint, style: ViralStudioTokens.body(12)),
-          SliderTheme(
-            data: SliderTheme.of(context).copyWith(
-              activeTrackColor: ViralStudioTokens.accent,
-              thumbColor: ViralStudioTokens.accentSoft,
-              inactiveTrackColor: ViralStudioTokens.outline,
-              overlayColor: ViralStudioTokens.accent.withValues(alpha: 0.16),
             ),
-            child: Slider(
-              value: value.clamp(min, max),
-              min: min,
-              max: max,
-              onChanged: onChanged,
-            ),
+          ],
+        ),
+        SliderTheme(
+          data: SliderTheme.of(context).copyWith(
+            activeTrackColor: ViralStudioTokens.accent,
+            thumbColor: ViralStudioTokens.accentSoft,
+            inactiveTrackColor: ViralStudioTokens.outline,
+            overlayColor:
+                ViralStudioTokens.accent.withValues(alpha: 0.14),
+            trackHeight: 3,
           ),
-        ],
-      ),
+          child: Slider(
+            value: value.clamp(min, max),
+            min: min,
+            max: max,
+            onChanged: onChanged,
+          ),
+        ),
+      ],
     );
   }
 }
 
-class _ActionShortcut extends StatelessWidget {
-  const _ActionShortcut({
+class _QuickAction extends StatelessWidget {
+  const _QuickAction({
     required this.icon,
     required this.label,
     required this.onPressed,
@@ -1527,15 +1400,19 @@ class _ActionShortcut extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return OutlinedButton.icon(
-      style: ViralStudioTokens.secondaryButton().copyWith(
-        padding: const WidgetStatePropertyAll<EdgeInsetsGeometry>(
-          EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+    return Expanded(
+      child: OutlinedButton.icon(
+        style: ViralStudioTokens.secondaryButton().copyWith(
+          minimumSize: const WidgetStatePropertyAll<Size>(Size(0, 42)),
+          padding: const WidgetStatePropertyAll<EdgeInsetsGeometry>(
+              EdgeInsets.symmetric(horizontal: 10, vertical: 10)),
         ),
+        onPressed: onPressed,
+        icon: Icon(icon, size: 16),
+        label: Text(label,
+            style: const TextStyle(fontSize: 12),
+            overflow: TextOverflow.ellipsis),
       ),
-      onPressed: onPressed,
-      icon: Icon(icon, size: 18),
-      label: Text(label),
     );
   }
 }
@@ -1556,13 +1433,13 @@ class _ToolTabButton extends StatelessWidget {
     return Material(
       color: selected
           ? ViralStudioTokens.accent.withValues(alpha: 0.92)
-          : Colors.white.withValues(alpha: 0.04),
-      borderRadius: BorderRadius.circular(16),
+          : Colors.white.withValues(alpha: 0.05),
+      borderRadius: BorderRadius.circular(14),
       child: InkWell(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         onTap: onPressed,
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12),
+          padding: const EdgeInsets.symmetric(vertical: 10),
           child: Center(
             child: Text(
               label,
@@ -1578,46 +1455,60 @@ class _ToolTabButton extends StatelessWidget {
   }
 }
 
-class _QuickToggleCard extends StatelessWidget {
-  const _QuickToggleCard({
+/// Compact 2-column switch row used in Quick tab.
+class _CompactSwitchRow extends StatelessWidget {
+  const _CompactSwitchRow({
     required this.title,
-    required this.description,
+    required this.subtitle,
     required this.value,
     required this.onChanged,
   });
 
   final String title;
-  final String description;
+  final String subtitle;
   final bool value;
   final ValueChanged<bool> onChanged;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-      decoration: ViralStudioTokens.panelDecoration(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Expanded(
-                child: Text(
-                  title,
-                  style:
-                      ViralStudioTokens.sectionTitle().copyWith(fontSize: 15),
-                ),
-              ),
-              Switch.adaptive(
-                value: value,
-                onChanged: onChanged,
-                activeColor: ViralStudioTokens.accent,
-              ),
-            ],
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+      decoration: BoxDecoration(
+        color: value
+            ? ViralStudioTokens.accent.withValues(alpha: 0.06)
+            : Colors.white.withValues(alpha: 0.03),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: value
+              ? ViralStudioTokens.accent.withValues(alpha: 0.30)
+              : ViralStudioTokens.outline.withValues(alpha: 0.7),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    style: ViralStudioTokens.body(13).copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    )),
+                Text(subtitle,
+                    style: ViralStudioTokens.body(11),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis),
+              ],
+            ),
           ),
-          const SizedBox(height: 4),
-          Text(description, style: ViralStudioTokens.body(12)),
+          Switch.adaptive(
+            value: value,
+            onChanged: onChanged,
+            activeColor: ViralStudioTokens.accent,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
         ],
       ),
     );
@@ -1643,14 +1534,17 @@ class _ProGroup extends StatelessWidget {
       decoration: ViralStudioTokens.panelDecoration(),
       child: ExpansionTile(
         initiallyExpanded: initiallyExpanded,
-        tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        tilePadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        childrenPadding:
+            const EdgeInsets.fromLTRB(16, 0, 16, 14),
         collapsedIconColor: Colors.white,
-        iconColor: Colors.white,
+        iconColor: ViralStudioTokens.accent,
         textColor: Colors.white,
         collapsedTextColor: Colors.white,
-        title: Text(title, style: ViralStudioTokens.sectionTitle()),
-        subtitle: Text(subtitle, style: ViralStudioTokens.body(12)),
+        title:
+            Text(title, style: ViralStudioTokens.sectionTitle().copyWith(fontSize: 15)),
+        subtitle: Text(subtitle, style: ViralStudioTokens.body(11)),
         children: children,
       ),
     );
@@ -1673,35 +1567,35 @@ class _SettingSwitchTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.04),
-        borderRadius: BorderRadius.circular(18),
+        color: Colors.white.withValues(alpha: 0.03),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: ViralStudioTokens.outline),
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  title,
-                  style:
-                      ViralStudioTokens.sectionTitle().copyWith(fontSize: 14),
-                ),
-                const SizedBox(height: 4),
-                Text(subtitle, style: ViralStudioTokens.body(12)),
+              children: [
+                Text(title,
+                    style: ViralStudioTokens.body(13).copyWith(
+                        color: Colors.white, fontWeight: FontWeight.w700)),
+                Text(subtitle,
+                    style: ViralStudioTokens.body(11),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis),
               ],
             ),
           ),
-          const SizedBox(width: 12),
           Switch.adaptive(
             value: value,
             onChanged: onChanged,
             activeColor: ViralStudioTokens.accent,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
           ),
         ],
       ),
@@ -1709,37 +1603,64 @@ class _SettingSwitchTile extends StatelessWidget {
   }
 }
 
-class _DiagnosticMetricCard extends StatelessWidget {
-  const _DiagnosticMetricCard({
-    required this.label,
-    required this.value,
-  });
-
-  final String label;
-  final String value;
+/// Responsive 2-column grid for diagnostic metrics.
+class _DiagnosticGrid extends StatelessWidget {
+  const _DiagnosticGrid({required this.items});
+  final Map<String, String> items;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      constraints: const BoxConstraints(minWidth: 108),
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.04),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: ViralStudioTokens.outline),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text(label, style: ViralStudioTokens.body(11)),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: ViralStudioTokens.sectionTitle().copyWith(fontSize: 15),
-          ),
-        ],
-      ),
-    );
+    final keys = items.keys.toList();
+    final vals = items.values.toList();
+
+    return LayoutBuilder(builder: (ctx, constraints) {
+      final cols = constraints.maxWidth > 500 ? 4 : 2;
+      final rows = (keys.length / cols).ceil();
+      final cellW =
+          (constraints.maxWidth - ((cols - 1) * 8)) / cols;
+
+      return Column(
+        children: List.generate(rows, (r) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              children: List.generate(cols, (c) {
+                final idx = r * cols + c;
+                if (idx >= keys.length) {
+                  return SizedBox(width: cellW);
+                }
+                return Padding(
+                  padding: EdgeInsets.only(right: c < cols - 1 ? 8 : 0),
+                  child: SizedBox(
+                    width: cellW,
+                    child: Container(
+                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.04),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                            color: ViralStudioTokens.outline),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(keys[idx],
+                              style: ViralStudioTokens.body(10)),
+                          const SizedBox(height: 3),
+                          Text(vals[idx],
+                              style: ViralStudioTokens.sectionTitle()
+                                  .copyWith(fontSize: 14)),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }),
+            ),
+          );
+        }),
+      );
+    });
   }
 }
 
@@ -1757,26 +1678,27 @@ class _DiagnosticListPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
       decoration: ViralStudioTokens.panelDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text(title, style: ViralStudioTokens.sectionTitle()),
+        children: [
+          Text(title,
+              style: ViralStudioTokens.sectionTitle().copyWith(fontSize: 14)),
           const SizedBox(height: 10),
           ...items.map(
             (item) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.only(bottom: 8),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
+                children: [
                   Padding(
-                    padding: const EdgeInsets.only(top: 3),
+                    padding: const EdgeInsets.only(top: 2),
                     child: Icon(
                       warning
                           ? Icons.warning_amber_rounded
                           : Icons.check_circle_rounded,
-                      size: 16,
+                      size: 14,
                       color: warning
                           ? ViralStudioTokens.accentSoft
                           : ViralStudioTokens.cool,
@@ -1784,7 +1706,8 @@ class _DiagnosticListPanel extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Text(item, style: ViralStudioTokens.body(12)),
+                    child: Text(item,
+                        style: ViralStudioTokens.body(12)),
                   ),
                 ],
               ),
@@ -1798,32 +1721,29 @@ class _DiagnosticListPanel extends StatelessWidget {
 
 class _InfoPill extends StatelessWidget {
   const _InfoPill({required this.label});
-
   final String label;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.06),
+        color: Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(999),
         border: Border.all(color: ViralStudioTokens.outline),
       ),
-      child: Text(label, style: ViralStudioTokens.body(12)),
+      child: Text(label, style: ViralStudioTokens.body(11)),
     );
   }
 }
 
+// ─── helpers ───────────────────────────────────────────────────────────────────
+
 String _toDisplayLabel(String raw) {
-  if (raw.trim().isEmpty) {
-    return 'Unknown';
-  }
+  if (raw.trim().isEmpty) return 'Unknown';
   return raw
-      .split(RegExp(r'[_\\s-]+'))
-      .where((part) => part.isNotEmpty)
-      .map(
-        (part) => '${part[0].toUpperCase()}${part.substring(1).toLowerCase()}',
-      )
+      .split(RegExp(r'[_\s-]+'))
+      .where((p) => p.isNotEmpty)
+      .map((p) => '${p[0].toUpperCase()}${p.substring(1).toLowerCase()}')
       .join(' ');
 }

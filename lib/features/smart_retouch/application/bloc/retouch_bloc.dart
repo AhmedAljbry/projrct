@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -94,30 +93,15 @@ class RetouchBloc extends Bloc<RetouchEvent, RetouchState> {
   ) async {
     final updatedOps = List.of(state.operations)..add(event.operation);
 
-    Uint8List? previewBytes;
-    ui.Image? previewImage;
-    if (state.originalImageBytes != null && state.currentImageBytes != null) {
-      previewBytes = await RetouchImageService.renderSingleOperationPreview(
-        sourceImageBytes: state.originalImageBytes!,
-        currentImageBytes: state.currentImageBytes!,
-        operation: event.operation,
-      );
-      previewImage = await _decodeUiImage(previewBytes);
-    }
-
     emit(state.copyWith(
       status: RetouchStatus.ready,
       operations: updatedOps,
       redoStack: [],
-      currentImage: previewImage ?? state.currentImage,
-      currentImageBytes: previewBytes ?? state.currentImageBytes,
       lastStrokeEnd: _extractTargetEnd(event.operation),
       lastSourceEnd: _extractSourceEnd(event.operation),
     ));
 
-    if (previewImage == null) {
-      _renderAndEmit(updatedOps, emit);
-    }
+    await _renderAndEmit(updatedOps, emit);
   }
 
   Future<void> _onUndo(UndoEvent event, Emitter<RetouchState> emit) async {
@@ -182,13 +166,6 @@ class RetouchBloc extends Bloc<RetouchEvent, RetouchState> {
         lastSourceEnd: _findLastSourceEnd(operations),
       ));
     }
-  }
-
-  Future<ui.Image?> _decodeUiImage(Uint8List? bytes) async {
-    if (bytes == null) return null;
-    final codec = await ui.instantiateImageCodec(bytes);
-    final frame = await codec.getNextFrame();
-    return frame.image;
   }
 
   Offset? _extractTargetEnd(RetouchOperation operation) {

@@ -13,6 +13,7 @@ import 'package:untitled2/features/remote_lama_tools/presentation/shared/lama_st
 import 'package:untitled2/features/remote_lama_tools/presentation/shared/lama_theme_colors.dart';
 import 'package:untitled2/features/retouch_mask_assist/domain/entities/retouch_mask_assist_models.dart';
 import 'package:untitled2/features/retouch_mask_assist/presentation/bloc/expand/expand_mask_assist_cubit.dart';
+import 'package:untitled2/features/remote_lama_tools/presentation/shared/lama_home_pick_view.dart';
 
 class ExpandCanvasPage extends StatefulWidget {
   const ExpandCanvasPage({super.key});
@@ -43,9 +44,9 @@ class _ExpandCanvasPageState extends State<ExpandCanvasPage> {
     super.dispose();
   }
 
-  Future<void> _pickImage(BuildContext context) async {
+  Future<void> _pickImage(BuildContext context, ImageSource source) async {
     final picker = ImagePicker();
-    final xfile = await picker.pickImage(source: ImageSource.gallery);
+    final xfile = await picker.pickImage(source: source);
     if (xfile != null) {
       final bytes = await xfile.readAsBytes();
       await _decodeImage(bytes);
@@ -187,10 +188,7 @@ class _ExpandCanvasPageState extends State<ExpandCanvasPage> {
       },
       builder: (context, state) {
         return Scaffold(
-          backgroundColor: LamaTheme.background,
           appBar: AppBar(
-            backgroundColor: LamaTheme.toolbarBg,
-            elevation: 0,
             leading: IconButton(
               icon: const Icon(Icons.arrow_back),
               onPressed: () => context.go('/editor'),
@@ -201,7 +199,7 @@ class _ExpandCanvasPageState extends State<ExpandCanvasPage> {
             ),
             actions: [
               IconButton(
-                onPressed: () => _pickImage(context),
+                onPressed: () => _pickImage(context, ImageSource.gallery),
                 icon: const Icon(Icons.add_photo_alternate_outlined),
               ),
             ],
@@ -265,14 +263,14 @@ class _ExpandCanvasPageState extends State<ExpandCanvasPage> {
 
     if (state is ExpandCanvasInitial || state is ExpandCanvasFailure) {
       return Center(
-        child: ElevatedButton.icon(
-          onPressed: () => _pickImage(context),
-          icon: const Icon(Icons.add_photo_alternate),
-          label: const Text('Select Image'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: LamaTheme.accent,
-            foregroundColor: Colors.black,
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 600),
+          child: LamaHomePickView(
+            title: 'AI Expand Canvas',
+            hint: 'Select an image to easily extend its content and borders.',
+            features: 'Smart Outpainting • Fast Render • High Fidelity',
+            onPickGallery: () => _pickImage(context, ImageSource.gallery),
+            onPickCamera: () => _pickImage(context, ImageSource.camera),
           ),
         ),
       );

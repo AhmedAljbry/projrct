@@ -36,6 +36,8 @@ class BlurFocusOverlayPainter extends CustomPainter {
     _paintVignette(canvas, size);
 
     switch (settings.mode) {
+      case BlurMode.full:
+        return;
       case BlurMode.smart:
         _paintSmart(canvas, size);
       case BlurMode.circle:
@@ -312,3 +314,6 @@ class BlurFocusOverlayPainter extends CustomPainter {
         oldDelegate.refineMaskMode != refineMaskMode;
   }
 }
+
+
+

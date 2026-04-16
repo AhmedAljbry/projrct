@@ -6,6 +6,7 @@ import 'package:share_plus/share_plus.dart';
 
 import 'package:untitled2/features/remote_lama_tools/presentation/shared/lama_compare_slider.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/shared/lama_theme_colors.dart';
+import 'package:untitled2/inpainting/presentation/widgets/inpainting_studio_chrome.dart';
 
 class LamaResultViewer extends StatelessWidget {
   final Uint8List resultBytes;
@@ -70,114 +71,252 @@ class LamaResultViewer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final content = originalBytes == null
-        ? ClipRRect(
-            borderRadius: BorderRadius.circular(22),
-            child: Image.memory(resultBytes, fit: BoxFit.contain),
-          )
-        : LamaCompareSlider(
-            before: Image.memory(originalBytes!, fit: BoxFit.cover),
-            after: Image.memory(resultBytes, fit: BoxFit.cover),
-          );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth >= 1024;
+        final padding = constraints.maxWidth < 460 ? 16.0 : 24.0;
 
-    return Column(
-      children: [
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+        return SingleChildScrollView(
+          padding: EdgeInsetsDirectional.fromSTEB(padding, 14, padding, 24),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1180),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  isWide
+                      ? Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              flex: 7,
+                              child: _buildCompareCard(),
+                            ),
+                            const SizedBox(width: 20),
+                            Expanded(
+                              flex: 5,
+                              child: _buildSummaryPanel(context),
+                            ),
+                          ],
+                        )
+                      : Column(
+                          children: [
+                            _buildCompareCard(),
+                            const SizedBox(height: 18),
+                            _buildSummaryPanel(context),
+                          ],
+                        ),
+                  const SizedBox(height: 18),
+                  _buildActionDock(context),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildCompareCard() {
+    return StudioGlassPanel(
+      radius: 34,
+      padding: const EdgeInsets.all(20),
+      gradient: InpaintingStudioTheme.heroGradient,
+      borderColor: InpaintingStudioTheme.cyan.withValues(alpha: 0.16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const StudioSectionLabel(
+            title: 'Result Preview',
+            subtitle: 'Slide to compare the original and processed image.',
+          ),
+          const SizedBox(height: 18),
+          AspectRatio(
+            aspectRatio: 1.0,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(28),
+              child: originalBytes == null
+                  ? Image.memory(resultBytes, fit: BoxFit.contain)
+                  : LamaCompareSlider(
+                      before: Image.memory(originalBytes!, fit: BoxFit.cover),
+                      after: Image.memory(resultBytes, fit: BoxFit.cover),
+                    ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSummaryPanel(BuildContext context) {
+    final fileSizeKb = (resultBytes.length / 1024).toStringAsFixed(0);
+
+    return StudioGlassPanel(
+      radius: 34,
+      padding: const EdgeInsets.all(24),
+      fillColor: InpaintingStudioTheme.surfaceSoft,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              const StudioStatTile(
+                label: 'Result',
+                value: 'Ready',
+                accent: InpaintingStudioTheme.cyan,
+              ),
+              StudioStatTile(
+                label: 'Format',
+                value: 'PNG • $fileSizeKb KB',
+                accent: InpaintingStudioTheme.mint,
+              ),
+              const StudioStatTile(
+                label: 'Status',
+                value: 'Finished',
+                accent: InpaintingStudioTheme.amber,
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          const _SummaryBlock(
+            icon: Icons.compare_arrows_rounded,
+            accent: InpaintingStudioTheme.cyan,
+            title: 'Compare Live',
+            body: 'Interact with the slider to see exact differences.',
+          ),
+          const SizedBox(height: 14),
+          const _SummaryBlock(
+            icon: Icons.auto_fix_high_rounded,
+            accent: InpaintingStudioTheme.mint,
+            title: 'Studio Quality',
+            body: 'Exported using precise formatting.',
+          ),
+          const SizedBox(height: 14),
+          const _SummaryBlock(
+            icon: Icons.edit_rounded,
+            accent: InpaintingStudioTheme.violet,
+            title: 'Edit Again',
+            body: 'Make adjustments and run again.',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionDock(BuildContext context) {
+    return StudioGlassPanel(
+      radius: 32,
+      padding: const EdgeInsets.all(16),
+      fillColor: InpaintingStudioTheme.surfaceSoft,
+      child: Wrap(
+        spacing: 12,
+        runSpacing: 12,
+        children: [
+          SizedBox(
+            width: 180,
+            child: StudioSecondaryButton(
+              onPressed: onReset,
+              icon: Icons.restart_alt_rounded,
+              label: 'Start Over',
+              accent: InpaintingStudioTheme.textPrimary,
+            ),
+          ),
+          if (onRetry != null)
+            SizedBox(
+              width: 180,
+              child: StudioSecondaryButton(
+                onPressed: onRetry!,
+                icon: Icons.edit_rounded,
+                label: 'Adjust & Retry',
+                accent: InpaintingStudioTheme.textPrimary,
+              ),
+            ),
+          SizedBox(
+            width: 180,
+            child: StudioSecondaryButton(
+              onPressed: () => _shareImage(context),
+              icon: Icons.ios_share_rounded,
+              label: 'Share',
+              accent: InpaintingStudioTheme.textPrimary,
+            ),
+          ),
+          SizedBox(
+            width: 220,
+            child: StudioPrimaryButton(
+              onPressed: () => _saveImage(context),
+              icon: Icons.download_rounded,
+              label: 'Save Result',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SummaryBlock extends StatelessWidget {
+  final IconData icon;
+  final Color accent;
+  final String title;
+  final String body;
+
+  const _SummaryBlock({
+    required this.icon,
+    required this.accent,
+    required this.title,
+    required this.body,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(icon, color: accent, size: 20),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Result Preview',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: InpaintingStudioTheme.textPrimary,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  originalBytes == null
-                      ? 'Preview the generated image and export it when ready.'
-                      : 'Drag the slider to compare the original image with the processed result.',
-                  style: const TextStyle(color: Colors.white70, fontSize: 13),
-                ),
-                const SizedBox(height: 14),
-                Expanded(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.16),
-                      borderRadius: BorderRadius.circular(24),
-                      border: Border.all(color: Colors.white12),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(10),
-                      child: content,
-                    ),
+                  body,
+                  style: const TextStyle(
+                    color: InpaintingStudioTheme.textSecondary,
+                    fontSize: 12.5,
+                    height: 1.45,
                   ),
                 ),
               ],
             ),
           ),
-        ),
-        Container(
-          color: LamaTheme.toolbarBg,
-          padding: const EdgeInsets.all(16),
-          child: SafeArea(
-            top: false,
-            child: Wrap(
-              alignment: WrapAlignment.center,
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: onReset,
-                  icon: const Icon(Icons.restart_alt_rounded),
-                  label: const Text('Start Over'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white,
-                    side: const BorderSide(color: Colors.white38),
-                  ),
-                ),
-                if (onRetry != null)
-                  OutlinedButton.icon(
-                    onPressed: onRetry,
-                    icon: const Icon(Icons.edit_rounded),
-                    label: const Text('Adjust & Retry'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: LamaTheme.accent,
-                      side: const BorderSide(color: LamaTheme.accent),
-                    ),
-                  ),
-                OutlinedButton.icon(
-                  onPressed: () => _shareImage(context),
-                  icon: const Icon(Icons.share_outlined),
-                  label: const Text('Share'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white,
-                    side: const BorderSide(color: Colors.white24),
-                  ),
-                ),
-                ElevatedButton.icon(
-                  onPressed: () => _saveImage(context),
-                  icon: const Icon(Icons.download_rounded, color: Colors.black),
-                  label: const Text(
-                    'Save Result',
-                    style: TextStyle(
-                      color: Colors.black,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: LamaTheme.accent,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

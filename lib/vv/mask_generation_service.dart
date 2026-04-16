@@ -25,7 +25,8 @@ class MaskGenerationService {
 
     // Compute the bounding box for all dab positions.
     final allDabPositions = _computeDabPositions(strokePoints, brush);
-    final bounds = _computeMaskBounds(allDabPositions, brush, imageWidth, imageHeight);
+    final bounds =
+        _computeMaskBounds(allDabPositions, brush, imageWidth, imageHeight);
 
     if (bounds.isEmpty) return MaskData.empty(1, 1, MaskBounds.zero);
 
@@ -73,20 +74,23 @@ class MaskGenerationService {
   /// Merge multiple masks from a session into a single combined mask.
   /// All masks are composited using max-alpha blending.
   MaskData mergeMasks(List<MaskData> masks, int imageWidth, int imageHeight) {
-    if (masks.isEmpty) return MaskData.empty(imageWidth, imageHeight, MaskBounds.zero);
+    if (masks.isEmpty) {
+      return MaskData.empty(imageWidth, imageHeight, MaskBounds.zero);
+    }
     if (masks.length == 1) return masks.first;
 
     // Compute the union bounding box.
     int minL = imageWidth, minT = imageHeight, maxR = 0, maxB = 0;
     for (final m in masks) {
-      if (m.bounds.left   < minL) minL = m.bounds.left;
-      if (m.bounds.top    < minT) minT = m.bounds.top;
-      if (m.bounds.right  > maxR) maxR = m.bounds.right;
+      if (m.bounds.left < minL) minL = m.bounds.left;
+      if (m.bounds.top < minT) minT = m.bounds.top;
+      if (m.bounds.right > maxR) maxR = m.bounds.right;
       if (m.bounds.bottom > maxB) maxB = m.bounds.bottom;
     }
 
-    final unionBounds = MaskBounds(left: minL, top: minT, right: maxR, bottom: maxB)
-        .clampTo(imageWidth, imageHeight);
+    final unionBounds =
+        MaskBounds(left: minL, top: minT, right: maxR, bottom: maxB)
+            .clampTo(imageWidth, imageHeight);
 
     final mergedPixels = Float32List(unionBounds.width * unionBounds.height);
 
@@ -96,10 +100,11 @@ class MaskGenerationService {
           final val = mask.valueAt(mx, my);
           if (val < 0.001) continue;
           final imgX = mask.bounds.left + mx;
-          final imgY = mask.bounds.top  + my;
+          final imgY = mask.bounds.top + my;
           final localX = imgX - unionBounds.left;
           final localY = imgY - unionBounds.top;
-          if (localX < 0 || localY < 0 ||
+          if (localX < 0 ||
+              localY < 0 ||
               localX >= unionBounds.width ||
               localY >= unionBounds.height) {
             continue;
@@ -122,12 +127,19 @@ class MaskGenerationService {
 
   /// Compute dab positions along the stroke path using spacing.
   /// Uses Catmull-Rom interpolation when ≥4 points are available for smoothing.
-  List<Offset> _computeDabPositions(List<Offset> rawPoints, BrushSettings brush) {
+  List<Offset> _computeDabPositions(
+      List<Offset> rawPoints, BrushSettings brush) {
     if (rawPoints.length == 1) return [rawPoints.first];
 
     // Smooth the path using Catmull-Rom interpolation.
-    final smoothed = _catmullRomPath(rawPoints);
-    final spacing = brush.spacing * brush.radius * 2.0;
+    final segmentsPerSpan = brush.radius <= 18
+        ? 14
+        : brush.radius <= 36
+            ? 10
+            : 8;
+    final smoothed =
+        _catmullRomPath(rawPoints, segmentsPerSpan: segmentsPerSpan);
+    final spacing = math.max(0.75, brush.spacing * brush.radius * 2.0);
     if (spacing < 1.0) return smoothed;
 
     final dabs = <Offset>[smoothed.first];
@@ -176,14 +188,16 @@ class MaskGenerationService {
         final t2 = t * t;
         final t3 = t2 * t;
 
-        final x = 0.5 * ((2 * p1.dx) +
-            (-p0.dx + p2.dx) * t +
-            (2 * p0.dx - 5 * p1.dx + 4 * p2.dx - p3.dx) * t2 +
-            (-p0.dx + 3 * p1.dx - 3 * p2.dx + p3.dx) * t3);
-        final y = 0.5 * ((2 * p1.dy) +
-            (-p0.dy + p2.dy) * t +
-            (2 * p0.dy - 5 * p1.dy + 4 * p2.dy - p3.dy) * t2 +
-            (-p0.dy + 3 * p1.dy - 3 * p2.dy + p3.dy) * t3);
+        final x = 0.5 *
+            ((2 * p1.dx) +
+                (-p0.dx + p2.dx) * t +
+                (2 * p0.dx - 5 * p1.dx + 4 * p2.dx - p3.dx) * t2 +
+                (-p0.dx + 3 * p1.dx - 3 * p2.dx + p3.dx) * t3);
+        final y = 0.5 *
+            ((2 * p1.dy) +
+                (-p0.dy + p2.dy) * t +
+                (2 * p0.dy - 5 * p1.dy + 4 * p2.dy - p3.dy) * t2 +
+                (-p0.dy + 3 * p1.dy - 3 * p2.dy + p3.dy) * t3);
 
         result.add(Offset(x, y));
       }
@@ -212,7 +226,12 @@ class MaskGenerationService {
         final worldY = (dabY + py).floor();
         final localX = worldX - maskOriginX;
         final localY = worldY - maskOriginY;
-        if (localX < 0 || localY < 0 || localX >= maskWidth || localY >= maskHeight) continue;
+        if (localX < 0 ||
+            localY < 0 ||
+            localX >= maskWidth ||
+            localY >= maskHeight) {
+          continue;
+        }
 
         final dx = worldX + 0.5 - dabX;
         final dy = worldY + 0.5 - dabY;

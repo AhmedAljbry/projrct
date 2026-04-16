@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter_tesseract_ocr/flutter_tesseract_ocr.dart';
+import '../../../../shared/widgets/result_preview_screen.dart';
 import '../../core/perspective_processor.dart';
 import '../../core/ai_corner_detector.dart';
 import '../../domain/models/perspective_points.dart';
@@ -115,7 +116,18 @@ class _PerspectiveStudioScreenState extends State<PerspectiveStudioScreen> {
 
   void _onConfirmSave() {
     if (_resultBytes != null) {
-      widget.onApply?.call(_resultBytes!);
+      final resultBytes = _resultBytes!;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(
+          builder: (_) => ResultPreviewScreen(
+            title: 'AI Perspective Result',
+            resultBytes: resultBytes,
+            onDone: widget.onApply == null
+                ? null
+                : () => widget.onApply!(resultBytes),
+          ),
+        ),
+      );
     }
   }
 
@@ -473,5 +485,8 @@ class _BottomAction extends StatelessWidget {
     );
   }
 }
+
+
+
 
 

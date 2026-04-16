@@ -1,4 +1,5 @@
 enum BlurMode {
+  full,
   smart,
   circle,
   line,

@@ -1,0 +1,13 @@
+{
+  "name": "coins-system-functions",
+  "private": true,
+  "main": "src/index.js",
+  "engines": {
+    "node": "20"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.1.1",
+    "firebase-functions": "^5.0.1",
+    "googleapis": "^140.0.1"
+  }
+}

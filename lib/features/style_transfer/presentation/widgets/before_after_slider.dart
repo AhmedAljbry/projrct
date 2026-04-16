@@ -15,7 +15,8 @@ class BeforeAfterSlider extends StatefulWidget {
 
   final Uint8List beforeBytes;
   final Uint8List afterBytes;
-  final double aspectRatio;
+  /// When null the widget stretches to fill its parent (no AspectRatio wrapper).
+  final double? aspectRatio;
   final double borderRadius;
 
   @override
@@ -38,7 +39,7 @@ class _BeforeAfterSliderState extends State<BeforeAfterSlider> {
                       width;
             });
           },
-          child: AspectRatio(
+          child: _MaybeAspectRatio(
             aspectRatio: widget.aspectRatio,
             child: ClipRRect(
               borderRadius: BorderRadius.circular(widget.borderRadius),
@@ -163,5 +164,18 @@ class _Tag extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// Wraps [child] in an [AspectRatio] only when [aspectRatio] is non-null.
+class _MaybeAspectRatio extends StatelessWidget {
+  const _MaybeAspectRatio({required this.aspectRatio, required this.child});
+  final double? aspectRatio;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (aspectRatio == null) return child;
+    return AspectRatio(aspectRatio: aspectRatio!, child: child);
   }
 }

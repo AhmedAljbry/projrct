@@ -1,8 +1,9 @@
-import 'dart:ui' as ui;
+﻿import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../shared/widgets/result_preview_screen.dart';
 import 'package:untitled2/vv/blemish_cubit.dart';
 import 'package:untitled2/vv/blemish_edit_canvas.dart';
 import 'package:untitled2/vv/blemish_state.dart';
@@ -89,7 +90,8 @@ class _TopBar extends StatelessWidget {
               _TopIconButton(
                 icon: Icons.close_rounded,
                 onTap: () {
-                  final screen = context.findAncestorWidgetOfExactType<BlemishRemoverScreen>();
+                  final screen = context
+                      .findAncestorWidgetOfExactType<BlemishRemoverScreen>();
                   screen?.onCancel != null
                       ? screen!.onCancel!()
                       : Navigator.of(context).maybePop();
@@ -133,8 +135,19 @@ class _TopBar extends StatelessWidget {
   Future<void> _onApply(BuildContext context) async {
     final bytes = await context.read<BlemishCubit>().exportImage();
     if (bytes != null && context.mounted) {
-      final screen = context.findAncestorWidgetOfExactType<BlemishRemoverScreen>();
-      screen?.onApply?.call(bytes);
+      final screen =
+          context.findAncestorWidgetOfExactType<BlemishRemoverScreen>();
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(
+          builder: (_) => ResultPreviewScreen(
+            title: 'Blemish Result',
+            resultBytes: bytes,
+            onDone: screen?.onApply == null
+                ? null
+                : () => screen!.onApply!.call(bytes),
+          ),
+        ),
+      );
     }
   }
 }
@@ -228,18 +241,30 @@ class _BottomPanel extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               _ReferenceSlider(
+                label: 'Brush size',
                 value: state.brushSettings.radius,
+                min: 10.0,
+                max: 50.0,
+                valueText: '${state.brushSettings.radius.round()} px',
                 onChanged: state.isProcessing ? null : cubit.setBrushRadius,
               ),
-              const SizedBox(height: 18),
-              Text(
-                'Erase lens size',
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.78),
-                  fontSize: 15,
-                  fontWeight: FontWeight.w400,
-                  letterSpacing: 0.2,
-                ),
+              const SizedBox(height: 14),
+              _ReferenceSlider(
+                label: 'Soft touch',
+                value: state.brushSettings.softness,
+                min: 0.45,
+                max: 1.0,
+                valueText: '${(state.brushSettings.softness * 100).round()}%',
+                onChanged: state.isProcessing ? null : cubit.setBrushSoftness,
+              ),
+              const SizedBox(height: 14),
+              _ReferenceSlider(
+                label: 'Heal power',
+                value: state.brushSettings.strength,
+                min: 0.45,
+                max: 1.0,
+                valueText: '${(state.brushSettings.strength * 100).round()}%',
+                onChanged: state.isProcessing ? null : cubit.setBrushStrength,
               ),
             ],
           ),
@@ -250,43 +275,84 @@ class _BottomPanel extends StatelessWidget {
 }
 
 class _ReferenceSlider extends StatelessWidget {
+  final String label;
   final double value;
+  final double min;
+  final double max;
+  final String valueText;
   final ValueChanged<double>? onChanged;
 
   const _ReferenceSlider({
+    required this.label,
     required this.value,
+    required this.min,
+    required this.max,
+    required this.valueText,
     this.onChanged,
   });
 
   @override
   Widget build(BuildContext context) {
-    return SliderTheme(
-      data: SliderTheme.of(context).copyWith(
-        trackHeight: 6,
-        activeTrackColor: const Color(0xFF16B07E),
-        inactiveTrackColor: Colors.white.withValues(alpha: 0.92),
-        trackShape: const RoundedRectSliderTrackShape(),
-        thumbColor: Colors.white,
-        thumbShape: _LensSliderThumbShape(radius: value),
-        overlayShape: SliderComponentShape.noOverlay,
-      ),
-      child: Slider(
-        min: 10.0,
-        max: 44.0,
-        value: value.clamp(10.0, 44.0),
-        onChanged: onChanged,
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.88),
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const Spacer(),
+            Text(
+              valueText,
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.68),
+                fontSize: 13,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        SliderTheme(
+          data: SliderTheme.of(context).copyWith(
+            trackHeight: 6,
+            activeTrackColor: const Color(0xFF16B07E),
+            inactiveTrackColor: Colors.white.withValues(alpha: 0.18),
+            trackShape: const RoundedRectSliderTrackShape(),
+            thumbColor: Colors.white,
+            thumbShape: _LensSliderThumbShape(value: value, min: min, max: max),
+            overlayShape: SliderComponentShape.noOverlay,
+          ),
+          child: Slider(
+            min: min,
+            max: max,
+            value: value.clamp(min, max),
+            onChanged: onChanged,
+          ),
+        ),
+      ],
     );
   }
 }
 
 class _LensSliderThumbShape extends SliderComponentShape {
-  final double radius;
+  final double value;
+  final double min;
+  final double max;
 
-  const _LensSliderThumbShape({required this.radius});
+  const _LensSliderThumbShape({
+    required this.value,
+    required this.min,
+    required this.max,
+  });
 
   double get _visualRadius {
-    final normalized = ((radius - 10.0) / 34.0).clamp(0.0, 1.0);
+    final span = (max - min).abs();
+    final normalized = span <= 0 ? 0.0 : ((value - min) / span).clamp(0.0, 1.0);
     return 14.0 + (normalized * 4.0);
   }
 
@@ -332,4 +398,6 @@ class _LensSliderThumbShape extends SliderComponentShape {
     );
   }
 }
+
+
 

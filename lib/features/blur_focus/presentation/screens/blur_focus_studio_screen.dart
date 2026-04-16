@@ -9,7 +9,7 @@ import 'package:untitled2/features/blur_focus/data/processors/isolate_blur_rende
 import 'package:untitled2/features/blur_focus/data/repositories/blur_focus_repository.dart';
 import 'package:untitled2/features/blur_focus/domain/models/blur_mode.dart';
 import 'package:untitled2/features/blur_focus/domain/models/blur_settings.dart';
-import 'package:untitled2/features/blur_focus/domain/models/smart_mask_models.dart';
+import 'package:untitled2/features/blur_focus/domain/models/focus_geometry.dart';
 import 'package:untitled2/features/blur_focus/integration/mappers/blur_focus_operation_mapper.dart';
 import 'package:untitled2/features/blur_focus/presentation/controller/blur_focus_controller.dart';
 import 'package:untitled2/features/blur_focus/presentation/controller/blur_focus_state.dart';
@@ -135,15 +135,30 @@ class _BlurFocusStudioViewState extends State<_BlurFocusStudioView> {
                               bottom: 22,
                               child: _IntensitySlider(
                                 settings: state.operation.settings,
-                                manualBlendMode: state.manualBlendMode,
                                 onSettingChange: controller.updateSettings,
-                                onBlendModeToggle: () {
-                                  controller.setManualBlendMode(
-                                    state.manualBlendMode ==
-                                            ManualMaskBlendMode.exclude
-                                        ? ManualMaskBlendMode.include
-                                        : ManualMaskBlendMode.exclude,
-                                  );
+                                onShapeAction: () {
+                                  final settings = state.operation.settings;
+                                  switch (settings.mode) {
+                                    case BlurMode.circle:
+                                      controller.updateSettings(
+                                        settings.copyWith(
+                                          circleSettings:
+                                              const CircleFocusSettings(),
+                                        ),
+                                        trackInteraction: false,
+                                      );
+                                    case BlurMode.line:
+                                      controller.updateSettings(
+                                        settings.copyWith(
+                                          lineSettings:
+                                              const LineFocusSettings(),
+                                        ),
+                                        trackInteraction: false,
+                                      );
+                                    case BlurMode.full:
+                                    case BlurMode.smart:
+                                      return;
+                                  }
                                 },
                               ),
                             ),
@@ -238,18 +253,19 @@ class _BusyChip extends StatelessWidget {
 class _IntensitySlider extends StatelessWidget {
   const _IntensitySlider({
     required this.settings,
-    required this.manualBlendMode,
     required this.onSettingChange,
-    required this.onBlendModeToggle,
+    required this.onShapeAction,
   });
 
   final BlurSettings settings;
-  final ManualMaskBlendMode manualBlendMode;
   final ValueChanged<BlurSettings> onSettingChange;
-  final VoidCallback onBlendModeToggle;
+  final VoidCallback onShapeAction;
 
   @override
   Widget build(BuildContext context) {
+    final showsShapeAction =
+        settings.mode == BlurMode.circle || settings.mode == BlurMode.line;
+
     return Row(
       children: [
         Expanded(
@@ -272,25 +288,30 @@ class _IntensitySlider extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(width: 14),
-        GestureDetector(
-          onTap: onBlendModeToggle,
-          child: Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(
-              Icons.auto_fix_off_outlined,
-              size: 23,
-              color: manualBlendMode == ManualMaskBlendMode.exclude
-                  ? const Color(0xFFFFFFFF)
-                  : const Color(0xFF12B886),
+        if (showsShapeAction) ...[
+          const SizedBox(width: 14),
+          GestureDetector(
+            onTap: onShapeAction,
+            child: Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: const Color(0xFF12B886).withValues(alpha: 0.35),
+                ),
+              ),
+              child: Icon(
+                settings.mode == BlurMode.circle
+                    ? Icons.circle_outlined
+                    : Icons.horizontal_rule_rounded,
+                size: settings.mode == BlurMode.circle ? 23 : 28,
+                color: const Color(0xFF12B886),
+              ),
             ),
           ),
-        ),
+        ],
       ],
     );
   }
@@ -356,6 +377,7 @@ class _ModeButton extends StatelessWidget {
           children: [
             Icon(
               switch (mode) {
+                BlurMode.full => Icons.blur_on_rounded,
                 BlurMode.smart => Icons.center_focus_strong_rounded,
                 BlurMode.circle => Icons.radio_button_unchecked_rounded,
                 BlurMode.line => Icons.reorder_rounded,
@@ -364,16 +386,13 @@ class _ModeButton extends StatelessWidget {
               color: color,
             ),
             const SizedBox(height: 8),
-            Text(
-              switch (mode) {
-                BlurMode.smart => 'Smart',
-                BlurMode.circle => 'Circle',
-                BlurMode.line => 'Line',
-              },
-              style: TextStyle(
-                color: color,
-                fontSize: 18,
-                fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+            Container(
+              width: 10,
+              height: 10,
+              decoration: BoxDecoration(
+                color: selected ? color : Colors.transparent,
+                shape: BoxShape.circle,
+                border: Border.all(color: color.withValues(alpha: 0.5)),
               ),
             ),
           ],

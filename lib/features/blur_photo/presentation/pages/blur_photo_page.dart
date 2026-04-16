@@ -3,12 +3,14 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../../shared/widgets/result_preview_screen.dart';
 
 import '../../data/datasources/bp_segmentation_datasource.dart';
 import '../../data/rendering/bp_isolate_renderer.dart';
 import '../../data/repositories/bp_blur_repository_impl.dart';
 import '../../domain/entities/blur_mode.dart';
 import '../../domain/entities/blur_style.dart';
+import '../../domain/entities/blur_settings.dart';
 import '../../domain/entities/circle_params.dart';
 import '../../domain/entities/line_params.dart';
 import '../cubit/blur_photo_cubit.dart';
@@ -91,21 +93,18 @@ class _BlurPhotoView extends StatelessWidget {
                     Navigator.of(context).pop();
                   },
                   onExport: () async {
-                    final navigator = Navigator.of(context);
                     final bytes = await cubit.exportFinal();
                     if (!context.mounted || bytes == null) return;
 
-                    try {
-                      onApply?.call(bytes);
-                    } catch (_) {}
-
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Image saved!'),
-                        backgroundColor: Color(0xFF1E1E22),
+                    Navigator.of(context).pushReplacement(
+                      MaterialPageRoute<void>(
+                        builder: (_) => ResultPreviewScreen(
+                          title: 'Blur Photo Result',
+                          resultBytes: bytes,
+                          onDone: onApply == null ? null : () => onApply!(bytes),
+                        ),
                       ),
                     );
-                    navigator.pop();
                   },
                 ),
                 Expanded(
@@ -195,12 +194,13 @@ class _BlurPhotoView extends StatelessWidget {
                                 activeStyle: state.settings.style,
                                 onSelected: (style) => cubit.updateStyle(style),
                               ),
-                              _ShapeMenuButton(
-                                activePreset:
-                                    _activePresetFor(state.settings.circle),
-                                onSelected: (preset) =>
-                                    _applyPreset(cubit, preset),
-                              ),
+                              if (_showsShapeMenu(state.activeMode))
+                                _ShapeMenuButton(
+                                  activePreset:
+                                      _activePresetFor(state.settings),
+                                  onSelected: (preset) =>
+                                      _applyPreset(cubit, preset),
+                                ),
                             ],
                           ),
                         ),
@@ -333,8 +333,11 @@ class _HoldCompareButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onLongPressStart: (_) => onHoldStart(true),
-      onLongPressEnd: (_) => onHoldStart(false),
+      behavior: HitTestBehavior.opaque,
+      onTapDown: (_) => onHoldStart(true),
+      onTapUp: (_) => onHoldStart(false),
+      onTapCancel: () => onHoldStart(false),
+      onPanEnd: (_) => onHoldStart(false),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
@@ -618,7 +621,18 @@ void _applyPreset(BlurPhotoCubit cubit, _ShapePreset preset) {
   }
 }
 
-_ShapePreset _activePresetFor(CircleBlurParams params) {
+bool _showsShapeMenu(BlurPhotoMode mode) =>
+    mode == BlurPhotoMode.circle || mode == BlurPhotoMode.line;
+
+_ShapePreset _activePresetFor(BlurPhotoSettings settings) {
+  if (settings.mode == BlurPhotoMode.line) {
+    final angle = settings.line.angle.abs();
+    if ((angle - 1.57079632679).abs() < 0.30) return _ShapePreset.vertical;
+    if ((angle - 0.78).abs() < 0.30) return _ShapePreset.diagonal;
+    return _ShapePreset.tilt;
+  }
+
+  final params = settings.circle;
   if (params.shapeType == BlurShapeType.rectangle) {
     return _ShapePreset.rectangle;
   }
@@ -715,3 +729,14 @@ const _shapePresets = <_ShapePresetOption>[
     icon: Icons.show_chart_rounded,
   ),
 ];
+
+
+
+
+
+
+
+
+
+
+

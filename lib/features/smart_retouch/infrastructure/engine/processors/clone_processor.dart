@@ -51,36 +51,22 @@ class CloneProcessor {
     final int height = targetImage.height;
     final int r = radius.ceil();
     final double safeHardness = hardness.clamp(0.0, 0.98);
-
-    final _Rgb sourceCoreColor = _computePatchMeanRgb(
-      image: sourceImage,
-      center: sourceCenter,
-      innerRadius: 0.0,
-      outerRadius: math.max(1.0, radius * 0.24),
+    final img.Pixel sourceCenterPixel = sourceImage.getPixel(
+      sourceCenter.dx.round().clamp(0, sourceImage.width - 1),
+      sourceCenter.dy.round().clamp(0, sourceImage.height - 1),
     );
-
-    final _Rgb sourceEdgeColor = _computePatchMeanRgb(
-      image: sourceImage,
-      center: sourceCenter,
-      innerRadius: radius * 0.72,
-      outerRadius: radius,
+    final img.Pixel targetCenterPixel = targetImage.getPixel(
+      targetCenter.dx.round().clamp(0, width - 1),
+      targetCenter.dy.round().clamp(0, height - 1),
     );
-
-    final double sourceMeanLuma = _computePatchMeanLuma(
-      image: sourceImage,
-      center: sourceCenter,
-      radius: radius * 0.22,
-    );
-
-    final double targetMeanLuma = _computePatchMeanLuma(
-      image: targetImage,
-      center: targetCenter,
-      radius: radius * 0.22,
-    );
-
-    // Keep tonal matching subtle so the cloned edge does not wash out into a pale halo.
+    final double sourceLuma = 0.299 * sourceCenterPixel.r +
+        0.587 * sourceCenterPixel.g +
+        0.114 * sourceCenterPixel.b;
+    final double targetLuma = 0.299 * targetCenterPixel.r +
+        0.587 * targetCenterPixel.g +
+        0.114 * targetCenterPixel.b;
     final double lumaDelta =
-        ((targetMeanLuma - sourceMeanLuma) * 0.18).clamp(-18.0, 18.0);
+        ((targetLuma - sourceLuma) * 0.12).clamp(-12.0, 12.0);
 
     for (int y = -r; y <= r; y++) {
       for (int x = -r; x <= r; x++) {
@@ -117,19 +103,7 @@ class CloneProcessor {
               ((distance - edge0) / (radius - edge0)).clamp(0.0, 1.0);
           feather = 1.0 - _smoothstep(t);
         }
-
-        final double matte = _computeCenterPreservingMatte(
-          pixel: corrected,
-          coreColor: sourceCoreColor,
-          edgeColor: sourceEdgeColor,
-        );
-        final double edgeBlendBias =
-            ((distance / radius) - 0.42).clamp(0.0, 1.0) / 0.58;
-        final double adaptiveEdgeAlpha =
-            1.0 - ((1.0 - matte) * _smoothstep(edgeBlendBias) * 0.9);
-
-        final double alpha =
-            (feather * opacity * adaptiveEdgeAlpha).clamp(0.0, 1.0);
+        final double alpha = (feather * opacity).clamp(0.0, 1.0);
         if (alpha <= 0.0) continue;
 
         final int outR = _lerp(dst.r.toDouble(), corrected.r, alpha);
@@ -146,75 +120,6 @@ class CloneProcessor {
         );
       }
     }
-  }
-
-  static double _computePatchMeanLuma({
-    required img.Image image,
-    required Offset center,
-    required double radius,
-  }) {
-    final int r = math.max(1, radius.round());
-    double sum = 0.0;
-    int count = 0;
-
-    for (int y = -r; y <= r; y++) {
-      for (int x = -r; x <= r; x++) {
-        final double px = center.dx + x;
-        final double py = center.dy + y;
-        if (!_insideBounds(px, py, image.width, image.height)) continue;
-
-        final double d = math.sqrt((x * x + y * y).toDouble());
-        if (d > radius) continue;
-
-        final img.Pixel p = image.getPixel(px.round(), py.round());
-        sum += 0.299 * p.r + 0.587 * p.g + 0.114 * p.b;
-        count++;
-      }
-    }
-
-    return count == 0 ? 0.0 : sum / count;
-  }
-
-  static _Rgb _computePatchMeanRgb({
-    required img.Image image,
-    required Offset center,
-    required double innerRadius,
-    required double outerRadius,
-  }) {
-    final int r = math.max(1, outerRadius.round());
-    double sumR = 0.0;
-    double sumG = 0.0;
-    double sumB = 0.0;
-    int count = 0;
-
-    for (int y = -r; y <= r; y++) {
-      for (int x = -r; x <= r; x++) {
-        final double px = center.dx + x;
-        final double py = center.dy + y;
-        if (!_insideBounds(px, py, image.width, image.height)) continue;
-
-        final double d = math.sqrt((x * x + y * y).toDouble());
-        if (d < innerRadius || d > outerRadius) continue;
-
-        final img.Pixel p = image.getPixel(px.round(), py.round());
-        sumR += p.r.toDouble();
-        sumG += p.g.toDouble();
-        sumB += p.b.toDouble();
-        count++;
-      }
-    }
-
-    if (count == 0) {
-      final img.Pixel fallback =
-          image.getPixel(center.dx.round(), center.dy.round());
-      return _Rgb(
-        fallback.r.toDouble(),
-        fallback.g.toDouble(),
-        fallback.b.toDouble(),
-      );
-    }
-
-    return _Rgb(sumR / count, sumG / count, sumB / count);
   }
 
   static _Rgb _sampleBilinear(img.Image image, double x, double y) {
@@ -256,27 +161,6 @@ class CloneProcessor {
 
   static bool _insideBounds(double x, double y, int width, int height) {
     return x >= 0 && y >= 0 && x < width - 1 && y < height - 1;
-  }
-
-  static double _computeCenterPreservingMatte({
-    required _Rgb pixel,
-    required _Rgb coreColor,
-    required _Rgb edgeColor,
-  }) {
-    final double coreDistance = _colorDistance(pixel, coreColor);
-    final double edgeDistance = _colorDistance(pixel, edgeColor);
-    final double total = coreDistance + edgeDistance;
-    if (total <= 0.0001) return 1.0;
-
-    final double raw = (edgeDistance / total).clamp(0.0, 1.0);
-    return (0.22 + raw * 0.78).clamp(0.0, 1.0);
-  }
-
-  static double _colorDistance(_Rgb a, _Rgb b) {
-    final double dr = a.r - b.r;
-    final double dg = a.g - b.g;
-    final double db = a.b - b.b;
-    return math.sqrt(dr * dr + dg * dg + db * db);
   }
 
   static int _lerp(double a, double b, double t) {

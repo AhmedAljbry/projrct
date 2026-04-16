@@ -189,6 +189,8 @@ List<double> _buildFocusMask({
   );
 
   switch (mode) {
+    case BlurMode.full:
+      break;
     case BlurMode.smart:
       _buildSmartMask(
         mask,
@@ -487,3 +489,6 @@ img.Color _mixColor(img.Color a, img.Color b, double t) {
 }
 
 int _clampCh(int value) => value.clamp(0, 255);
+
+
+

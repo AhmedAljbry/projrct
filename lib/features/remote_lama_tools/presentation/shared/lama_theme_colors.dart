@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import '../../../../core/ui/tokens.dart';
 
 class LamaTheme {
-  static const Color background = Color(0xFF131417);
-  static const Color accent = Color(0xFF56E39F);
-  static const Color toolbarBg = Color(0xFF1E1E1E);
+  static const Color background = AppTokens.bg;
+  static const Color accent = AppTokens.primary;
+  static const Color toolbarBg = AppTokens.surface;
 }

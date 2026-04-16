@@ -15,5 +15,4 @@ class AppRoutes {
   static const processing = '/processing';
   static const result = '/result';
   static const unifiedStudio = '/unified_studio';
-  static const coinsWallet = '/coins_wallet';
 }

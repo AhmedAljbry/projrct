@@ -23,10 +23,10 @@ class BrushSettings {
   final bool velocityPressure;
 
   const BrushSettings({
-    this.radius = 24.0,
-    this.softness = 0.7,
-    this.strength = 0.78,
-    this.spacing = 0.25,
+    this.radius = 28.0,
+    this.softness = 0.82,
+    this.strength = 0.9,
+    this.spacing = 0.16,
     this.velocityPressure = false,
   })  : assert(radius > 0.0),
         assert(softness >= 0.0 && softness <= 1.0),
@@ -76,13 +76,10 @@ class BrushSettings {
           velocityPressure == other.velocityPressure;
 
   @override
-  int get hashCode => Object.hash(radius, softness, strength, spacing, velocityPressure);
+  int get hashCode =>
+      Object.hash(radius, softness, strength, spacing, velocityPressure);
 
   @override
   String toString() =>
       'BrushSettings(r=$radius, soft=$softness, str=$strength, sp=$spacing)';
 }
-
-
-
-
