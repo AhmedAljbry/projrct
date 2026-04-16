@@ -49,30 +49,16 @@ class CanvasPreviewPainter extends CustomPainter {
     if (inProgressStroke != null && inProgressStroke!.path.isNotEmpty) {
       final settings = inProgressStroke!.settings;
       final double scaledBrushSize = settings.size * scaleFactor;
+      final List<Offset> previewPath = _buildPreviewPathForBrush(
+        inProgressStroke!.path,
+        settings.size,
+      );
       _drawLiveBrushPreview(
         canvas,
         inProgressStroke!,
+        previewPath,
         scaledBrushSize,
       );
-      final Paint previewPaint = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round
-        ..strokeWidth = scaledBrushSize
-        ..isAntiAlias = true
-        ..color = _previewColorFor(inProgressStroke!.mode).withValues(
-          alpha: inProgressStroke!.mode == RetouchMode.eraser ? 0.28 : 0.24,
-        );
-      final Paint outlinePaint = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round
-        ..strokeWidth = (scaledBrushSize * 0.22).clamp(1.2, 4.0)
-        ..isAntiAlias = true
-        ..color = Colors.white.withValues(alpha: 0.75);
-
-      _drawPath(canvas, inProgressStroke!.path, previewPaint);
-      _drawPath(canvas, inProgressStroke!.path, outlinePaint);
 
       if ((inProgressStroke!.mode == RetouchMode.clone ||
               inProgressStroke!.mode == RetouchMode.heal ||
@@ -105,42 +91,15 @@ class CanvasPreviewPainter extends CustomPainter {
     }
   }
 
-  Color _previewColorFor(RetouchMode mode) {
-    switch (mode) {
-      case RetouchMode.eraser:
-        return const Color(0xFFFF6B6B);
-      case RetouchMode.heal:
-        return const Color(0xFF56E39F);
-      case RetouchMode.clone:
-        return const Color(0xFF56E39F);
-      case RetouchMode.patch:
-        return const Color(0xFF56E39F);
-      case RetouchMode.none:
-        return Colors.transparent;
-    }
-  }
-
   void _drawLiveBrushPreview(
     Canvas canvas,
     StrokeOperation stroke,
+    List<Offset> previewPath,
     double scaledBrushSize,
   ) {
-    if (baseImage == null || originalImage == null) {
+    if (baseImage == null || originalImage == null || previewPath.isEmpty) {
       return;
     }
-
-    final List<Offset> canvasPoints = stroke.path.map(_toCanvas).toList();
-    if (canvasPoints.isEmpty) {
-      return;
-    }
-
-    final Rect strokeBounds = _strokeBounds(canvasPoints, scaledBrushSize)
-        .intersect(imageRect);
-    if (strokeBounds.isEmpty) {
-      return;
-    }
-
-    canvas.saveLayer(strokeBounds, Paint());
 
     switch (stroke.mode) {
       case RetouchMode.clone:
@@ -148,139 +107,110 @@ class CanvasPreviewPainter extends CustomPainter {
         final Offset? sourceAnchor = stroke.sourceAnchor;
         final Offset? targetAnchor = stroke.targetAnchor;
         if (sourceAnchor == null || targetAnchor == null) {
-          canvas.restore();
           return;
         }
-        final Offset sourceCanvasPoint = _toCanvas(sourceAnchor);
-        final Offset targetAnchorCanvasPoint = _toCanvas(targetAnchor);
-        final Offset translation = targetAnchorCanvasPoint - sourceCanvasPoint;
-        canvas.drawImageRect(
-          originalImage!,
-          Rect.fromLTWH(
-            0,
-            0,
-            originalImage!.width.toDouble(),
-            originalImage!.height.toDouble(),
-          ),
-          imageRect.shift(translation),
-          Paint()
-            ..filterQuality = FilterQuality.low
-            ..isAntiAlias = true,
-        );
-        if (stroke.mode == RetouchMode.heal) {
-          canvas.drawColor(
-            Colors.white.withValues(alpha: 0.08),
-            BlendMode.softLight,
+        for (final targetImagePoint in previewPath) {
+          final Offset currentSourceImage =
+              sourceAnchor + (targetImagePoint - targetAnchor);
+          _drawPreviewDab(
+            canvas: canvas,
+            targetImagePoint: targetImagePoint,
+            sourceImagePoint: currentSourceImage,
+            scaledBrushSize: scaledBrushSize,
           );
         }
         break;
       case RetouchMode.eraser:
-        canvas.drawImageRect(
-          originalImage!,
-          Rect.fromLTWH(
-            0,
-            0,
-            originalImage!.width.toDouble(),
-            originalImage!.height.toDouble(),
-          ),
-          imageRect,
-          Paint()
-            ..filterQuality = FilterQuality.low
-            ..isAntiAlias = true,
-        );
+        for (final targetImagePoint in previewPath) {
+          _drawPreviewDab(
+            canvas: canvas,
+            targetImagePoint: targetImagePoint,
+            sourceImagePoint: targetImagePoint,
+            scaledBrushSize: scaledBrushSize,
+          );
+        }
         break;
       case RetouchMode.patch:
       case RetouchMode.none:
-        canvas.restore();
         return;
     }
+  }
 
-    _drawStrokeMask(
-      canvas,
-      canvasPoints,
-      scaledBrushSize,
+  void _drawPreviewDab({
+    required Canvas canvas,
+    required Offset targetImagePoint,
+    required Offset sourceImagePoint,
+    required double scaledBrushSize,
+  }) {
+    final Offset targetCanvasPoint = _toCanvas(targetImagePoint);
+    final Rect dabBounds = Rect.fromCircle(
+      center: targetCanvasPoint,
+      radius: scaledBrushSize / 2,
+    ).intersect(imageRect);
+    if (dabBounds.isEmpty) {
+      return;
+    }
+
+    final Offset sourceCanvasPoint = _toCanvas(sourceImagePoint);
+    final Offset translation = targetCanvasPoint - sourceCanvasPoint;
+
+    canvas.saveLayer(dabBounds, Paint());
+    canvas.drawImageRect(
+      originalImage!,
+      Rect.fromLTWH(
+        0,
+        0,
+        originalImage!.width.toDouble(),
+        originalImage!.height.toDouble(),
+      ),
+      imageRect.shift(translation),
+      Paint()
+        ..filterQuality = FilterQuality.low
+        ..isAntiAlias = true,
+    );
+    canvas.drawCircle(
+      targetCanvasPoint,
+      scaledBrushSize / 2,
+      Paint()
+        ..blendMode = BlendMode.dstIn
+        ..color = Colors.white
+        ..style = PaintingStyle.fill
+        ..isAntiAlias = true,
     );
     canvas.restore();
   }
 
-  Rect _strokeBounds(List<Offset> canvasPoints, double strokeWidth) {
-    double minX = canvasPoints.first.dx;
-    double maxX = canvasPoints.first.dx;
-    double minY = canvasPoints.first.dy;
-    double maxY = canvasPoints.first.dy;
-
-    for (final point in canvasPoints.skip(1)) {
-      if (point.dx < minX) minX = point.dx;
-      if (point.dx > maxX) maxX = point.dx;
-      if (point.dy < minY) minY = point.dy;
-      if (point.dy > maxY) maxY = point.dy;
+  List<Offset> _buildPreviewPathForBrush(List<Offset> points, double brushSize) {
+    if (points.length <= 2) {
+      return points;
     }
 
-    final double pad = strokeWidth / 2;
-    return Rect.fromLTRB(
-      minX - pad,
-      minY - pad,
-      maxX + pad,
-      maxY + pad,
-    );
+    final int pointBudget = _previewPointBudgetForBrush(brushSize);
+    if (points.length <= pointBudget) {
+      return points;
+    }
+
+    final List<Offset> reduced = [points.first];
+    final double step = (points.length - 1) / (pointBudget - 1);
+    final double minRetainedDistance = (brushSize * 0.20).clamp(1.5, 10.0);
+
+    for (int i = 1; i < pointBudget - 1; i++) {
+      final int index = (i * step).round().clamp(1, points.length - 2);
+      final Offset candidate = points[index];
+      if ((candidate - reduced.last).distance >= minRetainedDistance) {
+        reduced.add(candidate);
+      }
+    }
+
+    if ((points.last - reduced.last).distance > 0.1) {
+      reduced.add(points.last);
+    }
+    return reduced;
   }
 
-  void _drawStrokeMask(
-    Canvas canvas,
-    List<Offset> canvasPoints,
-    double strokeWidth,
-  ) {
-    if (canvasPoints.length == 1) {
-      canvas.drawCircle(
-        canvasPoints.first,
-        strokeWidth / 2,
-        Paint()
-          ..blendMode = BlendMode.dstIn
-          ..color = Colors.white
-          ..style = PaintingStyle.fill
-          ..isAntiAlias = true,
-      );
-      return;
-    }
-
-    final Path strokePath = Path()
-      ..moveTo(canvasPoints.first.dx, canvasPoints.first.dy);
-    for (int i = 1; i < canvasPoints.length; i++) {
-      strokePath.lineTo(canvasPoints[i].dx, canvasPoints[i].dy);
-    }
-
-    canvas.drawPath(
-      strokePath,
-      Paint()
-        ..blendMode = BlendMode.dstIn
-        ..color = Colors.white
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round
-        ..strokeWidth = strokeWidth
-        ..isAntiAlias = true,
-    );
-  }
-
-  void _drawPath(Canvas canvas, List<Offset> points, Paint paint) {
-    if (points.isEmpty) return;
-
-    final List<Offset> canvasPoints = points.map(_toCanvas).toList();
-
-    if (canvasPoints.length == 1) {
-      final Paint pointPaint = Paint()
-        ..color = paint.color
-        ..style = PaintingStyle.fill;
-      canvas.drawCircle(canvasPoints.first, paint.strokeWidth / 2, pointPaint);
-      return;
-    }
-
-    final path = Path();
-    path.moveTo(canvasPoints.first.dx, canvasPoints.first.dy);
-    for (int i = 1; i < canvasPoints.length; i++) {
-      path.lineTo(canvasPoints[i].dx, canvasPoints[i].dy);
-    }
-    canvas.drawPath(path, paint);
+  int _previewPointBudgetForBrush(double brushSize) {
+    final double normalized = (brushSize / 42.0).clamp(0.0, 1.0);
+    return (10 + (normalized * 28)).round().clamp(10, 38);
   }
 
   void _drawSourceMarker(Canvas canvas, Offset center, {Offset? canvasTarget}) {
@@ -330,5 +260,14 @@ class CanvasPreviewPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CanvasPreviewPainter oldDelegate) => true;
+  bool shouldRepaint(covariant CanvasPreviewPainter oldDelegate) {
+    return oldDelegate.inProgressStroke != inProgressStroke ||
+        oldDelegate.inProgressSourceAnchor != inProgressSourceAnchor ||
+        oldDelegate.activeBrushPosition != activeBrushPosition ||
+        oldDelegate.brushSize != brushSize ||
+        oldDelegate.imageRect != imageRect ||
+        oldDelegate.imageSize != imageSize ||
+        oldDelegate.baseImage != baseImage ||
+        oldDelegate.originalImage != originalImage;
+  }
 }

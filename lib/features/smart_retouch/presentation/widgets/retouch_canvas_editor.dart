@@ -35,8 +35,10 @@ class _RetouchCanvasEditorState extends State<RetouchCanvasEditor> {
   static const double _minScale = 0.5;
   static const double _maxScale = 15.0;
   static const int _maxStrokePoints = 240;
+  static const int _previewChunkPointCount = 3;
 
   List<Offset> _currentStrokePoints = [];
+  List<Offset> _pendingPreviewPoints = [];
   bool _isDefiningSource = false;
   Offset? _continuedCloneOffset;
   Offset? _carryStrokeEnd;
@@ -85,6 +87,7 @@ class _RetouchCanvasEditorState extends State<RetouchCanvasEditor> {
   void _appendStrokePoint(Offset imagePoint, double minDistance) {
     if (_currentStrokePoints.isEmpty) {
       _currentStrokePoints.add(imagePoint);
+      _pendingPreviewPoints = [imagePoint];
       _notifyPreviewChanged();
       return;
     }
@@ -93,7 +96,13 @@ class _RetouchCanvasEditorState extends State<RetouchCanvasEditor> {
       return;
     }
 
+    final Offset previousPoint = _currentStrokePoints.last;
     _currentStrokePoints.add(imagePoint);
+    if (_pendingPreviewPoints.isEmpty) {
+      _pendingPreviewPoints.add(previousPoint);
+    }
+    _pendingPreviewPoints.add(imagePoint);
+
     if (_currentStrokePoints.length > _maxStrokePoints) {
       _currentStrokePoints.removeRange(
         1,
@@ -119,19 +128,53 @@ class _RetouchCanvasEditorState extends State<RetouchCanvasEditor> {
     );
   }
 
-  StrokeOperation? _buildPreviewStroke(RetouchState state) {
-    if (_currentStrokePoints.isEmpty) {
+  RetouchOperation? _buildOperationFromPoints(
+    RetouchState state,
+    List<Offset> points,
+  ) {
+    if (points.isEmpty) {
       return null;
     }
 
+    if (state.activeMode == RetouchMode.eraser) {
+      return EraseOperation(
+        id: UniqueKey().toString(),
+        mode: state.activeMode,
+        settings: state.activeBrushSettings,
+        path: List<Offset>.of(points),
+      );
+    }
+
+    final Offset? currentOffset = _continuedCloneOffset ?? state.activeCloneOffset;
+    final Offset effectiveSource = currentOffset != null
+        ? (points.first + currentOffset)
+        : (state.activeSourceAnchor ?? points.first);
+
     return StrokeOperation(
-      id: 'preview',
+      id: UniqueKey().toString(),
       mode: state.activeMode,
       settings: state.activeBrushSettings,
-      path: List<Offset>.of(_currentStrokePoints),
-      sourceAnchor: state.activeSourceAnchor,
-      targetAnchor: _currentStrokePoints.first,
+      path: List<Offset>.of(points),
+      sourceAnchor: effectiveSource,
+      targetAnchor: points.first,
     );
+  }
+
+  void _flushPreviewChunk(RetouchState state) {
+    if (_pendingPreviewPoints.length < 2) {
+      return;
+    }
+
+    final RetouchOperation? previewOperation =
+        _buildOperationFromPoints(state, _pendingPreviewPoints);
+    if (previewOperation == null) {
+      return;
+    }
+
+    context.read<RetouchBloc>().add(
+      PreviewOperationEvent(operation: previewOperation),
+    );
+    _pendingPreviewPoints = [_pendingPreviewPoints.last];
   }
 
   void _onPanStart(DragStartDetails details, Rect displayRect) {
@@ -151,6 +194,7 @@ class _RetouchCanvasEditorState extends State<RetouchCanvasEditor> {
       _carryStrokeEnd = null;
       _carrySourceEnd = null;
       _carryMode = null;
+      _pendingPreviewPoints = [];
       context.read<RetouchBloc>().add(SetSourceAnchorEvent(imagePoint));
       return;
     }
@@ -172,6 +216,7 @@ class _RetouchCanvasEditorState extends State<RetouchCanvasEditor> {
     } else {
       _currentStrokePoints = [imagePoint];
     }
+    _pendingPreviewPoints = List<Offset>.of(_currentStrokePoints);
 
     _updateActiveScreenPosition(details.localPosition);
     _notifyPreviewChanged();
@@ -202,6 +247,9 @@ class _RetouchCanvasEditorState extends State<RetouchCanvasEditor> {
       if (interpolated.length > 1) {
         for (final point in interpolated.skip(1)) {
           _appendStrokePoint(point, minDistance);
+          if (_pendingPreviewPoints.length >= _previewChunkPointCount) {
+            _flushPreviewChunk(state);
+          }
         }
       }
     } else {
@@ -217,6 +265,7 @@ class _RetouchCanvasEditorState extends State<RetouchCanvasEditor> {
 
     if (_isDefiningSource || _currentStrokePoints.isEmpty) {
       _currentStrokePoints.clear();
+      _pendingPreviewPoints = [];
       _continuedCloneOffset = null;
       _notifyPreviewChanged();
       return;
@@ -227,6 +276,7 @@ class _RetouchCanvasEditorState extends State<RetouchCanvasEditor> {
             state.activeMode == RetouchMode.heal)) {
       bloc.add(SetSourceAnchorEvent(_currentStrokePoints.first));
       _currentStrokePoints.clear();
+      _pendingPreviewPoints = [];
       _continuedCloneOffset = null;
       _carryStrokeEnd = null;
       _carrySourceEnd = null;
@@ -234,6 +284,8 @@ class _RetouchCanvasEditorState extends State<RetouchCanvasEditor> {
       _notifyPreviewChanged();
       return;
     }
+
+    _flushPreviewChunk(state);
 
     Offset? currentOffset = _continuedCloneOffset ?? state.activeCloneOffset;
     if (currentOffset == null && state.activeSourceAnchor != null) {
@@ -274,9 +326,10 @@ class _RetouchCanvasEditorState extends State<RetouchCanvasEditor> {
     }
 
     _currentStrokePoints.clear();
+    _pendingPreviewPoints = [];
     _continuedCloneOffset = null;
     _notifyPreviewChanged();
-    bloc.add(ApplyOperationEvent(operation: op));
+    bloc.add(ApplyOperationEvent(operation: op, useCurrentImageAsResult: true));
   }
 
   @override
@@ -337,45 +390,33 @@ class _RetouchCanvasEditorState extends State<RetouchCanvasEditor> {
                             ),
                           ),
                           RepaintBoundary(
-                            child: ValueListenableBuilder<int>(
-                              valueListenable: _previewRevisionNotifier,
-                              builder: (context, _, __) {
-                                final StrokeOperation? previewStroke =
-                                    _buildPreviewStroke(state);
-                                return ValueListenableBuilder<Offset?>(
-                                  valueListenable:
-                                      _activeScreenPositionNotifier,
-                                  builder:
-                                      (context, activeScreenPosition, __) {
-                                    return CustomPaint(
-                                      painter: CanvasPreviewPainter(
-                                        operations: state.operations,
-                                        inProgressStroke: previewStroke,
-                                        inProgressSourceAnchor:
-                                            state.activeSourceAnchor,
-                                        activeBrushPosition:
-                                            activeScreenPosition != null
-                                                ? MatrixUtils.transformPoint(
-                                                    Matrix4.inverted(
-                                                      _transformationController
-                                                          .value,
-                                                    ),
-                                                    activeScreenPosition,
-                                                  )
-                                                : null,
-                                        brushSize:
-                                            state.activeBrushSettings.size,
-                                        imageRect: currentDisplayRect,
-                                        imageSize: Size(
-                                          widget.displayImage.width.toDouble(),
-                                          widget.displayImage.height
-                                              .toDouble(),
-                                        ),
-                                        baseImage: widget.displayImage,
-                                        originalImage: widget.originalImage,
-                                      ),
-                                    );
-                                  },
+                            child: ValueListenableBuilder<Offset?>(
+                              valueListenable: _activeScreenPositionNotifier,
+                              builder: (context, activeScreenPosition, __) {
+                                return CustomPaint(
+                                  painter: CanvasPreviewPainter(
+                                    operations: state.operations,
+                                    inProgressStroke: null,
+                                    inProgressSourceAnchor:
+                                        state.activeSourceAnchor,
+                                    activeBrushPosition:
+                                        activeScreenPosition != null
+                                            ? MatrixUtils.transformPoint(
+                                                Matrix4.inverted(
+                                                  _transformationController.value,
+                                                ),
+                                                activeScreenPosition,
+                                              )
+                                            : null,
+                                    brushSize: state.activeBrushSettings.size,
+                                    imageRect: currentDisplayRect,
+                                    imageSize: Size(
+                                      widget.displayImage.width.toDouble(),
+                                      widget.displayImage.height.toDouble(),
+                                    ),
+                                    baseImage: widget.displayImage,
+                                    originalImage: widget.originalImage,
+                                  ),
                                 );
                               },
                             ),
@@ -400,7 +441,7 @@ class _RetouchCanvasEditorState extends State<RetouchCanvasEditor> {
                     ),
                   ),
                   ValueListenableBuilder<Offset?>(
-                      valueListenable: _activeScreenPositionNotifier,
+                    valueListenable: _activeScreenPositionNotifier,
                     builder: (context, activeScreenPosition, _) {
                       final bool showLoupe =
                           !isPanEnabled && activeScreenPosition != null;
@@ -417,7 +458,7 @@ class _RetouchCanvasEditorState extends State<RetouchCanvasEditor> {
                           canvasSize: constraints.biggest,
                           displayImage: widget.displayImage,
                           operations: state.operations,
-                          inProgressStroke: _buildPreviewStroke(state),
+                          inProgressStroke: null,
                           inProgressSourceAnchor: state.activeSourceAnchor,
                           brushSize: state.activeBrushSettings.size,
                           imageRect: currentDisplayRect,

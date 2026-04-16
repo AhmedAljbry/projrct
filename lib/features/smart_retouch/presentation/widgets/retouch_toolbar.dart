@@ -59,8 +59,7 @@ class RetouchToolbar extends StatelessWidget {
             onTap: onToggleSettings,
           ),
           const Spacer(),
-          _ToolIconButton(
-            icon: Icons.auto_fix_high,
+          _MagicInpaintButton(
             isActive: state.activeMode == RetouchMode.heal ||
                 state.activeMode == RetouchMode.clone,
             onTap: () => context
@@ -396,6 +395,129 @@ class _ToolIconButton extends StatelessWidget {
           shape: BoxShape.circle,
         ),
         child: Icon(icon, color: color, size: 24),
+      ),
+    );
+  }
+}
+
+class _MagicInpaintButton extends StatefulWidget {
+  final bool isActive;
+  final VoidCallback onTap;
+
+  const _MagicInpaintButton({
+    required this.isActive,
+    required this.onTap,
+  });
+
+  @override
+  State<_MagicInpaintButton> createState() => _MagicInpaintButtonState();
+}
+
+class _MagicInpaintButtonState extends State<_MagicInpaintButton>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _glowController;
+  bool _isPressed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _glowController = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 2000));
+    if (widget.isActive) {
+      _glowController.repeat(reverse: true);
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _MagicInpaintButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isActive && !oldWidget.isActive) {
+      _glowController.repeat(reverse: true);
+    } else if (!widget.isActive && oldWidget.isActive) {
+      _glowController.stop();
+      _glowController.animateTo(0, duration: const Duration(milliseconds: 300));
+    }
+  }
+
+  @override
+  void dispose() {
+    _glowController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _isPressed = true),
+      onTapUp: (_) => setState(() => _isPressed = false),
+      onTapCancel: () => setState(() => _isPressed = false),
+      onTap: widget.onTap,
+      child: AnimatedBuilder(
+        animation: _glowController,
+        builder: (context, child) {
+          final scale = _isPressed ? 0.95 : (1.0 + (_glowController.value * 0.04));
+          final shadowAlpha = widget.isActive ? 0.3 + (_glowController.value * 0.4) : 0.0;
+          
+          return Transform.scale(
+            scale: widget.isActive ? scale : (_isPressed ? 0.95 : 1.0),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeOutCubic,
+              padding: EdgeInsets.symmetric(
+                horizontal: widget.isActive ? 16 : 12,
+                vertical: 10,
+              ),
+              margin: const EdgeInsets.symmetric(horizontal: 4),
+              decoration: BoxDecoration(
+                gradient: widget.isActive
+                    ? const LinearGradient(
+                        colors: [
+                          Color(0xFF7209B7),
+                          Color(0xFFF72585),
+                          Color(0xFF7209B7),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      )
+                    : null,
+                color: widget.isActive ? null : Colors.transparent,
+                borderRadius: BorderRadius.circular(22),
+                boxShadow: widget.isActive
+                    ? [
+                        BoxShadow(
+                          color: const Color(0xFFF72585).withValues(alpha: shadowAlpha),
+                          blurRadius: 16,
+                          spreadRadius: 2,
+                          offset: const Offset(0, 4),
+                        ),
+                      ]
+                    : [],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.auto_fix_high_rounded,
+                    color: widget.isActive ? Colors.white : Colors.white70,
+                    size: 22,
+                  ),
+                  if (widget.isActive) ...[
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Magic',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }

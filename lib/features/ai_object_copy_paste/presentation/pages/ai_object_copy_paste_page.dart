@@ -44,7 +44,10 @@ class _AiObjectCopyPastePageState extends State<AiObjectCopyPastePage> {
             body: SafeArea(
               child: Column(
                 children: [
-                  _TopToolbar(controller: _controller),
+                  _TopToolbar(
+                    controller: _controller,
+                    onOpenResult: _openResultPreview,
+                  ),
                   Container(height: 1, color: Colors.white10),
                   Expanded(
                     child: Stack(
@@ -559,3 +562,4 @@ class _TopIconButton extends StatelessWidget {
     );
   }
 }
+

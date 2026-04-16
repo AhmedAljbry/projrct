@@ -163,16 +163,28 @@ class _BlemishEditCanvasState extends State<BlemishEditCanvas>
     context.read<BlemishCubit>().onStrokeUpdate(details.localFocalPoint);
   }
 
-  void _onScaleEnd(ScaleEndDetails details) {
+  Future<void> _onScaleEnd(ScaleEndDetails details) async {
     if (_isPinching) {
       _isPinching = false;
       _scaleStart = null;
       _focalStart = null;
       _translationStart = null;
+      _singleTouchStart = null;
+      _singleTouchCurrent = null;
+      _singleTouchMoved = false;
       return;
     }
 
-    context.read<BlemishCubit>().onStrokeEnd();
+    final tapPoint = _singleTouchCurrent ?? _singleTouchStart;
+    final shouldHeal = !_singleTouchMoved && tapPoint != null;
+    _singleTouchStart = null;
+    _singleTouchCurrent = null;
+    _singleTouchMoved = false;
+
+    if (shouldHeal) {
+      await context.read<BlemishCubit>().onSpotHeal(tapPoint);
+    }
+
     _cursorHideTimer?.cancel();
     _cursorHideTimer = Timer(const Duration(milliseconds: 900), _hideCursor);
   }

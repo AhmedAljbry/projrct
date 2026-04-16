@@ -103,6 +103,23 @@ class BlemishCubit extends Cubit<BlemishState> {
     }
   }
 
+  Future<void> onSpotHeal(Offset canvasPoint) async {
+    if (state.sourceImage == null) return;
+    final imagePoint = _toImageSpace(canvasPoint);
+
+    emit(state.copyWith(
+      activeStrokePoints: [imagePoint],
+      processingStatus: ProcessingStatus.processingPreview,
+      clearError: true,
+    ));
+
+    await _commitStroke([imagePoint], StrokeType.spotHeal);
+
+    if (!isClosed) {
+      emit(state.copyWith(activeStrokePoints: const []));
+    }
+  }
+
   Future<void> onStrokeEnd() async {
     if (state.sourceImage == null) return;
     final strokePoints = _brushInteraction.endStroke();

@@ -1,4 +1,4 @@
-ï»¿import 'dart:typed_data';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:gal/gal.dart';
@@ -34,13 +34,13 @@ class _ResultPreviewScreenState extends State<ResultPreviewScreen> {
       if (!mounted) return;
       setState(() => _saved = true);
       _showSnack(
-        'ØªÙ… Ø­ÙØ¸ Ø§Ù„ØµÙˆØ±Ø© ÙÙŠ Ø§Ù„Ù…Ø¹Ø±Ø¶',
+        'Êã ÍİÙ ÇáÕæÑÉ İí ÇáãÚÑÖ',
         backgroundColor: const Color(0xFF1C7C54),
       );
     } catch (error) {
       if (!mounted) return;
       _showSnack(
-        'ØªØ¹Ø°Ø± Ø­ÙØ¸ Ø§Ù„ØµÙˆØ±Ø©: $error',
+        'ÊÚĞÑ ÍİÙ ÇáÕæÑÉ: $error',
         backgroundColor: Colors.redAccent,
       );
     } finally {
@@ -68,7 +68,7 @@ class _ResultPreviewScreenState extends State<ResultPreviewScreen> {
     } catch (error) {
       if (!mounted) return;
       _showSnack(
-        'ØªØ¹Ø°Ø±Øª Ù…Ø´Ø§Ø±ÙƒØ© Ø§Ù„ØµÙˆØ±Ø©: $error',
+        'ÊÚĞÑÊ ãÔÇÑßÉ ÇáÕæÑÉ: $error',
         backgroundColor: Colors.redAccent,
       );
     } finally {
@@ -162,7 +162,7 @@ class _ResultPreviewScreenState extends State<ResultPreviewScreen> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Ù…Ø¹Ø§ÙŠÙ†Ø© Ù†Ù‡Ø§Ø¦ÙŠØ© Ø¬Ø§Ù‡Ø²Ø© Ù„Ù„Ø­ÙØ¸ Ø£Ùˆ Ø§Ù„Ù…Ø´Ø§Ø±ÙƒØ© Ù…Ø¨Ø§Ø´Ø±Ø©.',
+                        'ãÚÇíäÉ äåÇÆíÉ ÌÇåÒÉ ááÍİÙ Ãæ ÇáãÔÇÑßÉ ãÈÇÔÑÉ.',
                         style: theme.textTheme.bodyMedium?.copyWith(
                           color: Colors.white70,
                           height: 1.45,
@@ -177,7 +177,7 @@ class _ResultPreviewScreenState extends State<ResultPreviewScreen> {
                     Expanded(
                       child: _InfoChip(
                         icon: Icons.high_quality_rounded,
-                        label: 'Ø¬ÙˆØ¯Ø© Ø¹Ø§Ù„ÙŠØ©',
+                        label: 'ÌæÏÉ ÚÇáíÉ',
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -186,7 +186,7 @@ class _ResultPreviewScreenState extends State<ResultPreviewScreen> {
                         icon: _saved
                             ? Icons.check_circle_rounded
                             : Icons.auto_awesome_rounded,
-                        label: _saved ? 'ØªÙ… Ø§Ù„Ø­ÙØ¸' : 'Ø¬Ø§Ù‡Ø²Ø© Ù„Ù„ØªØµØ¯ÙŠØ±',
+                        label: _saved ? 'Êã ÇáÍİÙ' : 'ÌÇåÒÉ ááÊÕÏíÑ',
                       ),
                     ),
                   ],
@@ -254,7 +254,7 @@ class _ResultPreviewScreenState extends State<ResultPreviewScreen> {
                                 ),
                               )
                             : const Icon(Icons.ios_share_rounded),
-                        label: const Text('Ù…Ø´Ø§Ø±ÙƒØ©'),
+                        label: const Text('ãÔÇÑßÉ'),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -283,7 +283,7 @@ class _ResultPreviewScreenState extends State<ResultPreviewScreen> {
                                     ? Icons.check_circle_rounded
                                     : Icons.download_rounded,
                               ),
-                        label: Text(_saved ? 'ØªÙ… Ø§Ù„Ø­ÙØ¸' : 'Ø­ÙØ¸'),
+                        label: Text(_saved ? 'Êã ÇáÍİÙ' : 'ÍİÙ'),
                       ),
                     ),
                   ],
@@ -363,3 +363,4 @@ class _InfoChip extends StatelessWidget {
     );
   }
 }
+
