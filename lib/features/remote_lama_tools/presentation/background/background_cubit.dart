@@ -4,6 +4,8 @@ import 'dart:typed_data';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import 'package:untitled2/core/background/bg_job_models.dart';
+import 'package:untitled2/core/background/operation_tracker.dart';
 import 'package:untitled2/features/remote_lama_tools/domain/entities/lama_entities.dart';
 import 'package:untitled2/features/remote_lama_tools/domain/failures/lama_failure.dart';
 import 'package:untitled2/features/remote_lama_tools/domain/usecases/lama_usecases.dart';
@@ -87,6 +89,8 @@ class BackgroundCubit extends Cubit<BackgroundToolState> {
   final GetJobResultUseCase _getJobResultUseCase;
   StreamSubscription<LamaJobStatus>? _pollingSubscription;
   Uint8List? _lastMaskBytes;
+  final OperationTracker _tracker = OperationTracker();
+  String? _localJobId;
 
   BackgroundCubit({
     required SubmitJobUseCase submitJobUseCase,
@@ -128,6 +132,14 @@ class BackgroundCubit extends Cubit<BackgroundToolState> {
     );
 
     try {
+      _localJobId = await _tracker.createForegroundJob(
+        type: BgJobType.background,
+        sourceBytes: state.imageBytes!,
+        maskBytes: maskBytes,
+        metadata: {'tool': 'background_cleanup', 'edgeRadius': state.edgeRadius},
+        sourcePrefix: 'background_source',
+        maskPrefix: 'background_mask',
+      );
       final options = CleanEdgesOptions(
         imageBytes: state.imageBytes!,
         imageName: 'background_source.png',
@@ -136,6 +148,11 @@ class BackgroundCubit extends Cubit<BackgroundToolState> {
         edgeRadius: state.edgeRadius,
       );
       final jobId = await _submitJobUseCase.execute(options);
+      await _tracker.bindRemoteJob(
+        _localJobId!,
+        remoteJobId: jobId,
+        queued: false,
+      );
       _startPolling(jobId);
     } catch (error) {
       _emitFailure(error);
@@ -177,6 +194,7 @@ class BackgroundCubit extends Cubit<BackgroundToolState> {
   void reset() {
     _pollingSubscription?.cancel();
     _lastMaskBytes = null;
+    _localJobId = null;
     emit(const BackgroundToolState.initial());
   }
 
@@ -195,6 +213,9 @@ class BackgroundCubit extends Cubit<BackgroundToolState> {
             isRetryable: false,
           ),
         );
+        if (_localJobId != null) {
+          _tracker.updateFromRemoteStatus(_localJobId!, status);
+        }
         if (status.isCompleted) {
           _fetchResult(status.jobId);
         } else if (status.isFailed) {
@@ -214,6 +235,9 @@ class BackgroundCubit extends Cubit<BackgroundToolState> {
   Future<void> _fetchResult(String jobId) async {
     try {
       final resultBytes = await _getJobResultUseCase.execute(jobId);
+      if (_localJobId != null) {
+        await _tracker.completeJob(_localJobId!, resultBytes);
+      }
       if (isClosed) {
         return;
       }
@@ -232,6 +256,9 @@ class BackgroundCubit extends Cubit<BackgroundToolState> {
   }
 
   void _emitFailure(Object error) {
+    if (_localJobId != null) {
+      _tracker.failJob(_localJobId!, error.toString());
+    }
     final isRetryable = error is LamaRateLimitFailure ||
         error is LamaServerBusyFailure ||
         error is LamaApiFailure;

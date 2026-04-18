@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:untitled2/core/ui/AppL10n.dart';
 
 import '../../domain/usecases/clone_usecases.dart';
 import '../../utils/feature_dependencies.dart';
@@ -59,7 +60,7 @@ class CloneStudioView extends StatelessWidget {
               top: 116,
               left: 16,
               right: 16,
-              child: _buildGuideCard(state),
+              child: _buildGuideCard(context, state),
             ),
             if (state.mode == CloneStudioMode.place &&
                 state.activeLayerId != null)
@@ -75,10 +76,10 @@ class CloneStudioView extends StatelessWidget {
               right: 20,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
-                children: [
-                  const CloneControlPanel(),
-                  const SizedBox(height: 16),
-                  const CloneToolbar(),
+                children: const [
+                  CloneControlPanel(),
+                  SizedBox(height: 16),
+                  CloneToolbar(),
                 ],
               ),
             ),
@@ -103,9 +104,10 @@ class CloneStudioView extends StatelessWidget {
   }
 
   Widget _buildTopBar(BuildContext context, CloneStudioState state) {
+    final l10n = AppL10n.of(context);
     final title = state.mode == CloneStudioMode.select
-        ? 'حدد الجسم بلمسة أو بخط سريع'
-        : 'الجسم جاهز. اسحبه إلى المكان الجديد';
+        ? l10n.get('clone_title_select')
+        : l10n.get('clone_title_place');
 
     return Container(
       height: 100,
@@ -139,10 +141,11 @@ class CloneStudioView extends StatelessWidget {
     );
   }
 
-  Widget _buildGuideCard(CloneStudioState state) {
+  Widget _buildGuideCard(BuildContext context, CloneStudioState state) {
+    final l10n = AppL10n.of(context);
     final message = state.mode == CloneStudioMode.select
-        ? 'اضغط على الجسم مرة واحدة للتحديد الذكي، أو ارسم فوقه بشكل تقريبي.'
-        : 'ظهر مربع أخضر حول العنصر. هذا يعني أن القص تم بنجاح وأن الجسم جاهز للتحريك.';
+        ? l10n.get('clone_guide_select')
+        : l10n.get('clone_guide_place');
 
     return IgnorePointer(
       child: Container(
@@ -186,6 +189,7 @@ class _LoadingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppL10n.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
       decoration: BoxDecoration(
@@ -195,10 +199,10 @@ class _LoadingCard extends StatelessWidget {
           color: const Color(0xFF56E39F).withValues(alpha: 0.16),
         ),
       ),
-      child: const Column(
+      child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          SizedBox(
+          const SizedBox(
             width: 28,
             height: 28,
             child: CircularProgressIndicator(
@@ -206,10 +210,10 @@ class _LoadingCard extends StatelessWidget {
               color: Color(0xFF56E39F),
             ),
           ),
-          SizedBox(height: 12),
+          const SizedBox(height: 12),
           Text(
-            'جارِ تحديد الجسم',
-            style: TextStyle(
+            l10n.get('clone_loading'),
+            style: const TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.w700,
             ),
@@ -225,6 +229,7 @@ class _ReadyToMoveCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppL10n.of(context);
     return IgnorePointer(
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -242,18 +247,18 @@ class _ReadyToMoveCard extends StatelessWidget {
             ),
           ],
         ),
-        child: const Row(
+        child: Row(
           children: [
-            Icon(
+            const Icon(
               Icons.check_circle_rounded,
               color: Color(0xFF56E39F),
               size: 24,
             ),
-            SizedBox(width: 10),
+            const SizedBox(width: 10),
             Expanded(
               child: Text(
-                'تم القص بنجاح. الجسم جاهز للتحريك الآن.',
-                style: TextStyle(
+                l10n.get('clone_ready_move'),
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 13,
                   fontWeight: FontWeight.w600,

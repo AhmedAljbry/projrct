@@ -54,7 +54,7 @@ class AiObjectCopyPasteController extends ChangeNotifier {
     if (file == null) {
       return;
     }
-    _setBusy(true, 'Loading source image...');
+    _setBusy(true, 'copy_paste_loading_source');
     try {
       final document = await _codecService.decodeDocument(
         bytes: await file.readAsBytes(),
@@ -70,10 +70,9 @@ class AiObjectCopyPasteController extends ChangeNotifier {
       );
       _history.reset(_snapshot(_state));
       _syncHistoryFlags();
-      _setStatus(
-          'Source image ready. Draw a region, tap Smart, or use People for fast person selection.');
+      _setStatus('copy_paste_source_ready');
     } catch (_) {
-      _setStatus('Unable to load that image.');
+      _setStatus('copy_paste_load_failed');
     } finally {
       _setBusy(false, null);
     }
@@ -88,7 +87,7 @@ class AiObjectCopyPasteController extends ChangeNotifier {
     if (file == null) {
       return;
     }
-    _setBusy(true, 'Loading target image...');
+    _setBusy(true, 'copy_paste_loading_target');
     try {
       final document = await _codecService.decodeDocument(
         bytes: await file.readAsBytes(),
@@ -103,10 +102,9 @@ class AiObjectCopyPasteController extends ChangeNotifier {
       );
       _history.reset(_snapshot(_state));
       _syncHistoryFlags();
-      _setStatus(
-          'Target image ready. Select on source, copy, then paste into target.');
+      _setStatus('copy_paste_target_ready');
     } catch (_) {
-      _setStatus('Unable to load the target image.');
+      _setStatus('copy_paste_load_failed');
     } finally {
       _setBusy(false, null);
     }
@@ -127,12 +125,11 @@ class AiObjectCopyPasteController extends ChangeNotifier {
       clearSelectedItem: mode != CanvasInteractionMode.transform,
     );
     if (mode == CanvasInteractionMode.smartTap) {
-      _setStatus('Smart mode enabled. Tap the object you want to select.');
+      _setStatus('copy_paste_smart_mode');
       return;
     }
     if (mode == CanvasInteractionMode.smartPersonTap) {
-      _setStatus(
-          'People mode enabled. Tap the person for faster high-accuracy selection.');
+      _setStatus('copy_paste_people_mode');
       return;
     }
     notifyListeners();
@@ -225,21 +222,20 @@ class AiObjectCopyPasteController extends ChangeNotifier {
     if (width < 6 || height < 6 || lassoTooSmall) {
       _state = _state.copyWith(clearSelection: true);
       notifyListeners();
-      _setStatus('Make a larger selection, then press Confirm or Copy.');
+      _setStatus('copy_paste_make_selection_larger');
       return;
     }
     _commitHistory();
-    _setStatus(
-        'Selection ready. Move it, resize it, then press Confirm or Copy.');
+    _setStatus('copy_paste_selection_ready');
   }
 
   Future<void> runSmartSelectionAtPoint(Offset imagePoint) async {
     final document = _state.activeDocument;
     if (document == null) {
-      _setStatus('Import an image first.');
+      _setStatus('copy_paste_import_first');
       return;
     }
-    _setBusy(true, 'Detecting object...');
+    _setBusy(true, 'copy_paste_detecting_object');
     try {
       final selection = await _segmentationAdapter.buildSmartSelection(
         document,
@@ -251,11 +247,11 @@ class AiObjectCopyPasteController extends ChangeNotifier {
         interactionMode: CanvasInteractionMode.selectRectangle,
       );
       _commitHistory();
-      _setStatus('Object selected. Adjust it, then press Confirm or Copy.');
+      _setStatus('copy_paste_object_selected');
     } catch (_) {
       _state = _state.copyWith(
           interactionMode: CanvasInteractionMode.selectRectangle);
-      _setStatus('Smart selection failed. Tap again or use manual selection.');
+      _setStatus('copy_paste_smart_failed');
     } finally {
       _setBusy(false, null);
     }
@@ -264,10 +260,10 @@ class AiObjectCopyPasteController extends ChangeNotifier {
   Future<void> runPeopleSelectionAtPoint(Offset imagePoint) async {
     final document = _state.activeDocument;
     if (document == null) {
-      _setStatus('Import an image first.');
+      _setStatus('copy_paste_import_first');
       return;
     }
-    _setBusy(true, 'Detecting person...');
+    _setBusy(true, 'copy_paste_detecting_person');
     try {
       final selection = await _segmentationAdapter.buildPersonSelection(
         document,
@@ -279,11 +275,11 @@ class AiObjectCopyPasteController extends ChangeNotifier {
         interactionMode: CanvasInteractionMode.selectRectangle,
       );
       _commitHistory();
-      _setStatus('Person selected. Adjust it, then press Confirm or Copy.');
+      _setStatus('copy_paste_person_selected');
     } catch (_) {
       _state = _state.copyWith(
           interactionMode: CanvasInteractionMode.selectRectangle);
-      _setStatus('People selection failed. Tap the person again or use Smart.');
+      _setStatus('copy_paste_people_failed');
     } finally {
       _setBusy(false, null);
     }
@@ -295,10 +291,10 @@ class AiObjectCopyPasteController extends ChangeNotifier {
     if (document == null ||
         selection == null ||
         selection.documentId != document.id) {
-      _setStatus('Create a selection first.');
+      _setStatus('copy_paste_create_selection_first');
       return;
     }
-    _setBusy(true, 'Copying selection...');
+    _setBusy(true, 'copy_paste_copying_selection');
     try {
       final clipboard = await _selectionService.copySelection(
         document: document,
@@ -307,10 +303,9 @@ class AiObjectCopyPasteController extends ChangeNotifier {
       );
       _state = _state.copyWith(clipboard: clipboard);
       _commitHistory();
-      _setStatus(
-          'Copied. Press Paste to place a preview, then Confirm to apply.');
+      _setStatus('copy_paste_copied');
     } catch (_) {
-      _setStatus('Copy failed for the current selection.');
+      _setStatus('copy_paste_copy_failed');
     } finally {
       _setBusy(false, null);
     }
@@ -320,7 +315,7 @@ class AiObjectCopyPasteController extends ChangeNotifier {
     final clipboard = _state.clipboard;
     final target = _state.activeDocument ?? _state.effectiveTargetDocument;
     if (clipboard == null || target == null) {
-      _setStatus('Copy something first, then choose a target image.');
+      _setStatus('copy_paste_copy_first');
       return;
     }
     final item = _engine.paste(
@@ -340,8 +335,7 @@ class AiObjectCopyPasteController extends ChangeNotifier {
       showLayers: true,
     );
     notifyListeners();
-    _setStatus(
-        'Preview placed. Move or scale it, then press Confirm to apply.');
+    _setStatus('copy_paste_preview_placed');
   }
 
   void confirmPendingPaste() {
@@ -357,7 +351,7 @@ class AiObjectCopyPasteController extends ChangeNotifier {
       showLayers: true,
     );
     _commitHistory();
-    _setStatus('Paste applied to the selected image.');
+    _setStatus('copy_paste_paste_applied');
   }
 
   void selectItem(String itemId) {
@@ -382,14 +376,14 @@ class AiObjectCopyPasteController extends ChangeNotifier {
     }
     _state = _state.copyWith(clearSelection: true);
     _commitHistory();
-    _setStatus('Selection deleted.');
+    _setStatus('copy_paste_selection_deleted');
   }
 
   void replaceSelection(SelectionRegion selection, {bool commit = false}) {
     _state = _state.copyWith(selection: _normalizedSelection(selection));
     if (commit) {
       _commitHistory();
-      _setStatus('Selection updated. Press Confirm or Copy when ready.');
+      _setStatus('copy_paste_selection_updated');
     } else {
       notifyListeners();
     }
@@ -485,7 +479,7 @@ class AiObjectCopyPasteController extends ChangeNotifier {
       return;
     }
     _commitHistory();
-    _setStatus('Selection confirmed. Press Copy when ready.');
+    _setStatus('copy_paste_selection_confirmed');
   }
 
   void updateSelectionRefinement({double? feather, double? expand}) {
@@ -605,7 +599,7 @@ class AiObjectCopyPasteController extends ChangeNotifier {
         selectedItemId: duplicate.id,
       );
       notifyListeners();
-      _setStatus('Preview duplicated. Press Confirm when ready.');
+      _setStatus('copy_paste_preview_duplicated');
       return;
     }
     _state = _state.copyWith(
@@ -613,7 +607,7 @@ class AiObjectCopyPasteController extends ChangeNotifier {
       selectedItemId: duplicate.id,
     );
     _commitHistory();
-    _setStatus('Layer duplicated.');
+    _setStatus('copy_paste_layer_duplicated');
   }
 
   void deleteSelected() {
@@ -624,7 +618,7 @@ class AiObjectCopyPasteController extends ChangeNotifier {
     if (_state.pendingItem != null && _state.pendingItem!.id == selectedId) {
       _state = _state.copyWith(clearPendingItem: true, clearSelectedItem: true);
       notifyListeners();
-      _setStatus('Preview removed.');
+      _setStatus('copy_paste_preview_removed');
       return;
     }
     _state = _state.copyWith(
@@ -632,7 +626,7 @@ class AiObjectCopyPasteController extends ChangeNotifier {
       clearSelectedItem: true,
     );
     _commitHistory();
-    _setStatus('Layer deleted.');
+    _setStatus('copy_paste_layer_deleted');
   }
 
   void moveSelectedLayerUp() {
@@ -667,11 +661,11 @@ class AiObjectCopyPasteController extends ChangeNotifier {
       {bool asPng = true, bool saveToGallery = true}) async {
     final target = _state.activeDocument ?? _state.effectiveTargetDocument;
     if (target == null) {
-      _setStatus('Nothing to export yet.');
+      _setStatus('copy_paste_nothing_to_export');
       return null;
     }
     _state = _state.copyWith(
-        isExporting: true, statusMessage: 'Exporting composition...');
+        isExporting: true, statusMessage: 'copy_paste_exporting');
     notifyListeners();
     try {
       final bytes = _exportService.export(
@@ -684,10 +678,11 @@ class AiObjectCopyPasteController extends ChangeNotifier {
             name:
                 'ai_object_copy_paste_${DateTime.now().millisecondsSinceEpoch}');
       }
-      _setStatus(saveToGallery ? 'Exported to gallery.' : 'Export complete.');
+      _setStatus(
+          saveToGallery ? 'copy_paste_exported_gallery' : 'copy_paste_export_complete');
       return bytes;
     } catch (_) {
-      _setStatus('Export failed.');
+      _setStatus('copy_paste_export_failed');
       return null;
     } finally {
       _state = _state.copyWith(isExporting: false);

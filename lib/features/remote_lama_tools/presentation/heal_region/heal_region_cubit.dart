@@ -1,6 +1,10 @@
 import 'dart:async';
 import 'dart:typed_data';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
+
+import 'package:untitled2/core/background/bg_job_models.dart';
+import 'package:untitled2/core/background/operation_tracker.dart';
 import 'package:untitled2/features/remote_lama_tools/domain/entities/lama_entities.dart';
 import 'package:untitled2/features/remote_lama_tools/domain/failures/lama_failure.dart';
 import 'package:untitled2/features/remote_lama_tools/domain/usecases/lama_usecases.dart';
@@ -51,15 +55,19 @@ class HealRegionCubit extends Cubit<HealRegionState> {
   final SubmitJobUseCase _submitJobUseCase;
   final PollJobStatusUseCase _pollJobStatusUseCase;
   final GetJobResultUseCase _getJobResultUseCase;
-  StreamSubscription? _pollingSubscription;
+  final OperationTracker _operationTracker;
+
+  StreamSubscription<LamaJobStatus>? _pollingSubscription;
 
   HealRegionCubit({
     required SubmitJobUseCase submitJobUseCase,
     required PollJobStatusUseCase pollJobStatusUseCase,
     required GetJobResultUseCase getJobResultUseCase,
+    OperationTracker? operationTracker,
   })  : _submitJobUseCase = submitJobUseCase,
         _pollJobStatusUseCase = pollJobStatusUseCase,
         _getJobResultUseCase = getJobResultUseCase,
+        _operationTracker = operationTracker ?? OperationTracker(),
         super(HealRegionInitial());
 
   void setImage(Uint8List bytes) {
@@ -73,50 +81,109 @@ class HealRegionCubit extends Cubit<HealRegionState> {
     }
   }
 
-  Future<void> submitJob(Uint8List maskBytes) async {
+  Future<String?> submitJob(Uint8List maskBytes) async {
     final currentState = state;
-    if (currentState is! HealRegionReady) return;
+    if (currentState is! HealRegionReady) {
+      return null;
+    }
 
     emit(HealRegionSubmitting());
+
+    String? localJobId;
     try {
-      final options = HealRegionOptions(
-        imageBytes: currentState.imageBytes,
-        imageName: 'heal_source.png',
+      localJobId = await _operationTracker.createForegroundJob(
+        type: BgJobType.heal,
+        sourceBytes: currentState.imageBytes,
         maskBytes: maskBytes,
-        maskName: 'heal_mask.png',
-        healRadius: currentState.healRadius,
+        metadata: {'healRadius': currentState.healRadius},
+        sourcePrefix: 'heal_source',
+        maskPrefix: 'heal_mask',
       );
-      final jobId = await _submitJobUseCase.execute(options);
-      _pollJob(jobId);
+
+      final remoteJobId = await _submitJobUseCase.execute(
+        HealRegionOptions(
+          imageBytes: currentState.imageBytes,
+          imageName: 'heal_region.png',
+          maskBytes: maskBytes,
+          maskName: 'heal_region_mask.png',
+          healRadius: currentState.healRadius,
+        ),
+      );
+
+      await _operationTracker.bindRemoteJob(
+        localJobId,
+        remoteJobId: remoteJobId,
+        queued: true,
+        message: 'Queued on API',
+      );
+
+      final queuedStatus = LamaJobStatus(
+        jobId: remoteJobId,
+        status: 'queued',
+        progress: 0,
+        message: 'Queued on API',
+      );
+      emit(HealRegionProcessing(queuedStatus));
+      _pollJob(remoteJobId, localJobId);
+      return localJobId;
     } catch (e) {
-      _handleError(e);
+      await _failJob(localJobId, e);
+      return null;
     }
   }
 
-  void _pollJob(String jobId) {
+  void _pollJob(String remoteJobId, String localJobId) {
     _pollingSubscription?.cancel();
-    _pollingSubscription = _pollJobStatusUseCase.execute(jobId).listen(
-      (status) {
-        if (isClosed) return;
+    _pollingSubscription = _pollJobStatusUseCase.execute(remoteJobId).listen(
+      (status) async {
+        if (isClosed) {
+          return;
+        }
+
+        await _operationTracker.updateFromRemoteStatus(localJobId, status);
         emit(HealRegionProcessing(status));
+
         if (status.isCompleted) {
-          _fetchResult(status.jobId);
+          await _fetchResult(localJobId, status.jobId);
         } else if (status.isFailed) {
-          emit(HealRegionFailure(message: status.error ?? 'Job failed mysteriously.'));
+          await _operationTracker.failJob(
+            localJobId,
+            status.error ?? 'Heal request failed.',
+          );
+          emit(
+            HealRegionFailure(
+              message: status.error ?? 'Heal request failed.',
+              isRetryable: true,
+            ),
+          );
         }
       },
-      onError: (e) {
-        if (!isClosed) _handleError(e);
+      onError: (e) async {
+        if (!isClosed) {
+          await _failJob(localJobId, e);
+        }
       },
     );
   }
 
-  Future<void> _fetchResult(String jobId) async {
+  Future<void> _fetchResult(String localJobId, String remoteJobId) async {
     try {
-      final resultBytes = await _getJobResultUseCase.execute(jobId);
-      if (!isClosed) emit(HealRegionSuccess(resultBytes));
+      final resultBytes = await _getJobResultUseCase.execute(remoteJobId);
+      await _operationTracker.completeJob(localJobId, resultBytes);
+      if (!isClosed) {
+        emit(HealRegionSuccess(resultBytes));
+      }
     } catch (e) {
-      if (!isClosed) emit(HealRegionFailure(message: 'Failed fetching result: $e', isRetryable: true));
+      await _failJob(localJobId, 'Failed fetching result: $e');
+    }
+  }
+
+  Future<void> _failJob(String? localJobId, Object error) async {
+    if (localJobId != null) {
+      await _operationTracker.failJob(localJobId, error.toString());
+    }
+    if (!isClosed) {
+      _handleError(error);
     }
   }
 
@@ -124,7 +191,7 @@ class HealRegionCubit extends Cubit<HealRegionState> {
     if (e is LamaRateLimitFailure || e is LamaServerBusyFailure) {
       emit(HealRegionFailure(message: (e as dynamic).message, isRetryable: true));
     } else {
-      emit(HealRegionFailure(message: e.toString()));
+      emit(HealRegionFailure(message: e.toString(), isRetryable: true));
     }
   }
 

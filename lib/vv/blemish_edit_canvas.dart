@@ -18,6 +18,8 @@ class BlemishEditCanvas extends StatefulWidget {
 
 class _BlemishEditCanvasState extends State<BlemishEditCanvas>
     with SingleTickerProviderStateMixin {
+  static const double _tapMovementTolerance = 8.0;
+
   Offset? _cursorPos;
   bool _cursorVisible = false;
   Timer? _cursorHideTimer;
@@ -27,6 +29,9 @@ class _BlemishEditCanvasState extends State<BlemishEditCanvas>
   double? _scaleStart;
   Offset? _focalStart;
   Offset? _translationStart;
+  Offset? _singleTouchStart;
+  Offset? _singleTouchCurrent;
+  bool _singleTouchMoved = false;
 
   ui.Image? _sourceUiImage;
   ui.Image? _previewUiImage;
@@ -140,7 +145,9 @@ class _BlemishEditCanvasState extends State<BlemishEditCanvas>
 
     _isPinching = false;
     _showCursor(details.localFocalPoint);
-    context.read<BlemishCubit>().onStrokeBegin(details.localFocalPoint);
+    _singleTouchStart = details.localFocalPoint;
+    _singleTouchCurrent = details.localFocalPoint;
+    _singleTouchMoved = false;
   }
 
   void _onScaleUpdate(ScaleUpdateDetails details) {
@@ -160,7 +167,12 @@ class _BlemishEditCanvasState extends State<BlemishEditCanvas>
     }
 
     _showCursor(details.localFocalPoint);
-    context.read<BlemishCubit>().onStrokeUpdate(details.localFocalPoint);
+    _singleTouchCurrent = details.localFocalPoint;
+    if (_singleTouchStart != null &&
+        (details.localFocalPoint - _singleTouchStart!).distance >
+            _tapMovementTolerance) {
+      _singleTouchMoved = true;
+    }
   }
 
   Future<void> _onScaleEnd(ScaleEndDetails details) async {

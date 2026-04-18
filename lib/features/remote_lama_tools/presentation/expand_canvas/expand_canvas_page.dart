@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:untitled2/core/background/presentation/pages/operations_page.dart';
 
 import 'package:untitled2/features/remote_lama_tools/presentation/expand_canvas/expand_canvas_cubit.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/shared/lama_mask_painter.dart';
@@ -202,6 +203,13 @@ class _ExpandCanvasPageState extends State<ExpandCanvasPage> {
                 onPressed: () => _pickImage(context, ImageSource.gallery),
                 icon: const Icon(Icons.add_photo_alternate_outlined),
               ),
+              IconButton(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const OperationsPage()),
+                ),
+                icon: const Icon(Icons.dashboard_customize_rounded),
+              ),
             ],
           ),
           body: Stack(
@@ -223,6 +231,10 @@ class _ExpandCanvasPageState extends State<ExpandCanvasPage> {
                       ? state.status.message
                       : 'Uploading...',
                   isProcessing: state is ExpandCanvasProcessing,
+                  onOpenOperations: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const OperationsPage()),
+                  ),
                 ),
             ],
           ),

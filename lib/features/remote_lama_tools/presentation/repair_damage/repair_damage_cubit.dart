@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:untitled2/core/background/bg_job_models.dart';
+import 'package:untitled2/core/background/operation_tracker.dart';
 import 'package:untitled2/features/remote_lama_tools/domain/entities/lama_entities.dart';
 import 'package:untitled2/features/remote_lama_tools/domain/failures/lama_failure.dart';
 import 'package:untitled2/features/remote_lama_tools/domain/usecases/lama_usecases.dart';
@@ -37,6 +39,8 @@ class RepairDamageCubit extends Cubit<RepairDamageState> {
   final PollJobStatusUseCase _pollJobStatusUseCase;
   final GetJobResultUseCase _getJobResultUseCase;
   StreamSubscription? _pollingSubscription;
+  final OperationTracker _tracker = OperationTracker();
+  String? _localJobId;
 
   RepairDamageCubit({
     required SubmitJobUseCase submitJobUseCase,
@@ -57,6 +61,14 @@ class RepairDamageCubit extends Cubit<RepairDamageState> {
 
     emit(RepairDamageSubmitting());
     try {
+      _localJobId = await _tracker.createForegroundJob(
+        type: BgJobType.repairDamage,
+        sourceBytes: currentState.imageBytes,
+        maskBytes: maskBytes,
+        metadata: {'tool': 'repair_damage'},
+        sourcePrefix: 'repair_source',
+        maskPrefix: 'repair_mask',
+      );
       final options = RepairDamageOptions(
         imageBytes: currentState.imageBytes,
         imageName: 'repair_source.png',
@@ -64,6 +76,11 @@ class RepairDamageCubit extends Cubit<RepairDamageState> {
         maskName: 'repair_mask.png',
       );
       final jobId = await _submitJobUseCase.execute(options);
+      await _tracker.bindRemoteJob(
+        _localJobId!,
+        remoteJobId: jobId,
+        queued: false,
+      );
       _pollJob(jobId);
     } catch (e) {
       _handleError(e);
@@ -75,6 +92,9 @@ class RepairDamageCubit extends Cubit<RepairDamageState> {
     _pollingSubscription = _pollJobStatusUseCase.execute(jobId).listen(
       (status) {
         if (isClosed) return;
+        if (_localJobId != null) {
+          _tracker.updateFromRemoteStatus(_localJobId!, status);
+        }
         emit(RepairDamageProcessing(status));
         if (status.isCompleted) {
           _fetchResult(status.jobId);
@@ -92,10 +112,16 @@ class RepairDamageCubit extends Cubit<RepairDamageState> {
   Future<void> _fetchResult(String jobId) async {
     try {
       final resultBytes = await _getJobResultUseCase.execute(jobId);
+      if (_localJobId != null) {
+        await _tracker.completeJob(_localJobId!, resultBytes);
+      }
       if (!isClosed) {
         emit(RepairDamageSuccess(resultBytes));
       }
     } catch (e) {
+      if (_localJobId != null) {
+        await _tracker.failJob(_localJobId!, 'Failed fetching result: $e');
+      }
       if (!isClosed) {
         emit(RepairDamageFailure(
             message: 'Failed fetching result: $e', isRetryable: true));
@@ -104,6 +130,9 @@ class RepairDamageCubit extends Cubit<RepairDamageState> {
   }
 
   void _handleError(Object e) {
+    if (_localJobId != null) {
+      _tracker.failJob(_localJobId!, e.toString());
+    }
     if (e is LamaRateLimitFailure || e is LamaServerBusyFailure) {
       emit(RepairDamageFailure(
           message: (e as dynamic).message, isRetryable: true));
@@ -114,6 +143,7 @@ class RepairDamageCubit extends Cubit<RepairDamageState> {
 
   void reset() {
     _pollingSubscription?.cancel();
+    _localJobId = null;
     emit(RepairDamageInitial());
   }
 

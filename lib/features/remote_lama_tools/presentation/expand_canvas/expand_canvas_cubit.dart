@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:untitled2/core/background/bg_job_models.dart';
+import 'package:untitled2/core/background/operation_tracker.dart';
 import 'package:untitled2/features/remote_lama_tools/domain/entities/lama_entities.dart';
 import 'package:untitled2/features/remote_lama_tools/domain/failures/lama_failure.dart';
 import 'package:untitled2/features/remote_lama_tools/domain/usecases/lama_usecases.dart';
@@ -64,6 +66,8 @@ class ExpandCanvasCubit extends Cubit<ExpandCanvasState> {
   final PollJobStatusUseCase _pollJobStatusUseCase;
   final GetJobResultUseCase _getJobResultUseCase;
   StreamSubscription? _pollingSubscription;
+  final OperationTracker _tracker = OperationTracker();
+  String? _localJobId;
 
   ExpandCanvasCubit({
     required SubmitJobUseCase submitJobUseCase,
@@ -103,6 +107,20 @@ class ExpandCanvasCubit extends Cubit<ExpandCanvasState> {
 
     emit(ExpandCanvasSubmitting());
     try {
+      _localJobId = await _tracker.createForegroundJob(
+        type: BgJobType.expandCanvas,
+        sourceBytes: currentState.imageBytes,
+        maskBytes: maskBytes,
+        metadata: {
+          'tool': 'expand_canvas',
+          'left': currentState.left,
+          'top': currentState.top,
+          'right': currentState.right,
+          'bottom': currentState.bottom,
+        },
+        sourcePrefix: 'expand_source',
+        maskPrefix: 'expand_mask',
+      );
       final options = ExpandCanvasOptions(
         imageBytes: currentState.imageBytes,
         imageName: 'expand_source.png',
@@ -114,6 +132,11 @@ class ExpandCanvasCubit extends Cubit<ExpandCanvasState> {
         bottom: currentState.bottom,
       );
       final jobId = await _submitJobUseCase.execute(options);
+      await _tracker.bindRemoteJob(
+        _localJobId!,
+        remoteJobId: jobId,
+        queued: false,
+      );
       _pollJob(jobId);
     } catch (e) {
       _handleError(e);
@@ -125,6 +148,9 @@ class ExpandCanvasCubit extends Cubit<ExpandCanvasState> {
     _pollingSubscription = _pollJobStatusUseCase.execute(jobId).listen(
       (status) {
         if (isClosed) return;
+        if (_localJobId != null) {
+          _tracker.updateFromRemoteStatus(_localJobId!, status);
+        }
         emit(ExpandCanvasProcessing(status));
         if (status.isCompleted) {
           _fetchResult(status.jobId);
@@ -142,6 +168,9 @@ class ExpandCanvasCubit extends Cubit<ExpandCanvasState> {
   Future<void> _fetchResult(String jobId) async {
     try {
       final resultBytes = await _getJobResultUseCase.execute(jobId);
+      if (_localJobId != null) {
+        await _tracker.completeJob(_localJobId!, resultBytes);
+      }
       if (!isClosed) {
         emit(ExpandCanvasSuccess(resultBytes));
       }
@@ -154,6 +183,9 @@ class ExpandCanvasCubit extends Cubit<ExpandCanvasState> {
   }
 
   void _handleError(Object e) {
+    if (_localJobId != null) {
+      _tracker.failJob(_localJobId!, e.toString());
+    }
     if (e is LamaRateLimitFailure || e is LamaServerBusyFailure) {
       emit(ExpandCanvasFailure(
           message: (e as dynamic).message, isRetryable: true));
@@ -164,6 +196,7 @@ class ExpandCanvasCubit extends Cubit<ExpandCanvasState> {
 
   void reset() {
     _pollingSubscription?.cancel();
+    _localJobId = null;
     emit(ExpandCanvasInitial());
   }
 

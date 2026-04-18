@@ -149,18 +149,29 @@ class BlurPhotoCubit extends Cubit<BlurPhotoState> {
       clearError: true,
     ));
 
-    await repository.detectSubject(
-      imageBytes: _originalBytes!,
-      imageWidth: state.originalImage!.width,
-      imageHeight: state.originalImage!.height,
-    );
+    try {
+      final result = await repository.detectSubject(
+        imageBytes: _originalBytes!,
+        imageWidth: state.originalImage!.width,
+        imageHeight: state.originalImage!.height,
+      );
 
-    if (isClosed) return;
-    emit(state.copyWith(
-      segmentationInProgress: false,
-      hintMessage: 'Subject detected. Blur applied to background.',
-      clearError: true,
-    ));
+      if (isClosed) return;
+      emit(state.copyWith(
+        segmentationInProgress: false,
+        hintMessage: result == null || result['usedFallback'] == true
+            ? 'Smart blur could not isolate the subject. A safe fallback was used.'
+            : 'Subject detected. Blur applied to background.',
+        clearError: true,
+      ));
+    } catch (_) {
+      if (isClosed) return;
+      emit(state.copyWith(
+        segmentationInProgress: false,
+        hintMessage: 'Smart blur failed, so the preview stayed safe.',
+        errorMessage: 'Smart mode is not available for this image right now.',
+      ));
+    }
 
     await _scheduleRender(BpRenderQuality.previewIdle, immediate: true);
   }

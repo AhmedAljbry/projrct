@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -16,7 +15,6 @@ class RetouchBloc extends Bloc<RetouchEvent, RetouchState> {
     on<UpdateBrushSettingsEvent>(_onUpdateBrushSettings);
     on<SetSourceAnchorEvent>(_onSetSourceAnchor);
     on<SetCloneOffsetEvent>(_onSetCloneOffset);
-    on<PreviewOperationEvent>(_onPreviewOperation);
     on<ApplyOperationEvent>(_onApplyOperation);
     on<UndoEvent>(_onUndo);
     on<RedoEvent>(_onRedo);
@@ -89,33 +87,6 @@ class RetouchBloc extends Bloc<RetouchEvent, RetouchState> {
     ));
   }
 
-  Future<void> _onPreviewOperation(
-    PreviewOperationEvent event,
-    Emitter<RetouchState> emit,
-  ) async {
-    if (state.originalImageBytes == null || state.currentImageBytes == null) {
-      return;
-    }
-
-    final previewBytes = await RetouchImageService.renderSingleOperationPreview(
-      sourceImageBytes: state.originalImageBytes!,
-      currentImageBytes: state.currentImageBytes!,
-      operation: event.operation,
-    );
-    final previewImage = await _decodeUiImage(previewBytes);
-    if (previewBytes == null || previewImage == null) {
-      return;
-    }
-
-    emit(state.copyWith(
-      status: RetouchStatus.ready,
-      currentImageBytes: previewBytes,
-      currentImage: previewImage,
-      lastStrokeEnd: _extractTargetEnd(event.operation),
-      lastSourceEnd: _extractSourceEnd(event.operation),
-    ));
-  }
-
   Future<void> _onApplyOperation(
     ApplyOperationEvent event,
     Emitter<RetouchState> emit,
@@ -130,9 +101,7 @@ class RetouchBloc extends Bloc<RetouchEvent, RetouchState> {
       lastSourceEnd: _extractSourceEnd(event.operation),
     ));
 
-    if (!event.useCurrentImageAsResult) {
-      await _renderAndEmit(updatedOps, emit);
-    }
+    await _renderAndEmit(updatedOps, emit);
   }
 
   Future<void> _onUndo(UndoEvent event, Emitter<RetouchState> emit) async {
@@ -197,13 +166,6 @@ class RetouchBloc extends Bloc<RetouchEvent, RetouchState> {
         lastSourceEnd: _findLastSourceEnd(operations),
       ));
     }
-  }
-
-  Future<ui.Image?> _decodeUiImage(Uint8List? bytes) async {
-    if (bytes == null) return null;
-    final codec = await ui.instantiateImageCodec(bytes);
-    final frame = await codec.getNextFrame();
-    return frame.image;
   }
 
   Offset? _extractTargetEnd(RetouchOperation operation) {

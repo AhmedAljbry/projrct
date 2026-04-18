@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../shared/widgets/result_preview_screen.dart';
+import 'package:untitled2/core/ui/AppL10n.dart';
 
 import '../../data/datasources/bp_segmentation_datasource.dart';
 import '../../data/rendering/bp_isolate_renderer.dart';
@@ -57,6 +58,7 @@ class _BlurPhotoView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppL10n.of(context);
     return Scaffold(
       backgroundColor: _kBg,
       body: SafeArea(
@@ -99,7 +101,7 @@ class _BlurPhotoView extends StatelessWidget {
                     Navigator.of(context).pushReplacement(
                       MaterialPageRoute<void>(
                         builder: (_) => ResultPreviewScreen(
-                          title: 'Blur Photo Result',
+                          title: l10n.get('blur_photo_result'),
                           resultBytes: bytes,
                           onDone: onApply == null ? null : () => onApply!(bytes),
                         ),
@@ -251,16 +253,17 @@ class _BusyIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppL10n.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.60),
         borderRadius: BorderRadius.circular(16),
       ),
-      child: const Row(
+      child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          SizedBox(
+          const SizedBox(
             width: 13,
             height: 13,
             child: CircularProgressIndicator(
@@ -268,10 +271,10 @@ class _BusyIndicator extends StatelessWidget {
               color: _kAccent,
             ),
           ),
-          SizedBox(width: 8),
+          const SizedBox(width: 8),
           Text(
-            'Processing',
-            style: TextStyle(color: Colors.white, fontSize: 11.5),
+            l10n.get('blur_photo_processing'),
+            style: const TextStyle(color: Colors.white, fontSize: 11.5),
           ),
         ],
       ),
@@ -332,6 +335,7 @@ class _HoldCompareButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppL10n.of(context);
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTapDown: (_) => onHoldStart(true),
@@ -351,7 +355,7 @@ class _HoldCompareButton extends StatelessWidget {
             const Icon(Icons.compare_rounded, size: 17, color: _kAccent),
             const SizedBox(width: 6),
             Text(
-              'Compare',
+              l10n.get('blur_photo_compare'),
               style: TextStyle(
                 color: Colors.white.withValues(alpha: 0.88),
                 fontSize: 12,
@@ -376,8 +380,9 @@ class _StyleMenuButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppL10n.of(context);
     return PopupMenuButton<BlurPhotoStyle>(
-      tooltip: 'Style',
+      tooltip: l10n.get('blur_photo_style'),
       color: const Color(0xFF15171B),
       surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
@@ -388,8 +393,8 @@ class _StyleMenuButton extends StatelessWidget {
               value: style,
               child: _PopupOptionRow(
                 icon: _styleIcon(style),
-                title: style.label,
-                subtitle: style.description,
+                title: _styleLabel(l10n, style),
+                subtitle: _styleDescription(l10n, style),
                 active: activeStyle == style,
               ),
             ),
@@ -397,8 +402,8 @@ class _StyleMenuButton extends StatelessWidget {
           .toList(),
       child: _MenuChip(
         icon: Icons.layers_outlined,
-        label: 'Style',
-        detail: activeStyle.label,
+        label: l10n.get('blur_photo_style'),
+        detail: _styleLabel(l10n, activeStyle),
       ),
     );
   }
@@ -415,8 +420,9 @@ class _ShapeMenuButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppL10n.of(context);
     return PopupMenuButton<_ShapePreset>(
-      tooltip: 'Shape',
+      tooltip: l10n.get('blur_photo_shape'),
       color: const Color(0xFF15171B),
       surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
@@ -427,8 +433,8 @@ class _ShapeMenuButton extends StatelessWidget {
               value: preset.preset,
               child: _PopupOptionRow(
                 icon: preset.icon,
-                title: preset.label,
-                subtitle: preset.subtitle,
+                title: _shapeLabel(l10n, preset.preset),
+                subtitle: _shapeDescription(l10n, preset.preset),
                 active: activePreset == preset.preset,
               ),
             ),
@@ -436,8 +442,8 @@ class _ShapeMenuButton extends StatelessWidget {
           .toList(),
       child: _MenuChip(
         icon: Icons.category_outlined,
-        label: 'Shape',
-        detail: _labelForPreset(activePreset),
+        label: l10n.get('blur_photo_shape'),
+        detail: _shapeLabel(l10n, activePreset),
       ),
     );
   }
@@ -643,14 +649,40 @@ _ShapePreset _activePresetFor(BlurPhotoSettings settings) {
   return _ShapePreset.circle;
 }
 
-String _labelForPreset(_ShapePreset preset) => switch (preset) {
-      _ShapePreset.circle => 'Circle',
-      _ShapePreset.oval => 'Oval',
-      _ShapePreset.portrait => 'Portrait',
-      _ShapePreset.rectangle => 'Rectangle',
-      _ShapePreset.tilt => 'Tilt',
-      _ShapePreset.vertical => 'Vertical',
-      _ShapePreset.diagonal => 'Diagonal',
+String _shapeLabel(AppL10n l10n, _ShapePreset preset) => switch (preset) {
+      _ShapePreset.circle => l10n.get('blur_shape_circle'),
+      _ShapePreset.oval => l10n.get('blur_shape_oval'),
+      _ShapePreset.portrait => l10n.get('blur_shape_portrait'),
+      _ShapePreset.rectangle => l10n.get('blur_shape_rectangle'),
+      _ShapePreset.tilt => l10n.get('blur_shape_tilt'),
+      _ShapePreset.vertical => l10n.get('blur_shape_vertical'),
+      _ShapePreset.diagonal => l10n.get('blur_shape_diagonal'),
+    };
+
+String _shapeDescription(AppL10n l10n, _ShapePreset preset) => switch (preset) {
+      _ShapePreset.circle => l10n.get('blur_shape_circle_desc'),
+      _ShapePreset.oval => l10n.get('blur_shape_oval_desc'),
+      _ShapePreset.portrait => l10n.get('blur_shape_portrait_desc'),
+      _ShapePreset.rectangle => l10n.get('blur_shape_rectangle_desc'),
+      _ShapePreset.tilt => l10n.get('blur_shape_tilt_desc'),
+      _ShapePreset.vertical => l10n.get('blur_shape_vertical_desc'),
+      _ShapePreset.diagonal => l10n.get('blur_shape_diagonal_desc'),
+    };
+
+String _styleLabel(AppL10n l10n, BlurPhotoStyle style) => switch (style) {
+      BlurPhotoStyle.soft => l10n.get('blur_style_soft'),
+      BlurPhotoStyle.frost => l10n.get('blur_style_frost'),
+      BlurPhotoStyle.motion => l10n.get('blur_style_motion'),
+      BlurPhotoStyle.crystal => l10n.get('blur_style_crystal'),
+      BlurPhotoStyle.spotlight => l10n.get('blur_style_spotlight'),
+    };
+
+String _styleDescription(AppL10n l10n, BlurPhotoStyle style) => switch (style) {
+      BlurPhotoStyle.soft => l10n.get('blur_style_soft_desc'),
+      BlurPhotoStyle.frost => l10n.get('blur_style_frost_desc'),
+      BlurPhotoStyle.motion => l10n.get('blur_style_motion_desc'),
+      BlurPhotoStyle.crystal => l10n.get('blur_style_crystal_desc'),
+      BlurPhotoStyle.spotlight => l10n.get('blur_style_spotlight_desc'),
     };
 
 IconData _styleIcon(BlurPhotoStyle style) => switch (style) {
@@ -688,44 +720,44 @@ class _ShapePresetOption {
 const _shapePresets = <_ShapePresetOption>[
   _ShapePresetOption(
     preset: _ShapePreset.circle,
-    label: 'Circle',
-    subtitle: 'Round focus area',
+    label: '',
+    subtitle: '',
     icon: Icons.circle_outlined,
   ),
   _ShapePresetOption(
     preset: _ShapePreset.oval,
-    label: 'Oval',
-    subtitle: 'Wide center focus',
+    label: '',
+    subtitle: '',
     icon: Icons.egg_alt_outlined,
   ),
   _ShapePresetOption(
     preset: _ShapePreset.portrait,
-    label: 'Portrait',
-    subtitle: 'Tall subject focus',
+    label: '',
+    subtitle: '',
     icon: Icons.person_outline_rounded,
   ),
   _ShapePresetOption(
     preset: _ShapePreset.rectangle,
-    label: 'Rectangle',
-    subtitle: 'Rectangular blur box',
+    label: '',
+    subtitle: '',
     icon: Icons.crop_square_rounded,
   ),
   _ShapePresetOption(
     preset: _ShapePreset.tilt,
-    label: 'Tilt',
-    subtitle: 'Horizontal line focus',
+    label: '',
+    subtitle: '',
     icon: Icons.view_stream_outlined,
   ),
   _ShapePresetOption(
     preset: _ShapePreset.vertical,
-    label: 'Vertical',
-    subtitle: 'Vertical line focus',
+    label: '',
+    subtitle: '',
     icon: Icons.splitscreen_outlined,
   ),
   _ShapePresetOption(
     preset: _ShapePreset.diagonal,
-    label: 'Diagonal',
-    subtitle: 'Diagonal line focus',
+    label: '',
+    subtitle: '',
     icon: Icons.show_chart_rounded,
   ),
 ];

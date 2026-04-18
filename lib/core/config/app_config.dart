@@ -4,6 +4,7 @@ const _defaultInpaintingBaseUrl =
 class AppConfig {
   final String baseUrl;
   final String? apiKey;
+  final String? ownerId;
   final String? openAIApiKey;
   final String openAIVisionModel;
   final String openAIVisionDetail;
@@ -12,6 +13,7 @@ class AppConfig {
   const AppConfig({
     required this.baseUrl,
     this.apiKey,
+    this.ownerId,
     this.openAIApiKey,
     this.openAIVisionModel = 'gpt-4.1-mini',
     this.openAIVisionDetail = 'high',
@@ -24,6 +26,7 @@ class AppConfig {
       defaultValue: _defaultInpaintingBaseUrl,
     );
     const rawApiKey = String.fromEnvironment('LAMA_API_KEY');
+    const rawOwnerId = String.fromEnvironment('LAMA_OWNER_ID');
     const rawOpenAIApiKey = String.fromEnvironment('OPENAI_API_KEY');
     const openAIVisionModel = String.fromEnvironment(
       'OPENAI_VISION_MODEL',
@@ -41,6 +44,7 @@ class AppConfig {
     return AppConfig(
       baseUrl: baseUrl,
       apiKey: rawApiKey.isEmpty ? null : rawApiKey,
+      ownerId: rawOwnerId.isEmpty ? null : rawOwnerId,
       openAIApiKey: rawOpenAIApiKey.isEmpty ? null : rawOpenAIApiKey,
       openAIVisionModel: openAIVisionModel,
       openAIVisionDetail: openAIVisionDetail,

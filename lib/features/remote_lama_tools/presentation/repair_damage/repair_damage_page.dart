@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:untitled2/core/background/presentation/pages/operations_page.dart';
 
 import 'package:untitled2/features/remote_lama_tools/presentation/repair_damage/repair_damage_cubit.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/repair_damage/repair_damage_manual_mask_cubit.dart';
@@ -213,6 +214,14 @@ class _RepairDamagePageState extends State<RepairDamagePage> {
                 icon: const Icon(Icons.add_photo_alternate_outlined),
                 tooltip: 'Import image',
               ),
+              IconButton(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const OperationsPage()),
+                ),
+                icon: const Icon(Icons.dashboard_customize_rounded),
+                tooltip: 'Operations',
+              ),
             ],
           ),
           body: Stack(
@@ -230,6 +239,10 @@ class _RepairDamagePageState extends State<RepairDamagePage> {
                       ? state.status.message
                       : 'Uploading...',
                   isProcessing: state is RepairDamageProcessing,
+                  onOpenOperations: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const OperationsPage()),
+                  ),
                 ),
             ],
           ),

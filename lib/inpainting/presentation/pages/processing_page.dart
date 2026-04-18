@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/ui/AppL10n.dart';
 import '../../../../core/routing/app_routes.dart';
+import '../../../../core/background/presentation/pages/operations_page.dart';
 import '../../application/image_pick_cubit.dart';
 import '../../application/inpainting_bloc/inpainting_bloc.dart';
 import '../../application/inpainting_bloc/inpainting_event.dart';
@@ -45,10 +46,9 @@ class _ProcessingPageState extends State<ProcessingPage>
     final pickState = context.watch<ImagePickCubit>().state;
     final rawImage = pickState is ImagePickReady ? pickState.uiImage : null;
 
-    return Expanded(
-      child: Scaffold(
-        backgroundColor: InpaintingStudioTheme.background,
-        body: BlocConsumer<InpaintingBloc, InpaintingState>(
+    return Scaffold(
+      backgroundColor: InpaintingStudioTheme.background,
+      body: BlocConsumer<InpaintingBloc, InpaintingState>(
           listener: (context, state) {
             if (state.status == InpaintingStatus.success) {
               context.go(AppRoutes.result);
@@ -173,7 +173,6 @@ class _ProcessingPageState extends State<ProcessingPage>
               ),
             );
           },
-        ),
       ),
     );
   }
@@ -216,6 +215,16 @@ class _ProcessingPageState extends State<ProcessingPage>
               ],
             ),
           ),
+          _GlassIconButton(
+            icon: Icons.dashboard_customize_rounded,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const OperationsPage()),
+              );
+            },
+          ),
+          SizedBox(width: 8),
           StudioPill(
             icon: Icons.memory_rounded,
              label: state.serverStage ?? l10n.get('processing'),
@@ -445,7 +454,8 @@ class _ProcessingPageState extends State<ProcessingPage>
           SizedBox(height: 22),
           if (isFailed)
             StudioPrimaryButton(
-              onPressed: () => context.pop(),
+              onPressed: () =>
+                  context.read<InpaintingBloc>().retryLastSubmission(),
                icon: Icons.refresh_rounded,
               label: l10n.get('retry'),
             )

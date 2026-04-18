@@ -46,7 +46,6 @@ extension _EditorPageUIHelpers on _EditorPageState {
     _updateEditorUi(() => _isPreparing = true);
     try {
       final raw = await _renderBinaryMask(image, drawingState);
-      _submitWithQaExample();
       final maskBytes = await prepareMaskForLama(raw);
       final originalBytes = await _uiToBytes(image);
 
@@ -61,7 +60,7 @@ extension _EditorPageUIHelpers on _EditorPageState {
         return;
       }
 
-      router.push(AppRoutes.processing);
+      router.go(AppRoutes.processing);
     } finally {
       _updateEditorUi(() => _isPreparing = false);
     }

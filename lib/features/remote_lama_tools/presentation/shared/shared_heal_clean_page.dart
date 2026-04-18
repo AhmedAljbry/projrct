@@ -6,16 +6,14 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
-import 'package:provider/provider.dart';
+import 'package:untitled2/core/background/presentation/pages/operations_page.dart';
 
-import 'package:untitled2/core/ui/AppL10n.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/clean_edges/clean_edges_cubit.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/heal_region/heal_region_cubit.dart';
+import 'package:untitled2/features/remote_lama_tools/presentation/shared/lama_home_pick_view.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/shared/lama_mask_painter.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/shared/lama_result_viewer.dart';
-import 'package:untitled2/features/remote_lama_tools/presentation/shared/lama_status_indicator.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/shared/lama_theme_colors.dart';
-import 'package:untitled2/features/remote_lama_tools/presentation/shared/lama_home_pick_view.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/shared/remote_lama_processing_page.dart';
 
 enum SharedToolMode { healRegion, cleanEdges }
@@ -36,9 +34,9 @@ class _SharedHealCleanPageState extends State<SharedHealCleanPage> {
   late SharedToolMode _activeMode;
 
   ui.Image? _decodedUiImage;
-  Uint8List? _sourceBytes;
-  
-  // Shared Session State
+  Uint8List? _resultBytes;
+  Uint8List? _originalBytesForResult;
+
   final List<List<Offset>> _strokes = <List<Offset>>[];
   List<Offset>? _currentStroke;
   Offset? _lensPosition;
@@ -46,22 +44,19 @@ class _SharedHealCleanPageState extends State<SharedHealCleanPage> {
   double _brushSoftness = 0;
   bool _showLens = true;
 
-  final TransformationController _transformationController = TransformationController();
+  final TransformationController _transformationController =
+      TransformationController();
 
   @override
   void initState() {
     super.initState();
     _activeMode = widget.initialMode;
-
-    // Check states to initialize image if available
     final healState = context.read<HealRegionCubit>().state;
     final cleanState = context.read<CleanEdgesCubit>().state;
-    
+
     if (healState is HealRegionReady) {
-      _sourceBytes = healState.imageBytes;
       _decodeImage(healState.imageBytes);
     } else if (cleanState is CleanEdgesReady) {
-      _sourceBytes = cleanState.imageBytes;
       _decodeImage(cleanState.imageBytes);
     }
   }
@@ -81,14 +76,25 @@ class _SharedHealCleanPageState extends State<SharedHealCleanPage> {
       await _decodeImage(bytes);
       if (context.mounted) {
         setState(() {
-          _sourceBytes = bytes;
           _strokes.clear();
           _lensPosition = null;
+          _resultBytes = null;
+          _originalBytesForResult = null;
         });
         context.read<HealRegionCubit>().setImage(bytes);
         context.read<CleanEdgesCubit>().setImage(bytes);
       }
     }
+  }
+
+  Uint8List? _currentImageBytes(HealRegionState healState, CleanEdgesState cleanState) {
+    if (_activeMode == SharedToolMode.healRegion && healState is HealRegionReady) {
+      return healState.imageBytes;
+    }
+    if (_activeMode == SharedToolMode.cleanEdges && cleanState is CleanEdgesReady) {
+      return cleanState.imageBytes;
+    }
+    return null;
   }
 
   Future<void> _decodeImage(Uint8List bytes) async {
@@ -179,7 +185,10 @@ class _SharedHealCleanPageState extends State<SharedHealCleanPage> {
     return Uint8List.fromList(img.encodePng(blurred));
   }
 
-  void _submitHealRegion(BuildContext context, BoxConstraints constraints) async {
+  Future<void> _submitHealRegion(
+    BuildContext context,
+    BoxConstraints constraints,
+  ) async {
     if (_decodedUiImage == null || _strokes.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('Please mask an area to heal first!'),
@@ -197,22 +206,33 @@ class _SharedHealCleanPageState extends State<SharedHealCleanPage> {
     final maskBytes = await _generateMaskPng(Size(w, h));
     if (maskBytes != null && context.mounted) {
       final healCubit = context.read<HealRegionCubit>();
-      healCubit.submitJob(maskBytes);
-      Navigator.of(context).push(
+      final currentImage = (healCubit.state as HealRegionReady).imageBytes;
+      final localJobId = await healCubit.submitJob(maskBytes);
+      if (!context.mounted || localJobId == null) {
+        return;
+      }
+
+      setState(() {
+        _strokes.clear();
+        _resultBytes = null;
+        _originalBytesForResult = currentImage;
+      });
+
+      await Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) => BlocProvider.value(
-            value: healCubit,
-            child: RemoteLamaProcessingPage(
-              activeMode: SharedToolMode.healRegion,
-              imageBytes: _sourceBytes,
-            ),
+          builder: (_) => RemoteLamaProcessingPage(
+            activeMode: SharedToolMode.healRegion,
+            imageBytes: currentImage,
           ),
         ),
       );
     }
   }
 
-  void _submitCleanEdges(BuildContext context, BoxConstraints constraints) async {
+  Future<void> _submitCleanEdges(
+    BuildContext context,
+    BoxConstraints constraints,
+  ) async {
     if (_decodedUiImage == null || _strokes.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('Please mask an edge to clean first!'),
@@ -230,15 +250,23 @@ class _SharedHealCleanPageState extends State<SharedHealCleanPage> {
     final maskBytes = await _generateMaskPng(Size(w, h));
     if (maskBytes != null && context.mounted) {
       final cleanCubit = context.read<CleanEdgesCubit>();
-      cleanCubit.submitJob(maskBytes);
-      Navigator.of(context).push(
+      final currentImage = (cleanCubit.state as CleanEdgesReady).imageBytes;
+      final localJobId = await cleanCubit.submitJob(maskBytes);
+      if (!context.mounted || localJobId == null) {
+        return;
+      }
+
+      setState(() {
+        _strokes.clear();
+        _resultBytes = null;
+        _originalBytesForResult = currentImage;
+      });
+
+      await Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) => BlocProvider.value(
-            value: cleanCubit,
-            child: RemoteLamaProcessingPage(
-              activeMode: SharedToolMode.cleanEdges,
-              imageBytes: _sourceBytes,
-            ),
+          builder: (_) => RemoteLamaProcessingPage(
+            activeMode: SharedToolMode.cleanEdges,
+            imageBytes: currentImage,
           ),
         ),
       );
@@ -299,6 +327,17 @@ class _SharedHealCleanPageState extends State<SharedHealCleanPage> {
                     ],
                   ),
                   centerTitle: true,
+                  actions: [
+                    IconButton(
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const OperationsPage(),
+                        ),
+                      ),
+                      icon: const Icon(Icons.dashboard_customize_rounded),
+                    ),
+                  ],
                 ),
                 body: Stack(
                   children: [
@@ -306,8 +345,9 @@ class _SharedHealCleanPageState extends State<SharedHealCleanPage> {
                       children: [
                         _buildHeader(),
                         Expanded(child: _buildMainContent(context, healState, cleanState)),
-                        if ((_activeMode == SharedToolMode.healRegion && healState is HealRegionReady) ||
-                            (_activeMode == SharedToolMode.cleanEdges && cleanState is CleanEdgesReady))
+                        if (_resultBytes == null &&
+                            ((_activeMode == SharedToolMode.healRegion && healState is HealRegionReady) ||
+                                (_activeMode == SharedToolMode.cleanEdges && cleanState is CleanEdgesReady)))
                           _buildToolbar(context, healState, cleanState),
                       ],
                     ),
@@ -324,14 +364,25 @@ class _SharedHealCleanPageState extends State<SharedHealCleanPage> {
   SharedToolMode get activeMode => _activeMode;
 
   void _applyNewResult(Uint8List newResultBytes) {
+    final previousOriginal = _originalBytesForResult;
     setState(() {
-      _sourceBytes = newResultBytes;
       _strokes.clear();
-      _decodeImage(newResultBytes);
+      _resultBytes = newResultBytes;
+      _originalBytesForResult ??= previousOriginal;
     });
+    _decodeImage(newResultBytes);
     // Propagate image changes to both cubits
     context.read<HealRegionCubit>().setImage(newResultBytes);
     context.read<CleanEdgesCubit>().setImage(newResultBytes);
+  }
+
+  void _closeResultView() {
+    setState(() {
+      _resultBytes = null;
+      _originalBytesForResult = null;
+      _strokes.clear();
+      _lensPosition = null;
+    });
   }
 
   Widget _buildModeToggle() {
@@ -396,11 +447,17 @@ class _SharedHealCleanPageState extends State<SharedHealCleanPage> {
   }
 
   Widget _buildMainContent(BuildContext context, HealRegionState healState, CleanEdgesState cleanState) {
+    if (_resultBytes != null) {
+      return LamaResultViewer(
+        resultBytes: _resultBytes!,
+        originalBytes: _originalBytesForResult,
+        onReset: _closeResultView,
+        onRetry: _closeResultView,
+      );
+    }
+
     final bool isReady = (_activeMode == SharedToolMode.healRegion && healState is HealRegionReady) || 
                          (_activeMode == SharedToolMode.cleanEdges && cleanState is CleanEdgesReady);
-    final bool isInitial = (_activeMode == SharedToolMode.healRegion && (healState is HealRegionInitial || healState is HealRegionFailure)) || 
-                           (_activeMode == SharedToolMode.cleanEdges && (cleanState is CleanEdgesInitial || cleanState is CleanEdgesFailure));
-
     if (isReady && _decodedUiImage != null) {
       return LayoutBuilder(
         builder: (context, constraints) {
@@ -413,18 +470,16 @@ class _SharedHealCleanPageState extends State<SharedHealCleanPage> {
                 panEnabled: true,
                 scaleEnabled: true,
                 maxScale: 5.0,
-                child: Center(
-                  child: AspectRatio(
-                    aspectRatio: aspect,
-                    child: _InteractiveSharedCanvas(
-                      imageBytes: _activeMode == SharedToolMode.healRegion 
-                          ? (healState as HealRegionReady).imageBytes 
-                          : (cleanState as CleanEdgesReady).imageBytes,
-                      strokes: _strokes,
-                      brushSize: _brushSize,
-                      softness: _brushSoftness,
-                      lensPosition: _lensPosition,
-                      showLens: _activeMode == SharedToolMode.healRegion ? _showLens : false,
+                  child: Center(
+                    child: AspectRatio(
+                      aspectRatio: aspect,
+                      child: _InteractiveSharedCanvas(
+                        imageBytes: _currentImageBytes(healState, cleanState)!,
+                        strokes: _strokes,
+                        brushSize: _brushSize,
+                        softness: _brushSoftness,
+                        lensPosition: _lensPosition,
+                        showLens: _activeMode == SharedToolMode.healRegion ? _showLens : false,
                       onPointerDown: _handlePointerDown,
                       onPointerMove: _handlePointerMove,
                       onPointerEnd: _handlePointerEnd,

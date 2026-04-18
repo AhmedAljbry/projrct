@@ -1,19 +1,22 @@
-import 'dart:ui' as ui;
+﻿import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:workmanager/workmanager.dart';
 import 'package:untitled2/shared/widgets/feature_card_widget.dart';
 
 import 'package:untitled2/core/config/app_config.dart';
+import 'package:untitled2/core/i18n/app_localizations_x.dart';
+import 'package:untitled2/core/i18n/locale_controller.dart';
 import 'package:untitled2/core/routing/app_routes.dart';
 import 'package:untitled2/core/services/notification_service.dart';
 import 'package:untitled2/core/services/task_persistence_service.dart';
 import 'package:untitled2/core/ui/AppL10n.dart';
-import 'package:untitled2/features/ai_object_clone_studio/presentation/pages/clone_studio_page.dart';
 import 'package:untitled2/features/ai_object_copy_paste/ai_object_copy_paste.dart';
 import 'package:untitled2/features/smart_retouch/presentation/screens/smart_retouch_screen.dart';
 import 'package:untitled2/features/ai_perspective_studio/presentation/screens/perspective_studio_screen.dart';
@@ -32,8 +35,26 @@ import 'package:untitled2/inpainting/presentation/pages/result_page.dart';
 import 'package:untitled2/vv/blemish_remover_screen.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/pages/remote_lama_flow_shell.dart';
 
+
+import 'package:untitled2/core/background/bg_work_dispatcher.dart';
+import 'package:untitled2/core/background/bg_job_repository.dart';
+import 'package:untitled2/core/background/presentation/job_queue_cubit.dart';
+import 'package:untitled2/core/background/presentation/pages/operations_page.dart';
+import 'package:untitled2/core/background/presentation/widgets/operations_badge_button.dart';
+import 'package:untitled2/core/background/presentation/widgets/operations_drawer.dart';
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  final prefs = await SharedPreferences.getInstance();
+  final localeController = LocaleController(
+    prefs,
+    deviceLocale: ui.PlatformDispatcher.instance.locale,
+  );
+
+  Workmanager().initialize(
+    callbackDispatcher,
+    isInDebugMode: true, // change to false for production
+  );
 
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
@@ -42,45 +63,78 @@ Future<void> main() async {
     systemNavigationBarIconBrightness: Brightness.light,
   ));
 
-  runApp(EditorApp(config: AppConfig.fromEnvironment()));
+  runApp(
+    EditorApp(
+      config: AppConfig.fromEnvironment(),
+      localeController: localeController,
+    ),
+  );
 }
 
-// â”€â”€ Root App â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// أ¢â€‌â‚¬أ¢â€‌â‚¬ Root App أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬
 
 class EditorApp extends StatelessWidget {
   const EditorApp({
     super.key,
     required this.config,
+    required this.localeController,
   });
 
   final AppConfig config;
+  final LocaleController localeController;
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'AI Photo Studio',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData.dark().copyWith(
-        scaffoldBackgroundColor: const Color(0xFF0C0C0E),
-        colorScheme: ColorScheme.dark(
-          primary: const Color(0xFF56E39F),
-          surface: const Color(0xFF131417),
+    return MultiRepositoryProvider(
+      providers: [
+        RepositoryProvider<BgJobRepository>(create: (_) => BgJobRepository()),
+      ],
+      child: MultiBlocProvider(
+        providers: [
+          BlocProvider<JobQueueCubit>(
+            create: (context) => JobQueueCubit(context.read<BgJobRepository>()),
+          ),
+        ],
+        child: AnimatedBuilder(
+          animation: localeController,
+          builder: (context, _) => MaterialApp(
+            locale: localeController.locale,
+            onGenerateTitle: (context) => context.tr.appTitle,
+            debugShowCheckedModeBanner: false,
+            supportedLocales: AppLocalizations.supportedLocales,
+            localizationsDelegates: const [
+              AppL10nDelegate(),
+              ...AppLocalizations.localizationsDelegates,
+            ],
+            theme: ThemeData.dark().copyWith(
+              scaffoldBackgroundColor: const Color(0xFF0C0C0E),
+              colorScheme: const ColorScheme.dark(
+                primary: Color(0xFF56E39F),
+                surface: Color(0xFF131417),
+              ),
+            ),
+            home: HomeScreen(
+              config: config,
+              localeController: localeController,
+            ),
+          ),
         ),
       ),
-      home: HomeScreen(config: config),
     );
   }
 }
 
-// â”€â”€ Home Screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// أ¢â€‌â‚¬أ¢â€‌â‚¬ Home Screen أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
     super.key,
     required this.config,
+    required this.localeController,
   });
 
   final AppConfig config;
+  final LocaleController localeController;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -88,6 +142,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final ImagePicker _picker = ImagePicker();
   bool _loading = false;
   late AnimationController _heroAnim;
@@ -109,7 +164,7 @@ class _HomeScreenState extends State<HomeScreen>
     super.dispose();
   }
 
-  // â”€â”€ Image loading â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // أ¢â€‌â‚¬أ¢â€‌â‚¬ Image loading أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬
 
   Future<void> _pickAndNavigateUi(Widget Function(ui.Image) builder) async {
     final file =
@@ -148,11 +203,20 @@ class _HomeScreenState extends State<HomeScreen>
         ),
       );
 
-  // â”€â”€ Build â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  void _openOperationsPage() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const OperationsPage()),
+    );
+  }
+
+  // أ¢â€‌â‚¬أ¢â€‌â‚¬ Build أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: _scaffoldKey,
+      endDrawer: const OperationsDrawer(),
       backgroundColor: const Color(0xFF0C0C0E),
       body: Stack(children: [
         // Background glow
@@ -195,9 +259,16 @@ class _HomeScreenState extends State<HomeScreen>
                     child: CircularProgressIndicator(color: Color(0xFF56E39F)))
                 : CustomScrollView(
                     slivers: [
-                      const SliverToBoxAdapter(child: _HeroHeader()),
+                      SliverToBoxAdapter(
+                        child: _HeroHeader(
+                          onOpenOperationsDrawer: () =>
+                              _scaffoldKey.currentState?.openEndDrawer(),
+                          onOpenOperationsPage: _openOperationsPage,
+                          localeController: widget.localeController,
+                        ),
+                      ),
                       SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(18, 0, 18, 32),
+                        padding: const EdgeInsets.fromLTRB(18, 0, 18, 120), // Extra padding for the panel
                         sliver: SliverList(
                           delegate: SliverChildListDelegate(_buildCards()),
                         ),
@@ -210,292 +281,212 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  List<Widget> _buildCards() => [
-        // ── Coins Wallet ──────────────────────────────────────────────────────
-        // ── Open studio without photo (subtextual action kept intact) ─────────
-
-        const SizedBox(height: 16),
-
-        // ── Smart Retouch ─────────────────────────────────────────────────────
-        FeatureCardWidget(
-          title: 'Smart Retouch',
-          subtitle: 'Clone heal · Blemish fix · Non-destructive',
-          icon: Icons.auto_fix_high_rounded,
+  List<Widget> _buildCards() {
+    final tr = context.tr;
+    return [
+      const SizedBox(height: 16),
+      BlocBuilder<JobQueueCubit, JobQueueState>(
+        builder: (context, queueState) => FeatureCardWidget(
+          title: tr.operationsCenterTitle,
+          subtitle: queueState.activeJobs.isEmpty
+              ? tr.operationsCenterSubtitleEmpty
+              : tr.operationsCenterSubtitleCount(queueState.activeJobs.length),
+          icon: Icons.dashboard_customize_rounded,
           gradient: const LinearGradient(
-            colors: [Color(0xFF1E88E5), Color(0xFF0D47A1)],
+            colors: [Color(0xFF56E39F), Color(0xFF0B7A43)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
-          accentColor: const Color(0xFF1E88E5),
-          onTap: () => _pickAndNavigateUi(
-            (image) => SmartRetouchScreen(
-              initialImage: image,
-              onApply: (bytes) {
-                debugPrint('[Retouch] Applied \u2014 ${bytes.length} bytes');
-                if (Navigator.of(context).canPop()) Navigator.of(context).pop();
-              },
-            ),
+          accentColor: const Color(0xFF56E39F),
+          onTap: _openOperationsPage,
+        ),
+      ),
+      const SizedBox(height: 16),
+      FeatureCardWidget(
+        title: tr.smartRetouchTitle,
+        subtitle: tr.smartRetouchSubtitle,
+        icon: Icons.auto_fix_high_rounded,
+        gradient: const LinearGradient(
+          colors: [Color(0xFF1E88E5), Color(0xFF0D47A1)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        accentColor: const Color(0xFF1E88E5),
+        onTap: () => _pickAndNavigateUi(
+          (image) => SmartRetouchScreen(
+            initialImage: image,
+            onApply: (bytes) {
+              debugPrint('[Retouch] Applied \u2014 ${bytes.length} bytes');
+              if (Navigator.of(context).canPop()) Navigator.of(context).pop();
+            },
           ),
         ),
-
-        const SizedBox(height: 16),
-
-        // ── Magic Eraser Inpainting ───────────────────────────────────────────
-        FeatureCardWidget(
-          title: 'Magic Eraser Inpainting',
-          subtitle: 'Remove objects · Paint mask · AI fill',
-          icon: Icons.auto_fix_high_outlined,
-          gradient: const LinearGradient(
-            colors: [Color(0xFFFFB300), Color(0xFFFF6F00)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          accentColor: const Color(0xFFFFB300),
-          onTap: () => Navigator.push(
-            context,
-            _slide(InpaintingFlowShell(config: widget.config)),
+      ),
+      const SizedBox(height: 16),
+      FeatureCardWidget(
+        title: tr.magicEraserTitle,
+        subtitle: tr.magicEraserSubtitle,
+        icon: Icons.auto_fix_high_outlined,
+        gradient: const LinearGradient(
+          colors: [Color(0xFFFFB300), Color(0xFFFF6F00)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        accentColor: const Color(0xFFFFB300),
+        onTap: () => Navigator.push(
+          context,
+          _slide(InpaintingFlowShell(config: widget.config)),
+        ),
+      ),
+      const SizedBox(height: 16),
+      FeatureCardWidget(
+        title: tr.aiObjectCopyPasteTitle,
+        subtitle: tr.aiObjectCopyPasteSubtitle,
+        icon: Icons.content_paste_go_rounded,
+        gradient: const LinearGradient(
+          colors: [Color(0xFFAB47BC), Color(0xFF6A1B9A)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        accentColor: const Color(0xFFAB47BC),
+        onTap: () => Navigator.push(
+          context,
+          _slide(const AiObjectCopyPastePage()),
+        ),
+      ),
+      const SizedBox(height: 16),
+      FeatureCardWidget(
+        title: tr.blemishRemoverTitle,
+        subtitle: tr.blemishRemoverSubtitle,
+        icon: Icons.face_retouching_natural_rounded,
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFFE91E8C).withValues(alpha: 0.85),
+            const Color(0xFF880E5F),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        accentColor: const Color(0xFFE91E8C),
+        onTap: () => _pickAndNavigateUi(
+          (image) => BlemishRemoverScreen(
+            sourceImage: image,
+            onApply: (bytes) {
+              debugPrint('[Blemish] Applied \u2014 ${bytes.length} bytes');
+              if (Navigator.of(context).canPop()) Navigator.of(context).pop();
+            },
           ),
         ),
-
-        const SizedBox(height: 16),
-
-        // ── Smart Clone Studio ────────────────────────────────────────────────
-        FeatureCardWidget(
-          title: 'Smart Clone Studio (AI)',
-          subtitle: 'Copy · Move · Remove objects with AI',
-          icon: Icons.copy_all_rounded,
-          gradient: const LinearGradient(
-            colors: [Color(0xFF3D5AFE), Color(0xFF1A237E)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          accentColor: const Color(0xFF3D5AFE),
-          onTap: () => _pickAndNavigateBytes(
-            (bytes) => CloneStudioPage(initialImage: bytes),
+      ),
+      const SizedBox(height: 16),
+      FeatureCardWidget(
+        title: tr.aiPerspectiveStudioTitle,
+        subtitle: tr.aiPerspectiveStudioSubtitle,
+        icon: Icons.filter_center_focus_rounded,
+        gradient: const LinearGradient(
+          colors: [Color(0xFF00B0FF), Color(0xFF0091EA)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        accentColor: const Color(0xFF00B0FF),
+        onTap: () => _pickAndNavigateUi(
+          (image) => PerspectiveStudioScreen(
+            initialImage: image,
+            onApply: (bytes) {
+              debugPrint('[Perspective] Applied \u2014 ${bytes.length} bytes');
+              if (Navigator.of(context).canPop()) Navigator.of(context).pop();
+            },
+            onClose: () {
+              if (Navigator.of(context).canPop()) Navigator.of(context).pop();
+            },
           ),
         ),
-
-        const SizedBox(height: 16),
-
-        // ── AI Object Copy Paste ──────────────────────────────────────────────
-        FeatureCardWidget(
-          title: 'AI Object Copy Paste',
-          subtitle: 'Lift objects and paste anywhere',
-          icon: Icons.content_paste_go_rounded,
-          gradient: const LinearGradient(
-            colors: [Color(0xFFAB47BC), Color(0xFF6A1B9A)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          accentColor: const Color(0xFFAB47BC),
-          onTap: () => Navigator.push(
-            context,
-            _slide(const AiObjectCopyPastePage()),
+      ),
+      const SizedBox(height: 16),
+      FeatureCardWidget(
+        title: tr.blurPhotoTitle,
+        subtitle: tr.blurPhotoSubtitle,
+        icon: Icons.blur_circular_rounded,
+        gradient: const LinearGradient(
+          colors: [Color(0xFFFF6B6B), Color(0xFFCC2936)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        accentColor: const Color(0xFFFF6B6B),
+        onTap: () => _pickAndNavigateUi(
+          (image) => BlurPhotoPage(
+            initialImage: image,
+            onApply: (bytes) {
+              debugPrint('[BlurPhoto] Applied \u2014 ${bytes.length} bytes');
+              if (Navigator.of(context).canPop()) Navigator.of(context).pop();
+            },
+            onClose: () {
+              if (Navigator.of(context).canPop()) Navigator.of(context).pop();
+            },
           ),
         ),
-
-        const SizedBox(height: 16),
-
-        // ── Blemish Remover ───────────────────────────────────────────────────
-        FeatureCardWidget(
-          title: 'Blemish Remover',
-          subtitle: 'One-tap skin perfection',
-          icon: Icons.face_retouching_natural_rounded,
-          gradient: LinearGradient(
-            colors: [
-              const Color(0xFFE91E8C).withValues(alpha: 0.85),
-              const Color(0xFF880E5F),
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          accentColor: const Color(0xFFE91E8C),
-          onTap: () => _pickAndNavigateUi(
-            (image) => BlemishRemoverScreen(
-              sourceImage: image,
-              onApply: (bytes) {
-                debugPrint('[Blemish] Applied \u2014 ${bytes.length} bytes');
-                if (Navigator.of(context).canPop()) Navigator.of(context).pop();
-              },
-            ),
+      ),
+      const SizedBox(height: 16),
+      FeatureCardWidget(
+        title: tr.aiHealRegionTitle,
+        subtitle: tr.aiHealRegionSubtitle,
+        icon: Icons.healing,
+        gradient: const LinearGradient(
+          colors: [Color(0xFF00E5FF), Color(0xFF0097A7)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        accentColor: const Color(0xFF00E5FF),
+        onTap: () => _pickAndNavigateBytes(
+          (bytes) => RemoteLamaFlowShell(
+            initialImage: bytes,
+            initialRoute: '/lama/heal',
           ),
         ),
-
-        const SizedBox(height: 16),
-
-        // ── AI Perspective Studio ─────────────────────────────────────────────
-        FeatureCardWidget(
-          title: 'AI Perspective Studio',
-          subtitle: 'Straighten · Rectify · Smart scan',
-          icon: Icons.filter_center_focus_rounded,
-          gradient: const LinearGradient(
-            colors: [Color(0xFF00B0FF), Color(0xFF0091EA)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          accentColor: const Color(0xFF00B0FF),
-          onTap: () => _pickAndNavigateUi(
-            (image) => PerspectiveStudioScreen(
-              initialImage: image,
-              onApply: (bytes) {
-                debugPrint(
-                    '[Perspective] Applied \u2014 ${bytes.length} bytes');
-                if (Navigator.of(context).canPop()) Navigator.of(context).pop();
-              },
-              onClose: () {
-                if (Navigator.of(context).canPop()) Navigator.of(context).pop();
-              },
-            ),
+      ),
+      const SizedBox(height: 16),
+      FeatureCardWidget(
+        title: tr.aiCleanEdgesTitle,
+        subtitle: tr.aiCleanEdgesSubtitle,
+        icon: Icons.blur_on,
+        gradient: const LinearGradient(
+          colors: [Color(0xFF18FFFF), Color(0xFF00B8D4)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        accentColor: const Color(0xFF18FFFF),
+        onTap: () => _pickAndNavigateBytes(
+          (bytes) => RemoteLamaFlowShell(
+            initialImage: bytes,
+            initialRoute: '/lama/clean',
           ),
         ),
-
-        const SizedBox(height: 16),
-
-        // ── Blur Photo ────────────────────────────────────────────────────────
-        FeatureCardWidget(
-          title: 'Blur Photo',
-          subtitle: 'Smart · Circle · Line – premium background blur',
-          icon: Icons.blur_circular_rounded,
-          gradient: const LinearGradient(
-            colors: [Color(0xFFFF6B6B), Color(0xFFCC2936)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          accentColor: const Color(0xFFFF6B6B),
-          onTap: () => _pickAndNavigateUi(
-            (image) => BlurPhotoPage(
-              initialImage: image,
-              onApply: (bytes) {
-                debugPrint('[BlurPhoto] Applied \u2014 ${bytes.length} bytes');
-                if (Navigator.of(context).canPop()) Navigator.of(context).pop();
-              },
-              onClose: () {
-                if (Navigator.of(context).canPop()) Navigator.of(context).pop();
-              },
-            ),
-          ),
-        ),
-
-        const SizedBox(height: 16),
-
-        // ── AI Heal Region ────────────────────────────────────────────────────
-        FeatureCardWidget(
-          title: 'AI Heal Region',
-          subtitle: 'Small targeted repair with radius control',
-          icon: Icons.healing,
-          gradient: const LinearGradient(
-            colors: [Color(0xFF00E5FF), Color(0xFF0097A7)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          accentColor: const Color(0xFF00E5FF),
-          onTap: () => _pickAndNavigateBytes(
-            (bytes) => RemoteLamaFlowShell(
-              initialImage: bytes,
-              initialRoute: '/lama/heal',
-            ),
-          ),
-        ),
-
-        const SizedBox(height: 16),
-
-        // ── AI Repair Damage ──────────────────────────────────────────────────
-        FeatureCardWidget(
-          title: 'AI Repair Damage',
-          subtitle: 'Restore missing or damaged areas using AI',
-          icon: Icons.build_circle,
-          gradient: const LinearGradient(
-            colors: [Color(0xFF00B0FF), Color(0xFF0081CB)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          accentColor: const Color(0xFF00B0FF),
-          onTap: () => _pickAndNavigateBytes(
-            (bytes) => RemoteLamaFlowShell(
-              initialImage: bytes,
-              initialRoute: '/lama/repair',
-            ),
-          ),
-        ),
-
-        const SizedBox(height: 16),
-
-        // ── AI Expand Canvas ──────────────────────────────────────────────────
-        FeatureCardWidget(
-          title: 'AI Expand Canvas',
-          subtitle: 'Outpaint and extend scene edges seamlessly',
-          icon: Icons.crop_free,
-          gradient: const LinearGradient(
-            colors: [Color(0xFF40C4FF), Color(0xFF01579B)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          accentColor: const Color(0xFF40C4FF),
-          onTap: () => _pickAndNavigateBytes(
-            (bytes) => RemoteLamaFlowShell(
-              initialImage: bytes,
-              initialRoute: '/lama/expand',
-            ),
-          ),
-        ),
-
-        const SizedBox(height: 16),
-
-        // ── AI Clean Edges ────────────────────────────────────────────────────
-        FeatureCardWidget(
-          title: 'AI Clean Edges',
-          subtitle: 'Professional mask boundary cleanup',
-          icon: Icons.blur_on,
-          gradient: const LinearGradient(
-            colors: [Color(0xFF18FFFF), Color(0xFF00B8D4)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          accentColor: const Color(0xFF18FFFF),
-          onTap: () => _pickAndNavigateBytes(
-            (bytes) => RemoteLamaFlowShell(
-              initialImage: bytes,
-              initialRoute: '/lama/clean',
-            ),
-          ),
-        ),
-
-        const SizedBox(height: 16),
-
-        // ── More Remote Tools ─────────────────────────────────────────────────
-        FeatureCardWidget(
-          title: 'More Remote Tools',
-          subtitle: 'Descratch · Background Cleanup · Studio Hub',
-          icon: Icons.more_horiz_rounded,
-          gradient: LinearGradient(
-            colors: [
-              Colors.white.withValues(alpha: 0.14),
-              Colors.white.withValues(alpha: 0.06),
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          accentColor: Colors.white54,
-          onTap: () => Navigator.push(
-            context,
-            _slide(const RemoteLamaFlowShell()),
-          ),
-        ),
-      ];
-  // ── end of _buildCards ──────────────────────────────────────────────────────
+      ),
+    ];
+  }
+  // end of _buildCards
 } // closes _HomeScreenState
 
-// ── Hero header ──────────────────────────────────────────────────────────────
+// â”€â”€ Hero header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _HeroHeader extends StatelessWidget {
-  const _HeroHeader();
+  const _HeroHeader({
+    required this.onOpenOperationsDrawer,
+    required this.onOpenOperationsPage,
+    required this.localeController,
+  });
+
+  final VoidCallback onOpenOperationsDrawer;
+  final VoidCallback onOpenOperationsPage;
+  final LocaleController localeController;
 
   @override
   Widget build(BuildContext context) {
+    final tr = context.tr;
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 28, 20, 24),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        // ── Top bar ────────────────────────────────────────────────────────
+        // â”€â”€ Top bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         Row(
           children: [
             // Logo chip
@@ -524,8 +515,8 @@ class _HeroHeader extends StatelessWidget {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'AI Photo Studio',
+                Text(
+                  tr.appTitle,
                   style: TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w800,
@@ -534,7 +525,7 @@ class _HeroHeader extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  'Professional editing tools',
+                  tr.appSubtitle,
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.50),
                     fontSize: 12,
@@ -543,6 +534,45 @@ class _HeroHeader extends StatelessWidget {
               ],
             ),
             const Spacer(),
+            OperationsBadgeButton(
+              onTap: onOpenOperationsDrawer,
+            ),
+            const SizedBox(width: 8),
+            PopupMenuButton<Locale>(
+              tooltip: tr.languageMenuTooltip,
+              initialValue: localeController.locale,
+              color: const Color(0xFF131417),
+              onSelected: (locale) {
+                localeController.setLocale(locale);
+              },
+              itemBuilder: (context) => [
+                PopupMenuItem<Locale>(
+                  value: const Locale('en'),
+                  child: Text(tr.languageEnglish),
+                ),
+                PopupMenuItem<Locale>(
+                  value: const Locale('ar'),
+                  child: Text(tr.languageArabic),
+                ),
+              ],
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.07),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.10),
+                    width: 1,
+                  ),
+                ),
+                child: const Icon(
+                  Icons.language_rounded,
+                  color: Colors.white,
+                  size: 18,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
             // Version badge
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -555,7 +585,7 @@ class _HeroHeader extends StatelessWidget {
                 ),
               ),
               child: Text(
-                'PRO',
+                tr.proBadge,
                 style: TextStyle(
                   color: const Color(0xFF56E39F).withValues(alpha: 0.9),
                   fontSize: 10,
@@ -569,9 +599,9 @@ class _HeroHeader extends StatelessWidget {
 
         const SizedBox(height: 28),
 
-        // ── Heading ────────────────────────────────────────────────────────
-        const Text(
-          'Choose a',
+        // â”€â”€ Heading â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        Text(
+          tr.chooseA,
           style: TextStyle(
             color: Colors.white,
             fontSize: 34,
@@ -584,8 +614,8 @@ class _HeroHeader extends StatelessWidget {
           shaderCallback: (bounds) => const LinearGradient(
             colors: [Color(0xFF56E39F), Color(0xFF3D8BFD)],
           ).createShader(bounds),
-          child: const Text(
-            'Workspace',
+          child: Text(
+            tr.workspace,
             style: TextStyle(
               color: Colors.white,
               fontSize: 34,
@@ -599,7 +629,7 @@ class _HeroHeader extends StatelessWidget {
         const SizedBox(height: 10),
 
         Text(
-          'Tap any tool below to open it with a photo from your gallery.',
+          tr.homeOpenToolHint,
           style: TextStyle(
             color: Colors.white.withValues(alpha: 0.50),
             fontSize: 13.5,
@@ -609,14 +639,55 @@ class _HeroHeader extends StatelessWidget {
 
         const SizedBox(height: 20),
 
-        // ── Stat pills ─────────────────────────────────────────────────────
+        // â”€â”€ Stat pills â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         Row(
           children: [
-            _StatPill(label: '13', sub: 'Tools'),
+            _StatPill(label: '13', sub: tr.statTools),
             const SizedBox(width: 10),
-            _StatPill(label: 'AI', sub: 'Powered'),
+            _StatPill(label: 'AI', sub: tr.statPowered),
             const SizedBox(width: 10),
-            _StatPill(label: '4K', sub: 'Quality'),
+            _StatPill(label: '4K', sub: tr.statQuality),
+            const SizedBox(width: 10),
+            Expanded(
+              child: InkWell(
+                onTap: onOpenOperationsPage,
+                borderRadius: BorderRadius.circular(24),
+                child: BlocBuilder<JobQueueCubit, JobQueueState>(
+                  builder: (context, state) => Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.06),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.09),
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.dashboard_customize_rounded,
+                          color: Color(0xFF56E39F),
+                          size: 14,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          state.activeJobs.isEmpty
+                              ? tr.operations
+                              : tr.activeJobs(state.activeJobs.length),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ]),
@@ -752,7 +823,13 @@ class _InpaintingFlowShellState extends State<InpaintingFlowShell> {
           ),
         ],
         child: MaterialApp.router(
+          locale: locale,
           debugShowCheckedModeBanner: false,
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: const [
+            AppL10nDelegate(),
+            ...AppLocalizations.localizationsDelegates,
+          ],
           theme: Theme.of(context),
           routerConfig: _router,
         ),
@@ -761,4 +838,5 @@ class _InpaintingFlowShellState extends State<InpaintingFlowShell> {
   }
 } // InpaintingFlowShell
 
-// ── _FeatureCard removed – replaced by FeatureCardWidget (shared/widgets/feature_card_widget.dart) ──
+// â”€â”€ _FeatureCard removed â€“ replaced by FeatureCardWidget (shared/widgets/feature_card_widget.dart) â”€â”€
+

@@ -20,6 +20,17 @@ extension LamaTaskModeExtension on LamaTaskMode {
         return 'clean_edges';
     }
   }
+
+  String? get apiV1JobPath {
+    switch (this) {
+      case LamaTaskMode.healRegion:
+      case LamaTaskMode.repairDamage:
+      case LamaTaskMode.cleanEdges:
+        return '/api/v1/jobs/remove-object';
+      case LamaTaskMode.expandCanvas:
+        return null;
+    }
+  }
 }
 
 class LamaJobStatus {

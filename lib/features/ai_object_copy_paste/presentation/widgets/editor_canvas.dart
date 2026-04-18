@@ -77,8 +77,12 @@ class _EditorCanvasState extends State<EditorCanvas> {
             borderRadius: BorderRadius.circular(24),
             child: Container(
               color: const Color(0xFF070809),
-              child: Stack(
-                children: [
+              child: InteractiveViewer(
+                minScale: 0.8,
+                maxScale: 4,
+                boundaryMargin: const EdgeInsets.all(140),
+                child: Stack(
+                  children: [
                   Positioned.fromRect(
                     rect: viewport.imageRect,
                     child: DecoratedBox(
@@ -142,7 +146,8 @@ class _EditorCanvasState extends State<EditorCanvas> {
                       ),
                     ),
                   ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),

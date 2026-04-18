@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter_tesseract_ocr/flutter_tesseract_ocr.dart';
+import 'package:untitled2/core/ui/AppL10n.dart';
 import '../../../../shared/widgets/result_preview_screen.dart';
 import '../../core/perspective_processor.dart';
 import '../../core/ai_corner_detector.dart';
@@ -61,6 +62,7 @@ class _PerspectiveStudioScreenState extends State<PerspectiveStudioScreen> {
   }
 
   Future<void> _autoDetect() async {
+    final l10n = AppL10n.of(context);
     setState(() => _isProcessing = true);
     try {
       final detected =
@@ -70,9 +72,7 @@ class _PerspectiveStudioScreenState extends State<PerspectiveStudioScreen> {
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-                content:
-                    Text('Could not detect object corners automatically.')),
+            SnackBar(content: Text(l10n.get('perspective_auto_detect_failed'))),
           );
         }
       }
@@ -82,13 +82,14 @@ class _PerspectiveStudioScreenState extends State<PerspectiveStudioScreen> {
   }
 
   Future<void> _applyPerspective() async {
+    final l10n = AppL10n.of(context);
     setState(() => _isProcessing = true);
 
     try {
       // Convert ui.Image to bytes
       final data =
           await widget.initialImage.toByteData(format: ui.ImageByteFormat.png);
-      if (data == null) throw Exception('Failed to get image data');
+      if (data == null) throw Exception(l10n.get('perspective_failed_image_data'));
       final bytes = data.buffer.asUint8List();
 
       final resultBytes = await PerspectiveProcessor.rectifyImage(
@@ -106,7 +107,8 @@ class _PerspectiveStudioScreenState extends State<PerspectiveStudioScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text('Error: $e'), backgroundColor: Colors.redAccent),
+              content: Text('${l10n.get('perspective_error_prefix')}$e'),
+              backgroundColor: Colors.redAccent),
         );
       }
     } finally {
@@ -119,8 +121,8 @@ class _PerspectiveStudioScreenState extends State<PerspectiveStudioScreen> {
       final resultBytes = _resultBytes!;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute<void>(
-          builder: (_) => ResultPreviewScreen(
-            title: 'AI Perspective Result',
+        builder: (_) => ResultPreviewScreen(
+            title: AppL10n.of(context).get('perspective_result'),
             resultBytes: resultBytes,
             onDone: widget.onApply == null
                 ? null
@@ -133,6 +135,7 @@ class _PerspectiveStudioScreenState extends State<PerspectiveStudioScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppL10n.of(context);
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
       child: Scaffold(
@@ -141,7 +144,7 @@ class _PerspectiveStudioScreenState extends State<PerspectiveStudioScreen> {
           child: Column(
             children: [
               // â”€â”€ Top Bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-              _buildTopBar(),
+              _buildTopBar(l10n),
 
               // â”€â”€ Editor Area â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
               Expanded(
@@ -172,8 +175,8 @@ class _PerspectiveStudioScreenState extends State<PerspectiveStudioScreen> {
               ),
 
               // â”€â”€ Bottom Controls â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-              if (!_showPreview) _buildBottomControls(),
-              if (_showPreview) _buildPreviewControls(),
+              if (!_showPreview) _buildBottomControls(l10n),
+              if (_showPreview) _buildPreviewControls(l10n),
             ],
           ),
         ),
@@ -181,7 +184,7 @@ class _PerspectiveStudioScreenState extends State<PerspectiveStudioScreen> {
     );
   }
 
-  Widget _buildTopBar() {
+  Widget _buildTopBar(AppL10n l10n) {
     return Container(
       height: 64,
       padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -198,7 +201,7 @@ class _PerspectiveStudioScreenState extends State<PerspectiveStudioScreen> {
               icon: const Icon(Icons.auto_awesome_rounded,
                   color: Color(0xFF56E39F), size: 24),
               onPressed: _autoDetect,
-              tooltip: 'AI Auto-Detect',
+              tooltip: l10n.get('perspective_auto_detect'),
             ),
           IconButton(
             icon: Icon(Icons.file_download_outlined,
@@ -236,7 +239,7 @@ class _PerspectiveStudioScreenState extends State<PerspectiveStudioScreen> {
     );
   }
 
-  Widget _buildBottomControls() {
+  Widget _buildBottomControls(AppL10n l10n) {
     return Container(
       color: const Color(0xFF131417),
       padding: const EdgeInsets.only(bottom: 32, top: 16),
@@ -245,12 +248,12 @@ class _PerspectiveStudioScreenState extends State<PerspectiveStudioScreen> {
         children: [
           _BottomAction(
             icon: Icons.refresh_rounded,
-            label: 'Reset',
+            label: l10n.get('perspective_reset'),
             onTap: _resetPoints,
           ),
           _BottomAction(
             icon: Icons.check_circle_outline_rounded,
-            label: 'Adjust',
+            label: l10n.get('perspective_adjust'),
             highlight: true,
             onTap: _applyPerspective,
           ),
@@ -260,6 +263,7 @@ class _PerspectiveStudioScreenState extends State<PerspectiveStudioScreen> {
   }
 
   Future<void> _extractText() async {
+    final l10n = AppL10n.of(context);
     if (_resultBytes == null) return;
 
     setState(() => _isProcessing = true);
@@ -282,7 +286,7 @@ class _PerspectiveStudioScreenState extends State<PerspectiveStudioScreen> {
       if (mounted) {
         if (recognizedText.trim().isEmpty) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('No text detected in the image.')),
+            SnackBar(content: Text(l10n.get('perspective_no_text'))),
           );
         } else {
           _showTextDialog(recognizedText);
@@ -296,7 +300,7 @@ class _PerspectiveStudioScreenState extends State<PerspectiveStudioScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('OCR Error: $e'),
+            content: Text('${l10n.get('perspective_ocr_error_prefix')}$e'),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -310,20 +314,21 @@ class _PerspectiveStudioScreenState extends State<PerspectiveStudioScreen> {
   }
 
   void _showRestartDialog() {
+    final l10n = AppL10n.of(context);
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1A1B1E),
-        title: const Text('Restart Required',
+        title: Text(l10n.get('perspective_restart_required'),
             style: TextStyle(color: Colors.white)),
-        content: const Text(
-          'The OCR engine needs a full app restart to initialize. Please stop the app and run it again (Cold Start).',
+        content: Text(
+          l10n.get('perspective_restart_message'),
           style: TextStyle(color: Colors.white70),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('OK', style: TextStyle(color: Color(0xFF56E39F))),
+            child: Text(l10n.get('ok'), style: const TextStyle(color: Color(0xFF56E39F))),
           ),
         ],
       ),
@@ -331,8 +336,9 @@ class _PerspectiveStudioScreenState extends State<PerspectiveStudioScreen> {
   }
 
   void _showTextDialog(String text) {
+    final l10n = AppL10n.of(context);
     final hasArabic = RegExp(r'[\u0600-\u06FF]').hasMatch(text);
-    final displayText = text.isEmpty ? 'No text detected.' : text;
+    final displayText = text.isEmpty ? l10n.get('perspective_no_text_detected') : text;
 
     showModalBottomSheet(
       context: context,
@@ -354,8 +360,8 @@ class _PerspectiveStudioScreenState extends State<PerspectiveStudioScreen> {
                     const Icon(Icons.text_snippet_rounded,
                         color: Color(0xFF56E39F)),
                     const SizedBox(width: 12),
-                    const Text(
-                      'Extracted Text',
+                    Text(
+                      l10n.get('perspective_text_sheet_title'),
                       style: TextStyle(
                           color: Colors.white,
                           fontSize: 18,
@@ -368,8 +374,8 @@ class _PerspectiveStudioScreenState extends State<PerspectiveStudioScreen> {
                       onPressed: () {
                         Clipboard.setData(ClipboardData(text: text));
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                              content: Text('Text copied to clipboard')),
+                          SnackBar(
+                              content: Text(l10n.get('perspective_text_copied'))),
                         );
                       },
                     ),
@@ -412,7 +418,7 @@ class _PerspectiveStudioScreenState extends State<PerspectiveStudioScreen> {
     );
   }
 
-  Widget _buildPreviewControls() {
+  Widget _buildPreviewControls(AppL10n l10n) {
     return Container(
       color: const Color(0xFF131417),
       padding: const EdgeInsets.only(bottom: 32, top: 16),
@@ -421,17 +427,17 @@ class _PerspectiveStudioScreenState extends State<PerspectiveStudioScreen> {
         children: [
           _BottomAction(
             icon: Icons.close_rounded,
-            label: 'Discard',
+            label: l10n.get('perspective_discard'),
             onTap: () => setState(() => _showPreview = false),
           ),
           _BottomAction(
             icon: Icons.text_fields_rounded,
-            label: 'Extract Text',
+            label: l10n.get('perspective_extract_text'),
             onTap: _extractText,
           ),
           _BottomAction(
             icon: Icons.done_all_rounded,
-            label: 'Done',
+            label: l10n.get('perspective_done'),
             highlight: true,
             onTap: _onConfirmSave,
           ),

@@ -1,0 +1,59 @@
+{
+  "@@locale": "en",
+  "appTitle": "AI Photo Studio",
+  "appSubtitle": "Professional editing tools",
+  "proBadge": "PRO",
+  "startCta": "START",
+  "chooseA": "Choose a",
+  "workspace": "Workspace",
+  "homeOpenToolHint": "Tap any tool below to open it with a photo from your gallery.",
+  "statTools": "Tools",
+  "statPowered": "Powered",
+  "statQuality": "Quality",
+  "operations": "Operations",
+  "activeJobs": "{count} Active",
+  "@activeJobs": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "operationsCenterTitle": "Operations Center",
+  "operationsCenterSubtitleEmpty": "Track every running AI process from one place",
+  "operationsCenterSubtitleCount": "{count} active job(s) in progress",
+  "@operationsCenterSubtitleCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "smartRetouchTitle": "Smart Retouch",
+  "smartRetouchSubtitle": "Clone heal · Blemish fix · Non-destructive",
+  "magicEraserTitle": "Magic Eraser Inpainting",
+  "magicEraserSubtitle": "Remove objects · Paint mask · AI fill",
+  "smartCloneStudioTitle": "Smart Clone Studio (AI)",
+  "smartCloneStudioSubtitle": "Copy · Move · Remove objects with AI",
+  "aiObjectCopyPasteTitle": "AI Object Copy Paste",
+  "aiObjectCopyPasteSubtitle": "Lift objects and paste anywhere",
+  "blemishRemoverTitle": "Blemish Remover",
+  "blemishRemoverSubtitle": "One-tap skin perfection",
+  "aiPerspectiveStudioTitle": "AI Perspective Studio",
+  "aiPerspectiveStudioSubtitle": "Straighten · Rectify · Smart scan",
+  "blurPhotoTitle": "Blur Photo",
+  "blurPhotoSubtitle": "Smart · Circle · Line · Premium background blur",
+  "aiHealRegionTitle": "AI Heal Region",
+  "aiHealRegionSubtitle": "Small targeted repair with radius control",
+  "aiRepairDamageTitle": "AI Repair Damage",
+  "aiRepairDamageSubtitle": "Restore missing or damaged areas using AI",
+  "aiExpandCanvasTitle": "AI Expand Canvas",
+  "aiExpandCanvasSubtitle": "Outpaint and extend scene edges seamlessly",
+  "aiCleanEdgesTitle": "AI Clean Edges",
+  "aiCleanEdgesSubtitle": "Professional mask boundary cleanup",
+  "moreRemoteToolsTitle": "More Remote Tools",
+  "moreRemoteToolsSubtitle": "Descratch · Background Cleanup · Studio Hub",
+  "languageMenuTooltip": "Change language",
+  "languageArabic": "العربية",
+  "languageEnglish": "English"
+}

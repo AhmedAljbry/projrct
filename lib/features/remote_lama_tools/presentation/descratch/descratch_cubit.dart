@@ -4,6 +4,8 @@ import 'dart:typed_data';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import 'package:untitled2/core/background/bg_job_models.dart';
+import 'package:untitled2/core/background/operation_tracker.dart';
 import 'package:untitled2/features/remote_lama_tools/domain/entities/lama_entities.dart';
 import 'package:untitled2/features/remote_lama_tools/domain/failures/lama_failure.dart';
 import 'package:untitled2/features/remote_lama_tools/domain/usecases/lama_usecases.dart';
@@ -67,6 +69,8 @@ class DescratchCubit extends Cubit<DescratchState> {
   final GetJobResultUseCase _getJobResultUseCase;
   StreamSubscription<LamaJobStatus>? _pollingSubscription;
   Uint8List? _lastMaskBytes;
+  final OperationTracker _tracker = OperationTracker();
+  String? _localJobId;
 
   DescratchCubit({
     required SubmitJobUseCase submitJobUseCase,
@@ -104,6 +108,14 @@ class DescratchCubit extends Cubit<DescratchState> {
     );
 
     try {
+      _localJobId = await _tracker.createForegroundJob(
+        type: BgJobType.descratch,
+        sourceBytes: state.imageBytes!,
+        maskBytes: maskBytes,
+        metadata: {'tool': 'descratch_restore'},
+        sourcePrefix: 'descratch_source',
+        maskPrefix: 'descratch_mask',
+      );
       final options = RepairDamageOptions(
         imageBytes: state.imageBytes!,
         imageName: 'descratch_source.png',
@@ -111,6 +123,11 @@ class DescratchCubit extends Cubit<DescratchState> {
         maskName: 'descratch_mask.png',
       );
       final jobId = await _submitJobUseCase.execute(options);
+      await _tracker.bindRemoteJob(
+        _localJobId!,
+        remoteJobId: jobId,
+        queued: false,
+      );
       _startPolling(jobId);
     } catch (error) {
       _emitFailure(error);
@@ -150,6 +167,7 @@ class DescratchCubit extends Cubit<DescratchState> {
   void reset() {
     _pollingSubscription?.cancel();
     _lastMaskBytes = null;
+    _localJobId = null;
     emit(const DescratchState.initial());
   }
 
@@ -168,6 +186,9 @@ class DescratchCubit extends Cubit<DescratchState> {
             isRetryable: false,
           ),
         );
+        if (_localJobId != null) {
+          _tracker.updateFromRemoteStatus(_localJobId!, status);
+        }
         if (status.isCompleted) {
           _fetchResult(status.jobId);
         } else if (status.isFailed) {
@@ -187,6 +208,9 @@ class DescratchCubit extends Cubit<DescratchState> {
   Future<void> _fetchResult(String jobId) async {
     try {
       final resultBytes = await _getJobResultUseCase.execute(jobId);
+      if (_localJobId != null) {
+        await _tracker.completeJob(_localJobId!, resultBytes);
+      }
       if (isClosed) {
         return;
       }
@@ -205,6 +229,9 @@ class DescratchCubit extends Cubit<DescratchState> {
   }
 
   void _emitFailure(Object error) {
+    if (_localJobId != null) {
+      _tracker.failJob(_localJobId!, error.toString());
+    }
     final isRetryable = error is LamaRateLimitFailure ||
         error is LamaServerBusyFailure ||
         error is LamaApiFailure;

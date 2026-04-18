@@ -317,9 +317,23 @@ void _smartMask(
   final srcMaskW = maskJson['width'] as int? ?? srcW;
   final srcMaskH = maskJson['height'] as int? ?? srcH;
 
-  if (confidence.isEmpty) {
-    for (var i = 0; i < mask.length; i++) {
-      mask[i] = 0.0;
+  if (confidence.isEmpty ||
+      srcMaskW <= 0 ||
+      srcMaskH <= 0 ||
+      confidence.length < (srcMaskW * srcMaskH)) {
+    const cx = 0.50;
+    const cy = 0.48;
+    const rX = 0.36;
+    const rY = 0.48;
+    for (var y = 0; y < height; y++) {
+      final ny = (y / height) - cy;
+      for (var x = 0; x < width; x++) {
+        final nx = (x / width) - cx;
+        final n = math.sqrt(
+          math.pow(nx / rX, 2) + math.pow(ny / rY, 2),
+        );
+        mask[y * width + x] = _smoothstep(1.20, 0.60, n);
+      }
     }
     return;
   }

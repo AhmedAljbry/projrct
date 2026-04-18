@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
@@ -23,12 +24,12 @@ import 'package:untitled2/features/remote_lama_tools/presentation/hub/remote_lam
 import 'package:untitled2/features/remote_lama_tools/presentation/repair_damage/repair_damage_cubit.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/repair_damage/repair_damage_manual_mask_cubit.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/repair_damage/repair_damage_page.dart';
+import 'package:untitled2/features/remote_lama_tools/presentation/shared/shared_heal_clean_page.dart';
 import 'package:untitled2/features/retouch_mask_assist/data/repositories/retouch_mask_assist_repository_impl.dart';
 import 'package:untitled2/features/retouch_mask_assist/domain/repositories/retouch_mask_assist_repository.dart';
 import 'package:untitled2/features/retouch_mask_assist/domain/usecases/retouch_mask_assist_usecases.dart';
 import 'package:untitled2/features/retouch_mask_assist/presentation/bloc/expand/expand_mask_assist_cubit.dart';
 import 'package:untitled2/features/retouch_mask_assist/presentation/bloc/repair_mask_assist_cubit.dart';
-import 'package:untitled2/features/remote_lama_tools/presentation/shared/shared_heal_clean_page.dart';
 import 'package:untitled2/core/ui/AppL10n.dart';
 
 class RemoteLamaFlowShell extends StatefulWidget {
@@ -62,6 +63,7 @@ class _RemoteLamaFlowShellState extends State<RemoteLamaFlowShell> {
     _dataSource = LamaRemoteDataSourceImpl(
       baseUrl: config.baseUrl,
       apiKey: config.apiKey ?? '',
+      ownerId: config.ownerId ?? 'app-user',
       client: _client,
     );
     _repository = LamaRepositoryImpl(remoteDataSource: _dataSource);
@@ -85,13 +87,15 @@ class _RemoteLamaFlowShellState extends State<RemoteLamaFlowShell> {
               pollJobStatusUseCase: context.read<PollJobStatusUseCase>(),
               getJobResultUseCase: context.read<GetJobResultUseCase>(),
             );
+            if (widget.initialImage != null) {
+              healCubit.setImage(widget.initialImage!);
+            }
             final cleanCubit = CleanEdgesCubit(
               submitJobUseCase: context.read<SubmitJobUseCase>(),
               pollJobStatusUseCase: context.read<PollJobStatusUseCase>(),
               getJobResultUseCase: context.read<GetJobResultUseCase>(),
             );
             if (widget.initialImage != null) {
-              healCubit.setImage(widget.initialImage!);
               cleanCubit.setImage(widget.initialImage!);
             }
             return MultiBlocProvider(
@@ -99,7 +103,9 @@ class _RemoteLamaFlowShellState extends State<RemoteLamaFlowShell> {
                 BlocProvider.value(value: healCubit),
                 BlocProvider.value(value: cleanCubit),
               ],
-              child: const SharedHealCleanPage(initialMode: SharedToolMode.healRegion),
+              child: const SharedHealCleanPage(
+                initialMode: SharedToolMode.healRegion,
+              ),
             );
           },
         ),
@@ -227,7 +233,9 @@ class _RemoteLamaFlowShellState extends State<RemoteLamaFlowShell> {
                 BlocProvider.value(value: healCubit),
                 BlocProvider.value(value: cleanCubit),
               ],
-              child: const SharedHealCleanPage(initialMode: SharedToolMode.cleanEdges),
+              child: const SharedHealCleanPage(
+                initialMode: SharedToolMode.cleanEdges,
+              ),
             );
           },
         ),
@@ -273,7 +281,13 @@ class _RemoteLamaFlowShellState extends State<RemoteLamaFlowShell> {
                 ExportProcessingMaskUseCase(_retouchMaskAssistRepository)),
       ],
       child: MaterialApp.router(
+        locale: locale,
         debugShowCheckedModeBanner: false,
+        supportedLocales: AppLocalizations.supportedLocales,
+        localizationsDelegates: const [
+          AppL10nDelegate(),
+          ...AppLocalizations.localizationsDelegates,
+        ],
         theme: Theme.of(context),
         routerConfig: _router,
       ),

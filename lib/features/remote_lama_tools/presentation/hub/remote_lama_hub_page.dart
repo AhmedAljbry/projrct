@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:untitled2/core/background/presentation/pages/operations_page.dart';
 
 import 'package:untitled2/features/remote_lama_tools/presentation/hub/remote_lama_hub_cubit.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/shared/lama_theme_colors.dart';
@@ -32,6 +33,15 @@ class _RemoteLamaHubPageState extends State<RemoteLamaHubPage> {
           'Remote LaMa Studio',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
+        actions: [
+          IconButton(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const OperationsPage()),
+            ),
+            icon: const Icon(Icons.dashboard_customize_rounded),
+          ),
+        ],
         backgroundColor: LamaTheme.toolbarBg,
         elevation: 0,
       ),
@@ -106,23 +116,6 @@ class _RemoteLamaHubPageState extends State<RemoteLamaHubPage> {
             icon: Icons.healing,
             route: '/lama/heal',
             isSupported: supportedModes.contains('heal_region'),
-          ),
-          _buildToolCard(
-            context,
-            title: 'Repair Damage',
-            description:
-                'Repair damaged or missing region based on required mask.',
-            icon: Icons.build_circle,
-            route: '/lama/repair',
-            isSupported: canRepairDamage,
-          ),
-          _buildToolCard(
-            context,
-            title: 'Expand Canvas',
-            description: 'Outpainting by extending the canvas from the edges.',
-            icon: Icons.crop_free,
-            route: '/lama/expand',
-            isSupported: supportedModes.contains('expand_canvas'),
           ),
           _buildToolCard(
             context,

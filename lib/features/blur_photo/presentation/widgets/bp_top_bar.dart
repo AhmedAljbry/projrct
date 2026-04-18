@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:untitled2/core/ui/AppL10n.dart';
 
 import '../cubit/blur_photo_state.dart';
 
@@ -18,6 +19,7 @@ class BpTopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppL10n.of(context);
     final exporting = status == BpEditorStatus.exporting;
     return SafeArea(
       bottom: false,
@@ -29,11 +31,11 @@ class BpTopBar extends StatelessWidget {
               onPressed: onClose,
               icon: const Icon(Icons.close_rounded,
                   color: Colors.white, size: 28),
-              tooltip: 'Close',
+              tooltip: l10n.get('blur_photo_close'),
             ),
-            const Expanded(
+            Expanded(
               child: Text(
-                'Blur Photo',
+                l10n.get('blurPhotoTitle'),
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Colors.white,
@@ -50,7 +52,7 @@ class BpTopBar extends StatelessWidget {
                 color: exporting ? Colors.white24 : _kAccent,
                 size: 28,
               ),
-              tooltip: 'Save',
+              tooltip: l10n.get('blur_photo_save'),
             ),
           ],
         ),

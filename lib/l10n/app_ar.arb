@@ -1,0 +1,59 @@
+{
+  "@@locale": "ar",
+  "appTitle": "استوديو الصور الذكي",
+  "appSubtitle": "أدوات تحرير احترافية",
+  "proBadge": "PRO",
+  "startCta": "ابدأ",
+  "chooseA": "اختر",
+  "workspace": "مساحة العمل",
+  "homeOpenToolHint": "اضغط على أي أداة بالأسفل لفتحها باستخدام صورة من المعرض.",
+  "statTools": "أدوات",
+  "statPowered": "مدعوم",
+  "statQuality": "جودة",
+  "operations": "العمليات",
+  "activeJobs": "{count} نشط",
+  "@activeJobs": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "operationsCenterTitle": "مركز العمليات",
+  "operationsCenterSubtitleEmpty": "تابع كل عمليات الذكاء الاصطناعي الجارية من مكان واحد",
+  "operationsCenterSubtitleCount": "{count} مهمة نشطة قيد التنفيذ",
+  "@operationsCenterSubtitleCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "smartRetouchTitle": "الرتوش الذكي",
+  "smartRetouchSubtitle": "استنساخ وعلاج · إزالة الشوائب · بدون إتلاف",
+  "magicEraserTitle": "الممحاة السحرية",
+  "magicEraserSubtitle": "إزالة عناصر · رسم قناع · تعبئة بالذكاء الاصطناعي",
+  "smartCloneStudioTitle": "استوديو الاستنساخ الذكي",
+  "smartCloneStudioSubtitle": "نسخ · تحريك · إزالة عناصر بالذكاء الاصطناعي",
+  "aiObjectCopyPasteTitle": "نسخ ولصق العناصر بالذكاء الاصطناعي",
+  "aiObjectCopyPasteSubtitle": "التقاط العناصر ولصقها في أي مكان",
+  "blemishRemoverTitle": "مزيل الشوائب",
+  "blemishRemoverSubtitle": "تنقية البشرة بلمسة واحدة",
+  "aiPerspectiveStudioTitle": "استوديو المنظور الذكي",
+  "aiPerspectiveStudioSubtitle": "استقامة · تصحيح · مسح ذكي",
+  "blurPhotoTitle": "تمويه الصورة",
+  "blurPhotoSubtitle": "ذكي · دائري · خطي · تمويه خلفية احترافي",
+  "aiHealRegionTitle": "معالجة منطقة بالذكاء الاصطناعي",
+  "aiHealRegionSubtitle": "إصلاح موضعي دقيق مع التحكم في نصف القطر",
+  "aiRepairDamageTitle": "إصلاح التلف بالذكاء الاصطناعي",
+  "aiRepairDamageSubtitle": "استعادة المناطق التالفة أو المفقودة بالذكاء الاصطناعي",
+  "aiExpandCanvasTitle": "توسيع اللوحة بالذكاء الاصطناعي",
+  "aiExpandCanvasSubtitle": "تمديد أطراف المشهد بانسيابية",
+  "aiCleanEdgesTitle": "تنظيف الحواف بالذكاء الاصطناعي",
+  "aiCleanEdgesSubtitle": "تنظيف احترافي لحدود القناع",
+  "moreRemoteToolsTitle": "أدوات سحابية إضافية",
+  "moreRemoteToolsSubtitle": "إزالة خدوش · تنظيف الخلفية · مركز الأدوات",
+  "languageMenuTooltip": "تغيير اللغة",
+  "languageArabic": "العربية",
+  "languageEnglish": "English"
+}

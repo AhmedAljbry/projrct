@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:untitled2/core/ui/AppL10n.dart';
 
 import '../bloc/clone_studio_bloc.dart';
 import '../bloc/clone_studio_state.dart';
@@ -9,6 +10,7 @@ class CloneToolbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppL10n.of(context);
     return BlocBuilder<CloneStudioBloc, CloneStudioState>(
       builder: (context, state) {
         return Container(
@@ -24,7 +26,7 @@ class CloneToolbar extends StatelessWidget {
             children: [
               _buildToolButton(
                 icon: Icons.auto_fix_high_rounded,
-                label: 'تحديد',
+                label: l10n.get('clone_tool_select'),
                 isActive: state.mode == CloneStudioMode.select,
                 onPressed: () {
                   context.read<CloneStudioBloc>().add(
@@ -34,7 +36,7 @@ class CloneToolbar extends StatelessWidget {
               ),
               _buildToolButton(
                 icon: Icons.open_with_rounded,
-                label: 'تحريك',
+                label: l10n.get('clone_tool_move'),
                 isActive: state.mode == CloneStudioMode.place,
                 onPressed: state.activeLayerId == null
                     ? null
@@ -46,7 +48,7 @@ class CloneToolbar extends StatelessWidget {
               ),
               _buildToolButton(
                 icon: Icons.flip,
-                label: 'قلب',
+                label: l10n.get('clone_tool_flip'),
                 isActive: false,
                 onPressed: state.activeLayerId == null
                     ? null
@@ -66,7 +68,7 @@ class CloneToolbar extends StatelessWidget {
               ),
               _buildToolButton(
                 icon: Icons.delete_outline,
-                label: 'حذف',
+                label: l10n.get('clone_tool_delete'),
                 isActive: false,
                 onPressed: state.activeLayerId == null
                     ? null

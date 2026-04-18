@@ -5,12 +5,14 @@ class LamaStatusIndicator extends StatelessWidget {
   final int progress;
   final String message;
   final bool isProcessing;
+  final VoidCallback? onOpenOperations;
 
   const LamaStatusIndicator({
     super.key,
     required this.progress,
     required this.message,
     this.isProcessing = true,
+    this.onOpenOperations,
   });
 
   @override
@@ -47,7 +49,20 @@ class LamaStatusIndicator extends StatelessWidget {
                 color: Colors.white70,
                 fontSize: 14,
               ),
+              textAlign: TextAlign.center,
             ),
+            if (onOpenOperations != null) ...[
+              const SizedBox(height: 18),
+              OutlinedButton.icon(
+                onPressed: onOpenOperations,
+                icon: const Icon(Icons.dashboard_customize_rounded),
+                label: const Text('Open Operations'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  side: const BorderSide(color: Colors.white24),
+                ),
+              ),
+            ],
           ],
         ),
       ),

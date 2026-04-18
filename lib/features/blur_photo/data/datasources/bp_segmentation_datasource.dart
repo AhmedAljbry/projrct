@@ -1,7 +1,7 @@
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:google_mlkit_subject_segmentation/google_mlkit_subject_segmentation.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:image/image.dart' as img;
@@ -35,6 +35,10 @@ class BpSegmentationDatasource {
     required int imageWidth,
     required int imageHeight,
   }) async {
+    if (defaultTargetPlatform != TargetPlatform.android) {
+      return _fallback();
+    }
+
     if (imageBytes.isEmpty || imageWidth <= 0 || imageHeight <= 0) {
       return _fallback();
     }
@@ -57,9 +61,10 @@ class BpSegmentationDatasource {
     final tempFile = File(
       '${Directory.systemTemp.path}/bp_seg_$uniqueId.png',
     );
-    await tempFile.writeAsBytes(prepared.bytes, flush: true);
 
     try {
+      await tempFile.writeAsBytes(prepared.bytes, flush: true);
+
       _segmenter ??= SubjectSegmenter(
         options: SubjectSegmenterOptions(
           enableForegroundBitmap: false,
@@ -110,6 +115,10 @@ class BpSegmentationDatasource {
     required int imageWidth,
     required int imageHeight,
   }) async {
+    if (defaultTargetPlatform != TargetPlatform.android) {
+      return _emptyTextResult(imageWidth, imageHeight);
+    }
+
     if (imageBytes.isEmpty || imageWidth <= 0 || imageHeight <= 0) {
       return _emptyTextResult(imageWidth, imageHeight);
     }
@@ -135,9 +144,10 @@ class BpSegmentationDatasource {
 
     final uniqueId = DateTime.now().microsecondsSinceEpoch;
     final tempFile = File('${Directory.systemTemp.path}/bp_txt_$uniqueId.png');
-    await tempFile.writeAsBytes(prepared.bytes, flush: true);
 
     try {
+      await tempFile.writeAsBytes(prepared.bytes, flush: true);
+
       _textRecognizer ??= TextRecognizer(script: TextRecognitionScript.latin);
       final inputImage = InputImage.fromFile(tempFile);
       final result = await _textRecognizer!.processImage(inputImage);

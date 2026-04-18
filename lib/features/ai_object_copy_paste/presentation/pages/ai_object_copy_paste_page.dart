@@ -2,7 +2,9 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:untitled2/core/ui/AppL10n.dart';
 
+import '../../../../shared/widgets/result_preview_screen.dart';
 import '../../domain/entities/editor_models.dart';
 import '../controllers/ai_object_copy_paste_controller.dart';
 import '../widgets/editor_canvas.dart';
@@ -29,8 +31,24 @@ class _AiObjectCopyPastePageState extends State<AiObjectCopyPastePage> {
     super.dispose();
   }
 
+  Future<void> _openResultPreview() async {
+    final bytes = await _controller.exportComposition(saveToGallery: false);
+    if (!mounted || bytes == null) {
+      return;
+    }
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ResultPreviewScreen(
+          title: AppL10n.of(context).get('copy_paste_result'),
+          resultBytes: bytes,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final l10n = AppL10n.of(context);
     final textTheme =
         GoogleFonts.spaceGroteskTextTheme(Theme.of(context).textTheme);
     return Theme(
@@ -80,10 +98,10 @@ class _AiObjectCopyPastePageState extends State<AiObjectCopyPastePage> {
                                   borderRadius: BorderRadius.circular(18),
                                   border: Border.all(color: Colors.white12),
                                 ),
-                                child: const Column(
+                                child: Column(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    SizedBox(
+                                    const SizedBox(
                                       width: 26,
                                       height: 26,
                                       child: CircularProgressIndicator(
@@ -91,10 +109,10 @@ class _AiObjectCopyPastePageState extends State<AiObjectCopyPastePage> {
                                         color: Color(0xFF63D5A3),
                                       ),
                                     ),
-                                    SizedBox(height: 10),
+                                    const SizedBox(height: 10),
                                     Text(
-                                      'Preparing patch...',
-                                      style: TextStyle(color: Colors.white70),
+                                      l10n.get('copy_paste_preparing_patch'),
+                                      style: const TextStyle(color: Colors.white70),
                                     ),
                                   ],
                                 ),
@@ -116,9 +134,13 @@ class _AiObjectCopyPastePageState extends State<AiObjectCopyPastePage> {
 }
 
 class _TopToolbar extends StatelessWidget {
-  const _TopToolbar({required this.controller});
+  const _TopToolbar({
+    required this.controller,
+    required this.onOpenResult,
+  });
 
   final AiObjectCopyPasteController controller;
+  final Future<void> Function() onOpenResult;
 
   @override
   Widget build(BuildContext context) {
@@ -147,8 +169,7 @@ class _TopToolbar extends StatelessWidget {
           const SizedBox(width: 8),
           _TopIconButton(
             icon: Icons.download_rounded,
-            onTap:
-                state.isExporting ? null : () => controller.exportComposition(),
+            onTap: state.isExporting ? null : onOpenResult,
             foregroundColor: Colors.white,
           ),
         ],
@@ -164,9 +185,12 @@ class _ModeBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppL10n.of(context);
     final state = controller.state;
     final active =
-        state.activeRole == ActiveDocumentRole.target ? 'Target' : 'Source';
+        state.activeRole == ActiveDocumentRole.target
+            ? l10n.get('copy_paste_target')
+            : l10n.get('copy_paste_source');
     return GestureDetector(
       onTap: () {
         if (state.hasDualDocument) {
@@ -208,6 +232,7 @@ class _FloatingAssetRail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppL10n.of(context);
     final state = controller.state;
     final previewItems = <PastedItem>[
       if (state.pendingItem != null) state.pendingItem!,
@@ -305,9 +330,9 @@ class _FloatingAssetRail extends StatelessWidget {
                                   color: const Color(0xFF63D5A3),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
-                                child: const Text(
-                                  'Preview',
-                                  style: TextStyle(
+                                child: Text(
+                                  l10n.get('copy_paste_preview'),
+                                  style: const TextStyle(
                                     color: Colors.black,
                                     fontSize: 10,
                                     fontWeight: FontWeight.w700,
@@ -384,6 +409,7 @@ class _HintBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppL10n.of(context);
     if (message == null || message!.isEmpty) {
       return const SizedBox.shrink();
     }
@@ -395,7 +421,7 @@ class _HintBubble extends StatelessWidget {
         border: Border.all(color: Colors.white10),
       ),
       child: Text(
-        message!,
+        l10n.get(message!),
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
         style: const TextStyle(color: Colors.white70, fontSize: 12.5),
@@ -411,8 +437,10 @@ class _BottomToolRail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppL10n.of(context);
     final state = controller.state;
     final hasSelection = state.selection != null;
+    final hasSelectedLayer = controller.selectedItem != null;
     return Container(
       color: Colors.black,
       padding: const EdgeInsets.fromLTRB(10, 10, 10, 18),
@@ -422,7 +450,7 @@ class _BottomToolRail extends StatelessWidget {
           children: [
             _BottomAction(
               icon: Icons.crop_square_rounded,
-              label: 'Select',
+              label: l10n.get('copy_paste_select'),
               selected: state.interactionMode ==
                   CanvasInteractionMode.selectRectangle,
               onTap: () => controller
@@ -430,7 +458,7 @@ class _BottomToolRail extends StatelessWidget {
             ),
             _BottomAction(
               icon: Icons.gesture_rounded,
-              label: 'Lasso',
+              label: l10n.get('copy_paste_lasso'),
               selected:
                   state.interactionMode == CanvasInteractionMode.selectLasso,
               onTap: () => controller
@@ -438,34 +466,46 @@ class _BottomToolRail extends StatelessWidget {
             ),
             _BottomAction(
               icon: Icons.auto_awesome_rounded,
-              label: 'Smart',
+              label: l10n.get('copy_paste_smart'),
               selected: state.interactionMode == CanvasInteractionMode.smartTap,
               onTap: controller.enterSmartSelectionMode,
             ),
             _BottomAction(
               icon: Icons.person_search_rounded,
-              label: 'People',
+              label: l10n.get('copy_paste_people'),
               selected:
                   state.interactionMode == CanvasInteractionMode.smartPersonTap,
               onTap: controller.enterPeopleSelectionMode,
             ),
             _BottomAction(
               icon: Icons.check_rounded,
-              label: 'Confirm',
+              label: l10n.get('copy_paste_confirm'),
               enabled: controller.canConfirm,
               onTap: controller.commitSelectionEdit,
             ),
             _BottomAction(
               icon: Icons.copy_rounded,
-              label: 'Copy',
+              label: l10n.get('copy_paste_copy'),
               enabled: hasSelection,
               onTap: controller.copySelection,
             ),
             _BottomAction(
               icon: Icons.content_paste_rounded,
-              label: 'Paste',
+              label: l10n.get('copy_paste_paste'),
               enabled: controller.canPaste,
               onTap: controller.pasteClipboard,
+            ),
+            _BottomAction(
+              icon: Icons.delete_rounded,
+              label: l10n.get('copy_paste_delete'),
+              enabled: hasSelection || hasSelectedLayer,
+              onTap: () {
+                if (hasSelectedLayer) {
+                  controller.deleteSelected();
+                  return;
+                }
+                controller.deleteSelection();
+              },
             ),
           ],
         ),
@@ -562,4 +602,3 @@ class _TopIconButton extends StatelessWidget {
     );
   }
 }
-

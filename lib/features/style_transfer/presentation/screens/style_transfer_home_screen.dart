@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:untitled2/core/ui/AppL10n.dart';
 
 import 'package:untitled2/features/style_transfer/application/style_transfer_controller.dart';
 import 'package:untitled2/features/style_transfer/application/style_transfer_state.dart';
@@ -71,6 +72,7 @@ class _StyleTransferHomeViewState extends State<_StyleTransferHomeView> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppL10n.of(context);
     return BlocListener<StyleTransferController, StyleTransferState>(
       listenWhen: (previous, current) =>
           previous.errorMessage != current.errorMessage ||
@@ -102,59 +104,57 @@ class _StyleTransferHomeViewState extends State<_StyleTransferHomeView> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: <Widget>[
-                            Text('AI Style Transfer',
+                            Text(l10n.get('style_transfer_home_title'),
                                 style: ViralStudioTokens.headline()),
                             const SizedBox(height: 10),
                             Text(
-                              'Extract a style from any reference, adapt it to your target scene, then push it through a cinematic safety-first viral engine.',
+                              l10n.get('style_transfer_home_desc'),
                               style: ViralStudioTokens.body(),
                             ),
                             const SizedBox(height: 18),
                             Wrap(
                               spacing: 10,
                               runSpacing: 10,
-                              children: const <Widget>[
-                                _Badge(label: 'Scene-aware'),
-                                _Badge(label: 'Face-safe'),
-                                _Badge(label: 'Fast preview'),
-                                _Badge(label: 'High-res export'),
+                              children: <Widget>[
+                                _Badge(label: l10n.get('style_transfer_badge_scene_aware')),
+                                _Badge(label: l10n.get('style_transfer_badge_face_safe')),
+                                _Badge(label: l10n.get('style_transfer_badge_fast_preview')),
+                                _Badge(label: l10n.get('style_transfer_badge_high_res')),
                               ],
                             ),
                           ],
                         ),
                       ),
                       const SizedBox(height: 20),
-                      Text('Source Inputs',
+                      Text(l10n.get('style_transfer_source_inputs'),
                           style: ViralStudioTokens.sectionTitle()),
                       const SizedBox(height: 12),
                       _ImageInputCard(
-                        title: 'Reference image',
-                        subtitle:
-                            'This image teaches the engine color mood, curves, and detail behavior.',
-                        buttonLabel: 'Pick reference',
+                        title: l10n.get('style_transfer_reference_title'),
+                        subtitle: l10n.get('style_transfer_reference_subtitle'),
+                        buttonLabel: l10n.get('style_transfer_pick_reference'),
                         bytes: state.referenceBytes,
                         fallbackLabel:
-                            state.referenceName ?? 'No reference selected yet',
+                            state.referenceName ?? l10n.get('style_transfer_no_reference'),
                         onTap: _pickReference,
                       ),
                       const SizedBox(height: 12),
                       _ImageInputCard(
-                        title: 'Target image',
-                        subtitle:
-                            'This is the photo that will receive the adaptive transfer.',
-                        buttonLabel: 'Pick target',
+                        title: l10n.get('style_transfer_target_title'),
+                        subtitle: l10n.get('style_transfer_target_subtitle'),
+                        buttonLabel: l10n.get('style_transfer_pick_target'),
                         bytes: state.targetBytes,
                         fallbackLabel:
-                            state.targetName ?? 'No target selected yet',
+                            state.targetName ?? l10n.get('style_transfer_no_target'),
                         onTap: _pickTarget,
                       ),
                       const SizedBox(height: 22),
                       Row(
                         children: <Widget>[
                           Expanded(
-                              child: Text('Built-in Style Packs',
+                              child: Text(l10n.get('style_transfer_builtin_packs'),
                                   style: ViralStudioTokens.sectionTitle())),
-                          Text('Tap to use without a reference',
+                          Text(l10n.get('style_transfer_tap_without_reference'),
                               style: ViralStudioTokens.body(12)),
                         ],
                       ),
@@ -176,7 +176,7 @@ class _StyleTransferHomeViewState extends State<_StyleTransferHomeView> {
                             Row(
                               children: <Widget>[
                                 Expanded(
-                                    child: Text('Ready to launch?',
+                                    child: Text(l10n.get('style_transfer_ready_launch'),
                                         style:
                                             ViralStudioTokens.sectionTitle())),
                                 if (state.isPreparing ||
@@ -191,7 +191,7 @@ class _StyleTransferHomeViewState extends State<_StyleTransferHomeView> {
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              'Pick a target plus either a reference image or a trending preset, then generate a live preview.',
+                              l10n.get('style_transfer_ready_launch_desc'),
                               style: ViralStudioTokens.body(),
                             ),
                             const SizedBox(height: 16),
@@ -200,7 +200,7 @@ class _StyleTransferHomeViewState extends State<_StyleTransferHomeView> {
                               child: FilledButton(
                                 style: ViralStudioTokens.primaryButton(),
                                 onPressed: state.isPreparing ? null : _start,
-                                child: const Text('Make it Viral'),
+                                child: Text(l10n.get('style_transfer_make_viral')),
                               ),
                             ),
                           ],

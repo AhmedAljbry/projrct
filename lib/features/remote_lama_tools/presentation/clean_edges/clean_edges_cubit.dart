@@ -1,6 +1,10 @@
 import 'dart:async';
 import 'dart:typed_data';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
+
+import 'package:untitled2/core/background/bg_job_models.dart';
+import 'package:untitled2/core/background/operation_tracker.dart';
 import 'package:untitled2/features/remote_lama_tools/domain/entities/lama_entities.dart';
 import 'package:untitled2/features/remote_lama_tools/domain/failures/lama_failure.dart';
 import 'package:untitled2/features/remote_lama_tools/domain/usecases/lama_usecases.dart';
@@ -51,15 +55,19 @@ class CleanEdgesCubit extends Cubit<CleanEdgesState> {
   final SubmitJobUseCase _submitJobUseCase;
   final PollJobStatusUseCase _pollJobStatusUseCase;
   final GetJobResultUseCase _getJobResultUseCase;
-  StreamSubscription? _pollingSubscription;
+  final OperationTracker _operationTracker;
+
+  StreamSubscription<LamaJobStatus>? _pollingSubscription;
 
   CleanEdgesCubit({
     required SubmitJobUseCase submitJobUseCase,
     required PollJobStatusUseCase pollJobStatusUseCase,
     required GetJobResultUseCase getJobResultUseCase,
+    OperationTracker? operationTracker,
   })  : _submitJobUseCase = submitJobUseCase,
         _pollJobStatusUseCase = pollJobStatusUseCase,
         _getJobResultUseCase = getJobResultUseCase,
+        _operationTracker = operationTracker ?? OperationTracker(),
         super(CleanEdgesInitial());
 
   void setImage(Uint8List bytes) {
@@ -73,50 +81,109 @@ class CleanEdgesCubit extends Cubit<CleanEdgesState> {
     }
   }
 
-  Future<void> submitJob(Uint8List maskBytes) async {
+  Future<String?> submitJob(Uint8List maskBytes) async {
     final currentState = state;
-    if (currentState is! CleanEdgesReady) return;
+    if (currentState is! CleanEdgesReady) {
+      return null;
+    }
 
     emit(CleanEdgesSubmitting());
+
+    String? localJobId;
     try {
-      final options = CleanEdgesOptions(
-        imageBytes: currentState.imageBytes,
-        imageName: 'clean_source.png',
+      localJobId = await _operationTracker.createForegroundJob(
+        type: BgJobType.cleanEdges,
+        sourceBytes: currentState.imageBytes,
         maskBytes: maskBytes,
-        maskName: 'clean_mask.png',
-        edgeRadius: currentState.edgeRadius,
+        metadata: {'edgeRadius': currentState.edgeRadius},
+        sourcePrefix: 'clean_source',
+        maskPrefix: 'clean_mask',
       );
-      final jobId = await _submitJobUseCase.execute(options);
-      _pollJob(jobId);
+
+      final remoteJobId = await _submitJobUseCase.execute(
+        CleanEdgesOptions(
+          imageBytes: currentState.imageBytes,
+          imageName: 'clean_edges.png',
+          maskBytes: maskBytes,
+          maskName: 'clean_edges_mask.png',
+          edgeRadius: currentState.edgeRadius,
+        ),
+      );
+
+      await _operationTracker.bindRemoteJob(
+        localJobId,
+        remoteJobId: remoteJobId,
+        queued: true,
+        message: 'Queued on API',
+      );
+
+      final queuedStatus = LamaJobStatus(
+        jobId: remoteJobId,
+        status: 'queued',
+        progress: 0,
+        message: 'Queued on API',
+      );
+      emit(CleanEdgesProcessing(queuedStatus));
+      _pollJob(remoteJobId, localJobId);
+      return localJobId;
     } catch (e) {
-      _handleError(e);
+      await _failJob(localJobId, e);
+      return null;
     }
   }
 
-  void _pollJob(String jobId) {
+  void _pollJob(String remoteJobId, String localJobId) {
     _pollingSubscription?.cancel();
-    _pollingSubscription = _pollJobStatusUseCase.execute(jobId).listen(
-      (status) {
-        if (isClosed) return;
+    _pollingSubscription = _pollJobStatusUseCase.execute(remoteJobId).listen(
+      (status) async {
+        if (isClosed) {
+          return;
+        }
+
+        await _operationTracker.updateFromRemoteStatus(localJobId, status);
         emit(CleanEdgesProcessing(status));
+
         if (status.isCompleted) {
-          _fetchResult(status.jobId);
+          await _fetchResult(localJobId, status.jobId);
         } else if (status.isFailed) {
-          emit(CleanEdgesFailure(message: status.error ?? 'Job failed mysteriously.'));
+          await _operationTracker.failJob(
+            localJobId,
+            status.error ?? 'Clean edges request failed.',
+          );
+          emit(
+            CleanEdgesFailure(
+              message: status.error ?? 'Clean edges request failed.',
+              isRetryable: true,
+            ),
+          );
         }
       },
-      onError: (e) {
-        if (!isClosed) _handleError(e);
+      onError: (e) async {
+        if (!isClosed) {
+          await _failJob(localJobId, e);
+        }
       },
     );
   }
 
-  Future<void> _fetchResult(String jobId) async {
+  Future<void> _fetchResult(String localJobId, String remoteJobId) async {
     try {
-      final resultBytes = await _getJobResultUseCase.execute(jobId);
-      if (!isClosed) emit(CleanEdgesSuccess(resultBytes));
+      final resultBytes = await _getJobResultUseCase.execute(remoteJobId);
+      await _operationTracker.completeJob(localJobId, resultBytes);
+      if (!isClosed) {
+        emit(CleanEdgesSuccess(resultBytes));
+      }
     } catch (e) {
-      if (!isClosed) emit(CleanEdgesFailure(message: 'Failed fetching result: $e', isRetryable: true));
+      await _failJob(localJobId, 'Failed fetching result: $e');
+    }
+  }
+
+  Future<void> _failJob(String? localJobId, Object error) async {
+    if (localJobId != null) {
+      await _operationTracker.failJob(localJobId, error.toString());
+    }
+    if (!isClosed) {
+      _handleError(error);
     }
   }
 
@@ -124,7 +191,7 @@ class CleanEdgesCubit extends Cubit<CleanEdgesState> {
     if (e is LamaRateLimitFailure || e is LamaServerBusyFailure) {
       emit(CleanEdgesFailure(message: (e as dynamic).message, isRetryable: true));
     } else {
-      emit(CleanEdgesFailure(message: e.toString()));
+      emit(CleanEdgesFailure(message: e.toString(), isRetryable: true));
     }
   }
 

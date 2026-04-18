@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:untitled2/core/ui/AppL10n.dart';
 
 import '../../domain/entities/blur_mode.dart';
 
@@ -63,6 +64,7 @@ class _ModeButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppL10n.of(context);
     final color = active ? _kAccent : Colors.white.withValues(alpha: 0.78);
     return InkWell(
       borderRadius: BorderRadius.circular(16),
@@ -87,7 +89,7 @@ class _ModeButton extends StatelessWidget {
             Icon(_iconFor(mode), size: 17, color: color),
             const SizedBox(width: 7),
             Text(
-              mode.label,
+              _modeLabel(l10n, mode),
               style: TextStyle(
                 color: color,
                 fontSize: 12.5,
@@ -100,6 +102,14 @@ class _ModeButton extends StatelessWidget {
     );
   }
 }
+
+String _modeLabel(AppL10n l10n, BlurPhotoMode mode) => switch (mode) {
+      BlurPhotoMode.full => l10n.get('blur_mode_full'),
+      BlurPhotoMode.text => 'Text',
+      BlurPhotoMode.smart => l10n.get('blur_mode_smart'),
+      BlurPhotoMode.circle => l10n.get('blur_mode_circle'),
+      BlurPhotoMode.line => l10n.get('blur_mode_line'),
+    };
 
 IconData _iconFor(BlurPhotoMode mode) => switch (mode) {
       BlurPhotoMode.full => Icons.blur_on_rounded,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:untitled2/core/i18n/app_localizations_x.dart';
 
 // ── Media type enum ────────────────────────────────────────────────────────────
 // Flexible system: plug in image / video / lottie later without changing
@@ -390,7 +391,7 @@ class _FeatureCardWidgetState extends State<FeatureCardWidget>
         ],
       ),
       child: Text(
-        'START',
+        context.tr.startCta,
         style: TextStyle(
           color: _pressed ? Colors.black : Colors.white,
           fontSize: 11,
