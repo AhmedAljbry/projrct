@@ -49,7 +49,9 @@ class _RetouchCanvasEditorState extends State<RetouchCanvasEditor> {
   }) {
     if (_carryStrokeEnd == null) return false;
     if (_carryMode != state.activeMode) return false;
-    return true;
+    final double continueThreshold =
+        (state.activeBrushSettings.size * 0.9).clamp(18.0, 72.0);
+    return (_carryStrokeEnd! - nextPoint).distance <= continueThreshold;
   }
 
   @override
@@ -345,8 +347,7 @@ class _RetouchCanvasEditorState extends State<RetouchCanvasEditor> {
                                 return ValueListenableBuilder<Offset?>(
                                   valueListenable:
                                       _activeScreenPositionNotifier,
-                                  builder:
-                                      (context, activeScreenPosition, __) {
+                                  builder: (context, activeScreenPosition, __) {
                                     return CustomPaint(
                                       painter: CanvasPreviewPainter(
                                         operations: state.operations,
@@ -368,8 +369,7 @@ class _RetouchCanvasEditorState extends State<RetouchCanvasEditor> {
                                         imageRect: currentDisplayRect,
                                         imageSize: Size(
                                           widget.displayImage.width.toDouble(),
-                                          widget.displayImage.height
-                                              .toDouble(),
+                                          widget.displayImage.height.toDouble(),
                                         ),
                                         baseImage: widget.displayImage,
                                         originalImage: widget.originalImage,

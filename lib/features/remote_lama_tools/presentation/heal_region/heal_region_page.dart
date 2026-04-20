@@ -6,11 +6,12 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
-import 'package:untitled2/core/background/presentation/pages/operations_page.dart';
+import 'package:untitled2/features/remote_lama_tools/presentation/heal_region/heal_processing_flow.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/heal_region/heal_region_cubit.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/shared/lama_home_pick_view.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/shared/lama_mask_painter.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/shared/lama_theme_colors.dart';
+import 'package:untitled2/features/remote_lama_tools/presentation/shared/remote_lama_operations_page.dart';
 
 class HealRegionPage extends StatefulWidget {
   const HealRegionPage({super.key});
@@ -179,28 +180,29 @@ class _HealRegionPageState extends State<HealRegionPage> {
     final maskBytes = await _generateMaskPng(Size(width, height));
     if (maskBytes == null || !context.mounted) return;
 
-    context.read<HealRegionCubit>().submitJob(maskBytes);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Processing started in background!'),
-        backgroundColor: Colors.green,
-      ),
-    );
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Heal job added to Operations.'),
-        action: SnackBarAction(
-          label: 'Open',
-          onPressed: () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const OperationsPage()),
-          ),
-        ),
-      ),
-    );
+    final healCubit = context.read<HealRegionCubit>();
+    final currentState = healCubit.state;
+    if (currentState is! HealRegionReady) {
+      return;
+    }
+
+    final localJobId = await healCubit.submitJob(maskBytes);
+    if (localJobId == null || !context.mounted) {
+      return;
+    }
+    final currentImage = currentState.imageBytes;
     setState(() {
       _strokes.clear();
     });
+
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => HealProcessingFlow(
+          originalBytes: currentImage,
+          healCubit: healCubit,
+        ),
+      ),
+    );
   }
 
   void _applyNewResult(Uint8List newResultBytes) {
@@ -248,7 +250,7 @@ class _HealRegionPageState extends State<HealRegionPage> {
                   onPressed: () => Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => const OperationsPage(),
+                      builder: (_) => const RemoteLamaOperationsPage(),
                     ),
                   ),
                   icon: const Icon(Icons.dashboard_customize_rounded),

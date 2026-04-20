@@ -59,6 +59,7 @@ class _ProcessingPageState extends State<ProcessingPage>
                 state.status == InpaintingStatus.timeout;
             final isCancelled = state.status == InpaintingStatus.cancelled;
             final isQueued = state.status == InpaintingStatus.queued;
+            final isPreparing = state.status == InpaintingStatus.preparing;
 
             if (isFailed || isCancelled) {
               _scannerController.stop();
@@ -81,6 +82,8 @@ class _ProcessingPageState extends State<ProcessingPage>
               animation: _glowController,
               primaryGlow: isFailed || isCancelled
                   ? InpaintingStudioTheme.rose
+                  : isPreparing
+                      ? InpaintingStudioTheme.amber
                   : InpaintingStudioTheme.mint,
               secondaryGlow: isFailed || isCancelled
                   ? InpaintingStudioTheme.danger
@@ -120,6 +123,7 @@ class _ProcessingPageState extends State<ProcessingPage>
                                             isFailed: isFailed,
                                             isCancelled: isCancelled,
                                             isQueued: isQueued,
+                                            isPreparing: isPreparing,
                                           ),
                                         ),
                                         SizedBox(width: 20),
@@ -135,6 +139,7 @@ class _ProcessingPageState extends State<ProcessingPage>
                                             isFailed: isFailed,
                                             isCancelled: isCancelled,
                                             isQueued: isQueued,
+                                            isPreparing: isPreparing,
                                           ),
                                         ),
                                       ],
@@ -148,6 +153,7 @@ class _ProcessingPageState extends State<ProcessingPage>
                                           isFailed: isFailed,
                                           isCancelled: isCancelled,
                                           isQueued: isQueued,
+                                          isPreparing: isPreparing,
                                         ),
                                         SizedBox(height: 18),
                                          _buildStatusCard(
@@ -160,6 +166,7 @@ class _ProcessingPageState extends State<ProcessingPage>
                                           isFailed: isFailed,
                                           isCancelled: isCancelled,
                                           isQueued: isQueued,
+                                          isPreparing: isPreparing,
                                         ),
                                       ],
                                     ),
@@ -242,9 +249,12 @@ class _ProcessingPageState extends State<ProcessingPage>
     required bool isFailed,
     required bool isCancelled,
     required bool isQueued,
+    required bool isPreparing,
   }) {
     final accent = isFailed || isCancelled
         ? InpaintingStudioTheme.rose
+        : isPreparing
+            ? InpaintingStudioTheme.amber
         : InpaintingStudioTheme.mint;
 
     return StudioGlassPanel(
@@ -326,6 +336,8 @@ class _ProcessingPageState extends State<ProcessingPage>
                       child: Icon(
                         isFailed || isCancelled
                             ? Icons.error_outline_rounded
+                            : isPreparing
+                                ? Icons.layers_rounded
                             : Icons.auto_fix_high_rounded,
                         color: Colors.white,
                         size: 38,
@@ -361,9 +373,12 @@ class _ProcessingPageState extends State<ProcessingPage>
     required bool isFailed,
     required bool isCancelled,
     required bool isQueued,
+    required bool isPreparing,
   }) {
     final accent = isFailed || isCancelled
         ? InpaintingStudioTheme.rose
+        : isPreparing
+            ? InpaintingStudioTheme.amber
         : InpaintingStudioTheme.mint;
     final jobLabel = state.jobId == null
         ? '...'
@@ -433,6 +448,16 @@ class _ProcessingPageState extends State<ProcessingPage>
               valueColor: AlwaysStoppedAnimation<Color>(accent),
             ),
           ),
+          if (isPreparing) ...[
+            SizedBox(height: 16),
+            _InfoBanner(
+              icon: Icons.layers_rounded,
+              accent: InpaintingStudioTheme.amber,
+              text: state.serverMessage?.trim().isNotEmpty == true
+                  ? state.serverMessage!.trim()
+                  : l10n.get('processing_body'),
+            ),
+          ],
           if (isQueued) ...[
             SizedBox(height: 16),
             _InfoBanner(
@@ -474,8 +499,9 @@ class _ProcessingPageState extends State<ProcessingPage>
     );
   }
 
-   Widget _buildTimeline(AppL10n l10n, int activeStep, Color accent) {
+  Widget _buildTimeline(AppL10n l10n, int activeStep, Color accent) {
     final items = [
+      l10n.get('loading'),
       l10n.get('queued'),
       l10n.get('uploading'),
       l10n.get('processing'),
@@ -545,34 +571,43 @@ class _ProcessingPageState extends State<ProcessingPage>
   }
 
    String _errorText(AppL10n l10n, InpaintingState state) {
-    final messageKey = state.failure?.messageKey;
-    if (messageKey != null) {
-      return l10n.get(messageKey);
+    final normalizedServerMessage = _normalizedServerMessage(state);
+    if (normalizedServerMessage != null) {
+      return normalizedServerMessage;
     }
     if (state.serverMessage?.trim().isNotEmpty == true) {
       return state.serverMessage!.trim();
+    }
+    final messageKey = state.failure?.messageKey;
+    if (messageKey != null) {
+      return l10n.get(messageKey);
     }
     return l10n.get('failed');
   }
 
   int _stepFromStatus(InpaintingStatus status) {
     return switch (status) {
-      InpaintingStatus.queued => 0,
-      InpaintingStatus.uploading => 1,
-      InpaintingStatus.processing => 2,
-      InpaintingStatus.downloading => 3,
-      InpaintingStatus.success => 4,
-      _ => 2,
+      InpaintingStatus.preparing => 0,
+      InpaintingStatus.queued => 1,
+      InpaintingStatus.uploading => 2,
+      InpaintingStatus.processing => 3,
+      InpaintingStatus.downloading => 4,
+      InpaintingStatus.success => 5,
+      _ => 3,
     };
   }
 
    String _primaryMessage(AppL10n l10n, InpaintingState state) {
-    final serverMsg = state.serverMessage;
-    if (serverMsg != null && serverMsg.trim().isNotEmpty) {
-      return serverMsg.trim();
+    final normalizedServerMessage = _normalizedServerMessage(state);
+    if (normalizedServerMessage != null) {
+      return normalizedServerMessage;
     }
  
     return switch (state.status) {
+      InpaintingStatus.preparing =>
+        state.serverMessage?.trim().isNotEmpty == true
+            ? state.serverMessage!.trim()
+            : l10n.get('loading'),
       InpaintingStatus.queued => l10n.get('queued'),
       InpaintingStatus.uploading => l10n.get('uploading'),
       InpaintingStatus.processing => l10n.get('processing'),
@@ -584,6 +619,27 @@ class _ProcessingPageState extends State<ProcessingPage>
     };
   }
 
+  String? _normalizedServerMessage(InpaintingState state) {
+    final serverMsg = state.serverMessage?.trim();
+    if (serverMsg == null || serverMsg.isEmpty) {
+      return null;
+    }
+
+    if (state.status == InpaintingStatus.failed ||
+        state.status == InpaintingStatus.timeout ||
+        state.status == InpaintingStatus.cancelled) {
+      final lower = serverMsg.toLowerCase();
+      if (lower.contains('success') ||
+          lower.contains('completed') ||
+          lower.contains('downloaded successfully') ||
+          lower.contains('تمت العملية بنجاح')) {
+        return null;
+      }
+    }
+
+    return serverMsg;
+  }
+
   double _progressValueFromServerOrFallback(InpaintingState state) {
     final serverProgress = state.serverProgress;
     if (serverProgress != null) {
@@ -591,10 +647,11 @@ class _ProcessingPageState extends State<ProcessingPage>
     }
 
     return switch (state.status) {
+      InpaintingStatus.preparing => 0.08,
       InpaintingStatus.queued => 0.08,
-      InpaintingStatus.uploading => 0.18,
+      InpaintingStatus.uploading => 0.22,
       InpaintingStatus.processing =>
-        (0.24 + ((state.pollCount * 0.03).clamp(0.0, 0.52))).clamp(0.0, 0.84),
+        (0.30 + ((state.pollCount * 0.03).clamp(0.0, 0.44))).clamp(0.0, 0.84),
       InpaintingStatus.downloading => 0.92,
       InpaintingStatus.success => 1.0,
       InpaintingStatus.failed => 1.0,

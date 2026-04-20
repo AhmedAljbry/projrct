@@ -23,11 +23,13 @@ import 'inpainting_models.dart';
 /// ══════════════════════════════════════════════════════════════
 class InpaintingApi {
   final String baseUrl;
-  final bool diagnostics;      // log hashes + dimension checks
+  final String? ownerId;
+  final bool diagnostics; // log hashes + dimension checks
   final bool deepMaskValidation; // decode PNG and validate before upload
 
   InpaintingApi({
     required this.baseUrl,
+    this.ownerId,
     this.diagnostics = true,
     this.deepMaskValidation = true,
   });
@@ -54,6 +56,84 @@ class InpaintingApi {
     if (deepMaskValidation) {
       _validateForLama(image: image, mask: mask);
     }
+
+    try {
+      return await _submitApiV1(
+        image: image,
+        mask: mask,
+        apiKey: apiKey,
+        lang: lang,
+      );
+    } catch (e) {
+      debugPrint('[SUBMIT] API v1 fallback to legacy submit: $e');
+    }
+
+    return _submitLegacy(
+      image: image,
+      mask: mask,
+      apiKey: apiKey,
+      lang: lang,
+    );
+  }
+
+  Future<SubmitJobResponse> _submitApiV1({
+    required Uint8List image,
+    required Uint8List mask,
+    String? apiKey,
+    String? lang,
+  }) async {
+    final req = http.MultipartRequest(
+      'POST',
+      Uri.parse('$baseUrl/api/v1/jobs/remove-object'),
+    );
+    _addHeaders(req.headers, apiKey: apiKey, lang: lang);
+
+    req.files.add(http.MultipartFile.fromBytes(
+      'image',
+      image,
+      filename: 'original.png',
+      contentType: MediaType('image', 'png'),
+    ));
+    req.files.add(http.MultipartFile.fromBytes(
+      'mask',
+      mask,
+      filename: 'mask.png',
+      contentType: MediaType('image', 'png'),
+    ));
+
+    final streamed = await req.send().timeout(const Duration(seconds: 120));
+    final body = await streamed.stream.bytesToString();
+
+    debugPrint('[SUBMIT][v1] status=${streamed.statusCode} body=$body');
+
+    if (streamed.statusCode < 200 || streamed.statusCode >= 300) {
+      throw ApiException(
+        _detail(body) ?? 'Submit failed (${streamed.statusCode})',
+        statusCode: streamed.statusCode,
+      );
+    }
+
+    final json = _decodeMap(body);
+    final nestedJob = json['job'];
+    final jobMap = nestedJob is Map<String, dynamic> ? nestedJob : json;
+    final jobId = _readString(jobMap, ['job_id', 'jobId', 'id'])?.trim();
+    if (jobId == null || jobId.isEmpty) {
+      throw ApiException('Response missing job_id: $body');
+    }
+
+    return SubmitJobResponse(
+      jobId: jobId,
+      position: _readInt(jobMap, ['position', 'queue_position']),
+      message: _readString(jobMap, ['message', 'detail']),
+    );
+  }
+
+  Future<SubmitJobResponse> _submitLegacy({
+    required Uint8List image,
+    required Uint8List mask,
+    String? apiKey,
+    String? lang,
+  }) async {
 
     final req = http.MultipartRequest(
       'POST',
@@ -116,6 +196,34 @@ class InpaintingApi {
         String? lang,
       }) async {
     try {
+      try {
+        final res = await http
+            .get(
+          Uri.parse('$baseUrl/api/v1/jobs/$jobId'),
+          headers: _headers(apiKey: apiKey, lang: lang),
+        )
+            .timeout(const Duration(seconds: 30));
+
+        debugPrint('[STATUS][v1] ${res.statusCode} ${res.body}');
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          final json = _decodeMap(res.body);
+          final nestedJob = json['job'];
+          final jobMap = nestedJob is Map<String, dynamic> ? nestedJob : json;
+          final status = _normalizeStatus(
+            _readString(jobMap, ['status', 'state']) ?? 'unknown',
+          );
+          return JobStatusResponse(
+            status: status,
+            stage: _readString(jobMap, ['stage', 'status', 'state']) ?? status,
+            progress: _readInt(jobMap, ['progress', 'percent']) ?? 0,
+            message: _readString(jobMap, ['message', 'detail']) ?? '',
+            position: _readInt(jobMap, ['position', 'queue_position']),
+          );
+        }
+      } catch (e) {
+        debugPrint('[STATUS] API v1 fallback to legacy status: $e');
+      }
+
       debugPrint('[STATUS] jobId=$jobId');
       final res = await http
           .get(
@@ -132,7 +240,7 @@ class InpaintingApi {
       }
 
       final json = jsonDecode(res.body) as Map<String, dynamic>;
-      final status = (json['status'] as String?) ?? 'unknown';
+      final status = _normalizeStatus((json['status'] as String?) ?? 'unknown');
 
       return JobStatusResponse(
         status: status,
@@ -158,6 +266,24 @@ class InpaintingApi {
         Uint8List? sentImageBytes,
       }) async {
     try {
+      try {
+        final v1Res = await http
+            .get(
+          Uri.parse('$baseUrl/api/v1/jobs/$jobId/result'),
+          headers: _headers(apiKey: apiKey, lang: lang, accept: '*/*'),
+        )
+            .timeout(const Duration(seconds: 120));
+
+        debugPrint('[RESULT][v1] ${v1Res.statusCode} ${v1Res.bodyBytes.length} bytes');
+        if (v1Res.statusCode >= 200 &&
+            v1Res.statusCode < 300 &&
+            _isImageResponse(v1Res)) {
+          return v1Res.bodyBytes;
+        }
+      } catch (e) {
+        debugPrint('[RESULT] API v1 fallback to legacy result: $e');
+      }
+
       debugPrint('[RESULT] jobId=$jobId');
       final res = await http
           .get(
@@ -314,7 +440,8 @@ class InpaintingApi {
         'ngrok-skip-browser-warning': 'true',
         'User-Agent': 'FlutterApp/1.0',
         'Accept': accept,
-        if (apiKey != null && apiKey.isNotEmpty) 'X-API-Key': apiKey,
+        if (apiKey != null && apiKey.isNotEmpty) 'x-api-key': apiKey,
+        if (ownerId != null && ownerId!.isNotEmpty) 'x-owner-id': ownerId!,
         if (lang != null && lang.isNotEmpty) 'Accept-Language': lang,
       };
 
@@ -331,6 +458,73 @@ class InpaintingApi {
     } catch (_) {
       return null;
     }
+  }
+
+  Map<String, dynamic> _decodeMap(String body) {
+    final decoded = jsonDecode(body);
+    if (decoded is Map<String, dynamic>) {
+      return decoded;
+    }
+    throw const ApiException('Expected JSON object response');
+  }
+
+  String? _readString(Map<String, dynamic> data, List<String> keys) {
+    for (final key in keys) {
+      final value = data[key];
+      if (value != null) {
+        return value.toString();
+      }
+    }
+    return null;
+  }
+
+  int? _readInt(Map<String, dynamic> data, List<String> keys) {
+    for (final key in keys) {
+      final value = data[key];
+      if (value is int) {
+        return value;
+      }
+      if (value is num) {
+        return value.toInt();
+      }
+      if (value is String) {
+        final parsed = int.tryParse(value);
+        if (parsed != null) {
+          return parsed;
+        }
+      }
+    }
+    return null;
+  }
+
+  String _normalizeStatus(String rawStatus) {
+    switch (rawStatus.trim().toLowerCase()) {
+      case 'queued':
+      case 'pending':
+        return 'queued';
+      case 'processing':
+      case 'running':
+      case 'in_progress':
+        return 'processing';
+      case 'completed':
+      case 'complete':
+      case 'success':
+      case 'succeeded':
+      case 'done':
+        return 'completed';
+      case 'failed':
+      case 'error':
+        return 'failed';
+      case 'cancelled':
+      case 'canceled':
+        return 'cancelled';
+      default:
+        return rawStatus.trim().toLowerCase();
+    }
+  }
+
+  bool _isImageResponse(http.Response response) {
+    return response.headers['content-type']?.contains('image') ?? false;
   }
 
   _PixStats _pixelStats(img.Image im) {

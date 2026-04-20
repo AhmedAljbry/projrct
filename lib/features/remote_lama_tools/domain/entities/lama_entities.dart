@@ -21,14 +21,31 @@ extension LamaTaskModeExtension on LamaTaskMode {
     }
   }
 
-  String? get apiV1JobPath {
+  List<String> get apiV1JobPaths {
     switch (this) {
       case LamaTaskMode.healRegion:
+        return const [
+          '/api/v1/jobs/heal-region',
+          '/api/v1/jobs/heal_region',
+          '/api/v1/jobs/heal',
+          '/api/v1/jobs/remove-object',
+        ];
       case LamaTaskMode.repairDamage:
+        return const [
+          '/api/v1/jobs/repair-damage',
+          '/api/v1/jobs/repair_damage',
+          '/api/v1/jobs/repair',
+          '/api/v1/jobs/remove-object',
+        ];
       case LamaTaskMode.cleanEdges:
-        return '/api/v1/jobs/remove-object';
+        return const [
+          '/api/v1/jobs/clean-edges',
+          '/api/v1/jobs/clean_edges',
+          '/api/v1/jobs/clean',
+          '/api/v1/jobs/remove-object',
+        ];
       case LamaTaskMode.expandCanvas:
-        return null;
+        return const [];
     }
   }
 }

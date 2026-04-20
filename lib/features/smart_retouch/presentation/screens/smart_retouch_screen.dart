@@ -1,13 +1,11 @@
-﻿import 'dart:async';
-import 'dart:io';
+import 'dart:async';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:gal/gal.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:untitled2/features/smart_retouch/infrastructure/engine/retouch_image_service.dart';
+import 'package:untitled2/shared/widgets/result_preview_screen.dart';
 
 import '../../application/bloc/retouch_bloc.dart';
 import '../../application/bloc/retouch_event.dart';
@@ -48,7 +46,7 @@ class _SmartRetouchView extends StatefulWidget {
 }
 
 class _SmartRetouchViewState extends State<_SmartRetouchView> {
-  bool _isSaving = false;
+  bool _isExporting = false;
   bool _isSettingsVisible = false;
   bool _isBrushesVisible = false;
   bool _showProcessingHint = false;
@@ -88,47 +86,47 @@ class _SmartRetouchViewState extends State<_SmartRetouchView> {
     });
   }
 
-  Future<void> _saveImage(RetouchState state) async {
-    final messenger = ScaffoldMessenger.of(context);
-    setState(() => _isSaving = true);
+  Future<void> _openResultPreview(RetouchState state) async {
+    if (_isExporting) return;
 
-    Uint8List? finalBytes;
-    if (state.operations.isNotEmpty && state.originalImageBytes != null) {
+    setState(() => _isExporting = true);
+
+    Uint8List? finalBytes = state.currentImageBytes;
+    if (finalBytes == null &&
+        state.operations.isNotEmpty &&
+        state.originalImageBytes != null) {
       finalBytes = await RetouchImageService.renderOperations(
         originalImageBytes: state.originalImageBytes!,
         operations: state.operations,
       );
-    } else {
+    } else if (finalBytes == null) {
       final data =
           await state.currentImage!.toByteData(format: ui.ImageByteFormat.png);
       finalBytes = data?.buffer.asUint8List();
     }
 
-    if (finalBytes != null) {
-      try {
-        final tempDir = await getTemporaryDirectory();
-        final file = File(
-          '${tempDir.path}/retouch_${DateTime.now().millisecondsSinceEpoch}.png',
-        );
-        await file.writeAsBytes(finalBytes);
-        await Gal.putImage(file.path);
+    if (!mounted) return;
+    setState(() => _isExporting = false);
 
-        if (!mounted) return;
-        messenger.showSnackBar(
-          const SnackBar(content: Text('Saved to Gallery Successfully!')),
-        );
-        widget.onApply?.call(finalBytes);
-      } catch (e) {
-        if (!mounted) return;
-        messenger.showSnackBar(
-          SnackBar(content: Text('Failed to save to gallery: $e')),
-        );
-      }
+    if (finalBytes == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to prepare result preview')),
+      );
+      return;
     }
 
-    if (mounted) {
-      setState(() => _isSaving = false);
-    }
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ResultPreviewScreen(
+          title: 'Smart Retouch Result',
+          resultBytes: finalBytes!,
+          originalBytes: state.originalImageBytes,
+          onDone: widget.onApply == null
+              ? null
+              : () => widget.onApply!.call(finalBytes!),
+        ),
+      ),
+    );
   }
 
   @override
@@ -170,10 +168,10 @@ class _SmartRetouchViewState extends State<_SmartRetouchView> {
                         : null,
                   ),
                   TextButton(
-                    onPressed: (state.currentImage != null && !_isSaving)
-                        ? () => _saveImage(state)
+                    onPressed: (state.currentImage != null && !_isExporting)
+                        ? () => _openResultPreview(state)
                         : null,
-                    child: _isSaving
+                    child: _isExporting
                         ? const SizedBox(
                             width: 16,
                             height: 16,
@@ -183,7 +181,7 @@ class _SmartRetouchViewState extends State<_SmartRetouchView> {
                             ),
                           )
                         : const Text(
-                            'Save',
+                            'Result',
                             style: TextStyle(
                               color: Color(0xFF56E39F),
                               fontWeight: FontWeight.bold,
@@ -258,7 +256,7 @@ class _SmartRetouchViewState extends State<_SmartRetouchView> {
                     ),
                   ),
                 ),
-                if (_showProcessingHint && !_isSaving)
+                if (_showProcessingHint && !_isExporting)
                   IgnorePointer(
                     child: AnimatedOpacity(
                       duration: const Duration(milliseconds: 120),
@@ -300,7 +298,7 @@ class _SmartRetouchViewState extends State<_SmartRetouchView> {
                                 ),
                                 SizedBox(height: 14),
                                 Text(
-                                  'ط·آ·ط¢آ¬ط·آ·ط¢آ§ط·آ·ط¢آ±ط·آ¸ط¹آ¯ ط·آ·ط¢آ§ط·آ¸أ¢â‚¬â€چط·آ¸أ¢â‚¬آ¦ط·آ·ط¢آ¹ط·آ·ط¢آ§ط·آ¸أ¢â‚¬â€چط·آ·ط¢آ¬ط·آ·ط¢آ©',
+                                  'جار تجهيز المعاينة',
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontSize: 16,
@@ -314,7 +312,7 @@ class _SmartRetouchViewState extends State<_SmartRetouchView> {
                       ),
                     ),
                   ),
-                if (_isSaving)
+                if (_isExporting)
                   Container(
                     color: Colors.black45,
                     child: const Center(

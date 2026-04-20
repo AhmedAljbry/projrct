@@ -81,8 +81,7 @@ class LamaRemoteDataSourceImpl implements LamaRemoteDataSource {
 
   @override
   Future<String> submitJob(LamaOptions options) async {
-    final apiV1Path = options.mode.apiV1JobPath;
-    if (apiV1Path != null) {
+    for (final apiV1Path in options.mode.apiV1JobPaths) {
       try {
         final response = await _sendMultipartRequest(
           path: apiV1Path,
@@ -95,9 +94,12 @@ class LamaRemoteDataSourceImpl implements LamaRemoteDataSource {
         if (jobId != null && jobId.isNotEmpty) {
           return jobId;
         }
-        throw LamaApiFailure('API v1 response missing job id: ${response.body}');
+        throw LamaApiFailure(
+            'API v1 response missing job id: ${response.body}');
       } catch (error) {
-        _log('API v1 submit fallback for mode=${options.mode.value}: $error');
+        _log(
+          'API v1 submit fallback for mode=${options.mode.value} path=$apiV1Path: $error',
+        );
       }
     }
 
@@ -111,7 +113,8 @@ class LamaRemoteDataSourceImpl implements LamaRemoteDataSource {
     if (data['ok'] == true && data['job_id'] != null) {
       return data['job_id'].toString();
     }
-    throw LamaApiFailure('Failed to submit task: ${data['message'] ?? response.body}');
+    throw LamaApiFailure(
+        'Failed to submit task: ${data['message'] ?? response.body}');
   }
 
   @override
@@ -135,7 +138,8 @@ class LamaRemoteDataSourceImpl implements LamaRemoteDataSource {
         error: data['error']?.toString(),
       );
     }
-    throw LamaApiFailure('Failed to get status: ${data['message'] ?? response.body}');
+    throw LamaApiFailure(
+        'Failed to get status: ${data['message'] ?? response.body}');
   }
 
   @override
@@ -237,7 +241,8 @@ class LamaRemoteDataSourceImpl implements LamaRemoteDataSource {
     return response;
   }
 
-  LamaJobStatus _parseApiV1JobStatus(Map<String, dynamic> data, String fallbackJobId) {
+  LamaJobStatus _parseApiV1JobStatus(
+      Map<String, dynamic> data, String fallbackJobId) {
     final nestedJob = data['job'];
     final jobData = nestedJob is Map<String, dynamic> ? nestedJob : data;
     final status = _readString(jobData, ['status', 'state']) ?? 'unknown';

@@ -44,6 +44,11 @@ extension _EditorPageUIHelpers on _EditorPageState {
     }
 
     _updateEditorUi(() => _isPreparing = true);
+    inpaintingBloc.add(
+      InpaintingPrepare(message: 'Preparing image and mask'),
+    );
+    router.go(AppRoutes.processing);
+
     try {
       final raw = await _renderBinaryMask(image, drawingState);
       final maskBytes = await prepareMaskForLama(raw);
@@ -55,12 +60,10 @@ extension _EditorPageUIHelpers on _EditorPageState {
           maskBytes: maskBytes,
         ),
       );
-
-      if (!mounted) {
-        return;
-      }
-
-      router.go(AppRoutes.processing);
+    } catch (e) {
+      inpaintingBloc.add(
+        InpaintingPreparationFailed('Preparation failed: $e'),
+      );
     } finally {
       _updateEditorUi(() => _isPreparing = false);
     }

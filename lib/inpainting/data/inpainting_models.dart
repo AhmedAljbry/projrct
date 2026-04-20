@@ -36,9 +36,9 @@ class JobStatusResponse {
     this.position,
   });
 
-  bool get isQueued    => status == 'queued';
-  bool get isProcessing=> status == 'processing';
+  bool get isQueued => status == 'queued';
+  bool get isProcessing => status == 'processing';
   bool get isCompleted => status == 'completed';
-  bool get isFailed    => status == 'failed';
+  bool get isFailed => status == 'failed';
   bool get isCancelled => status == 'cancelled';
 }

@@ -1,4 +1,4 @@
-﻿import 'dart:ui' as ui;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -231,9 +231,13 @@ class _BottomPanel extends StatelessWidget {
     return BlocBuilder<BlemishCubit, BlemishState>(
       buildWhen: (previous, current) =>
           previous.brushSettings != current.brushSettings ||
-          previous.processingStatus != current.processingStatus,
+          previous.processingStatus != current.processingStatus ||
+          previous.imageWidth != current.imageWidth ||
+          previous.imageHeight != current.imageHeight,
       builder: (context, state) {
         final cubit = context.read<BlemishCubit>();
+        final minRadius = _minBrushRadius(state);
+        final maxRadius = _maxBrushRadius(state);
         return Container(
           color: const Color(0xFF0D0D0D),
           padding: const EdgeInsets.fromLTRB(26, 18, 26, 28),
@@ -243,8 +247,8 @@ class _BottomPanel extends StatelessWidget {
               _ReferenceSlider(
                 label: 'Brush size',
                 value: state.brushSettings.radius,
-                min: 10.0,
-                max: 50.0,
+                min: minRadius,
+                max: maxRadius,
                 valueText: '${state.brushSettings.radius.round()} px',
                 onChanged: state.isProcessing ? null : cubit.setBrushRadius,
               ),
@@ -271,6 +275,26 @@ class _BottomPanel extends StatelessWidget {
         );
       },
     );
+  }
+
+  double _minBrushRadius(BlemishState state) {
+    if (state.imageWidth <= 0 || state.imageHeight <= 0) {
+      return 5.0;
+    }
+    final shortestSide = state.imageWidth < state.imageHeight
+        ? state.imageWidth.toDouble()
+        : state.imageHeight.toDouble();
+    return (shortestSide * 0.005).clamp(4.0, 8.0);
+  }
+
+  double _maxBrushRadius(BlemishState state) {
+    if (state.imageWidth <= 0 || state.imageHeight <= 0) {
+      return 34.0;
+    }
+    final shortestSide = state.imageWidth < state.imageHeight
+        ? state.imageWidth.toDouble()
+        : state.imageHeight.toDouble();
+    return (shortestSide * 0.038).clamp(18.0, 36.0);
   }
 }
 
@@ -353,7 +377,7 @@ class _LensSliderThumbShape extends SliderComponentShape {
   double get _visualRadius {
     final span = (max - min).abs();
     final normalized = span <= 0 ? 0.0 : ((value - min) / span).clamp(0.0, 1.0);
-    return 14.0 + (normalized * 4.0);
+    return 11.0 + (normalized * 3.0);
   }
 
   @override
@@ -398,6 +422,3 @@ class _LensSliderThumbShape extends SliderComponentShape {
     );
   }
 }
-
-
-

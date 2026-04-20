@@ -6,15 +6,14 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
-import 'package:untitled2/core/background/presentation/pages/operations_page.dart';
-
 import 'package:untitled2/features/remote_lama_tools/presentation/clean_edges/clean_edges_cubit.dart';
+import 'package:untitled2/features/remote_lama_tools/presentation/heal_region/heal_processing_flow.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/heal_region/heal_region_cubit.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/shared/lama_home_pick_view.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/shared/lama_mask_painter.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/shared/lama_result_viewer.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/shared/lama_theme_colors.dart';
-import 'package:untitled2/features/remote_lama_tools/presentation/shared/remote_lama_processing_page.dart';
+import 'package:untitled2/features/remote_lama_tools/presentation/shared/remote_lama_operations_page.dart';
 
 enum SharedToolMode { healRegion, cleanEdges }
 
@@ -87,11 +86,14 @@ class _SharedHealCleanPageState extends State<SharedHealCleanPage> {
     }
   }
 
-  Uint8List? _currentImageBytes(HealRegionState healState, CleanEdgesState cleanState) {
-    if (_activeMode == SharedToolMode.healRegion && healState is HealRegionReady) {
+  Uint8List? _currentImageBytes(
+      HealRegionState healState, CleanEdgesState cleanState) {
+    if (_activeMode == SharedToolMode.healRegion &&
+        healState is HealRegionReady) {
       return healState.imageBytes;
     }
-    if (_activeMode == SharedToolMode.cleanEdges && cleanState is CleanEdgesReady) {
+    if (_activeMode == SharedToolMode.cleanEdges &&
+        cleanState is CleanEdgesReady) {
       return cleanState.imageBytes;
     }
     return null;
@@ -123,7 +125,9 @@ class _SharedHealCleanPageState extends State<SharedHealCleanPage> {
   }
 
   void _handlePointerMove(PointerMoveEvent event, Size size) {
-    if (_currentStroke == null || !_isInsideCanvas(event.localPosition, size)) return;
+    if (_currentStroke == null || !_isInsideCanvas(event.localPosition, size)) {
+      return;
+    }
     setState(() {
       _lensPosition = event.localPosition;
       _currentStroke!.add(event.localPosition);
@@ -181,7 +185,8 @@ class _SharedHealCleanPageState extends State<SharedHealCleanPage> {
 
     final decoded = img.decodePng(rawBytes);
     if (decoded == null) return rawBytes;
-    final blurred = img.gaussianBlur(decoded, radius: _brushSoftness.clamp(1, 12).round());
+    final blurred =
+        img.gaussianBlur(decoded, radius: _brushSoftness.clamp(1, 12).round());
     return Uint8List.fromList(img.encodePng(blurred));
   }
 
@@ -220,9 +225,9 @@ class _SharedHealCleanPageState extends State<SharedHealCleanPage> {
 
       await Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) => RemoteLamaProcessingPage(
-            activeMode: SharedToolMode.healRegion,
-            imageBytes: currentImage,
+          builder: (_) => HealProcessingFlow(
+            originalBytes: currentImage,
+            healCubit: healCubit,
           ),
         ),
       );
@@ -264,9 +269,10 @@ class _SharedHealCleanPageState extends State<SharedHealCleanPage> {
 
       await Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) => RemoteLamaProcessingPage(
-            activeMode: SharedToolMode.cleanEdges,
-            imageBytes: currentImage,
+          builder: (_) => RemoteLamaOperationsPage(
+            focusJobId: localJobId,
+            resultTitle: 'Clean Edges Result',
+            originalBytes: _originalBytesForResult,
           ),
         ),
       );
@@ -285,7 +291,10 @@ class _SharedHealCleanPageState extends State<SharedHealCleanPage> {
                 content: Text(state.message),
                 backgroundColor: Colors.redAccent,
                 action: state.isRetryable
-                    ? SnackBarAction(label: 'Dismiss', textColor: Colors.white, onPressed: () {})
+                    ? SnackBarAction(
+                        label: 'Dismiss',
+                        textColor: Colors.white,
+                        onPressed: () {})
                     : null,
               ));
             } else if (state is HealRegionSuccess) {
@@ -301,7 +310,10 @@ class _SharedHealCleanPageState extends State<SharedHealCleanPage> {
                 content: Text(state.message),
                 backgroundColor: Colors.redAccent,
                 action: state.isRetryable
-                    ? SnackBarAction(label: 'Dismiss', textColor: Colors.white, onPressed: () {})
+                    ? SnackBarAction(
+                        label: 'Dismiss',
+                        textColor: Colors.white,
+                        onPressed: () {})
                     : null,
               ));
             } else if (state is CleanEdgesSuccess) {
@@ -332,7 +344,7 @@ class _SharedHealCleanPageState extends State<SharedHealCleanPage> {
                       onPressed: () => Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => const OperationsPage(),
+                          builder: (_) => const RemoteLamaOperationsPage(),
                         ),
                       ),
                       icon: const Icon(Icons.dashboard_customize_rounded),
@@ -344,10 +356,14 @@ class _SharedHealCleanPageState extends State<SharedHealCleanPage> {
                     Column(
                       children: [
                         _buildHeader(),
-                        Expanded(child: _buildMainContent(context, healState, cleanState)),
+                        Expanded(
+                            child: _buildMainContent(
+                                context, healState, cleanState)),
                         if (_resultBytes == null &&
-                            ((_activeMode == SharedToolMode.healRegion && healState is HealRegionReady) ||
-                                (_activeMode == SharedToolMode.cleanEdges && cleanState is CleanEdgesReady)))
+                            ((_activeMode == SharedToolMode.healRegion &&
+                                    healState is HealRegionReady) ||
+                                (_activeMode == SharedToolMode.cleanEdges &&
+                                    cleanState is CleanEdgesReady)))
                           _buildToolbar(context, healState, cleanState),
                       ],
                     ),
@@ -415,7 +431,9 @@ class _SharedHealCleanPageState extends State<SharedHealCleanPage> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: isActive ? LamaTheme.accent.withValues(alpha: 0.2) : Colors.transparent,
+          color: isActive
+              ? LamaTheme.accent.withValues(alpha: 0.2)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
             color: isActive ? LamaTheme.accent : Colors.transparent,
@@ -437,16 +455,18 @@ class _SharedHealCleanPageState extends State<SharedHealCleanPage> {
     final text = _activeMode == SharedToolMode.healRegion
         ? 'Small targeted heals for blemishes. Use the brush to mask the area to repair.'
         : 'Remove halos and jagged borders around a mask. Use brush along edges.';
-        
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
       color: LamaTheme.toolbarBg.withValues(alpha: 0.5),
-      child: Text(text, style: const TextStyle(color: Colors.white70, fontSize: 13)),
+      child: Text(text,
+          style: const TextStyle(color: Colors.white70, fontSize: 13)),
     );
   }
 
-  Widget _buildMainContent(BuildContext context, HealRegionState healState, CleanEdgesState cleanState) {
+  Widget _buildMainContent(BuildContext context, HealRegionState healState,
+      CleanEdgesState cleanState) {
     if (_resultBytes != null) {
       return LamaResultViewer(
         resultBytes: _resultBytes!,
@@ -456,8 +476,10 @@ class _SharedHealCleanPageState extends State<SharedHealCleanPage> {
       );
     }
 
-    final bool isReady = (_activeMode == SharedToolMode.healRegion && healState is HealRegionReady) || 
-                         (_activeMode == SharedToolMode.cleanEdges && cleanState is CleanEdgesReady);
+    final bool isReady = (_activeMode == SharedToolMode.healRegion &&
+            healState is HealRegionReady) ||
+        (_activeMode == SharedToolMode.cleanEdges &&
+            cleanState is CleanEdgesReady);
     if (isReady && _decodedUiImage != null) {
       return LayoutBuilder(
         builder: (context, constraints) {
@@ -470,16 +492,18 @@ class _SharedHealCleanPageState extends State<SharedHealCleanPage> {
                 panEnabled: true,
                 scaleEnabled: true,
                 maxScale: 5.0,
-                  child: Center(
-                    child: AspectRatio(
-                      aspectRatio: aspect,
-                      child: _InteractiveSharedCanvas(
-                        imageBytes: _currentImageBytes(healState, cleanState)!,
-                        strokes: _strokes,
-                        brushSize: _brushSize,
-                        softness: _brushSoftness,
-                        lensPosition: _lensPosition,
-                        showLens: _activeMode == SharedToolMode.healRegion ? _showLens : false,
+                child: Center(
+                  child: AspectRatio(
+                    aspectRatio: aspect,
+                    child: _InteractiveSharedCanvas(
+                      imageBytes: _currentImageBytes(healState, cleanState)!,
+                      strokes: _strokes,
+                      brushSize: _brushSize,
+                      softness: _brushSoftness,
+                      lensPosition: _lensPosition,
+                      showLens: _activeMode == SharedToolMode.healRegion
+                          ? _showLens
+                          : false,
                       onPointerDown: _handlePointerDown,
                       onPointerMove: _handlePointerMove,
                       onPointerEnd: _handlePointerEnd,
@@ -501,8 +525,12 @@ class _SharedHealCleanPageState extends State<SharedHealCleanPage> {
                     }
                   },
                   icon: const Icon(Icons.auto_fix_high, color: Colors.black),
-                  label: Text(_activeMode == SharedToolMode.healRegion ? 'Apply Heal' : 'Clean Edges',
-                      style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                  label: Text(
+                      _activeMode == SharedToolMode.healRegion
+                          ? 'Apply Heal'
+                          : 'Clean Edges',
+                      style: const TextStyle(
+                          color: Colors.black, fontWeight: FontWeight.bold)),
                 ),
               ),
             ],
@@ -516,7 +544,9 @@ class _SharedHealCleanPageState extends State<SharedHealCleanPage> {
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 600),
         child: LamaHomePickView(
-          title: _activeMode == SharedToolMode.healRegion ? 'AI Heal Region' : 'AI Clean Edges',
+          title: _activeMode == SharedToolMode.healRegion
+              ? 'AI Heal Region'
+              : 'AI Clean Edges',
           hint: _activeMode == SharedToolMode.healRegion
               ? 'Select an image to repair areas or remove blemishes.'
               : 'Select an image to clean up rough or jagged edges.',
@@ -530,7 +560,8 @@ class _SharedHealCleanPageState extends State<SharedHealCleanPage> {
     );
   }
 
-  Widget _buildToolbar(BuildContext context, HealRegionState healState, CleanEdgesState cleanState) {
+  Widget _buildToolbar(BuildContext context, HealRegionState healState,
+      CleanEdgesState cleanState) {
     return Container(
       color: LamaTheme.toolbarBg,
       padding: const EdgeInsets.all(16),
@@ -539,30 +570,32 @@ class _SharedHealCleanPageState extends State<SharedHealCleanPage> {
         child: Column(
           children: [
             Row(
-               children: [
-                 const Icon(Icons.brush, color: Colors.white54, size: 20),
-                 Expanded(
-                   child: Slider(
-                     value: _brushSize,
-                     min: 5,
-                     max: 80,
-                     activeColor: LamaTheme.accent,
-                     label: _brushSize.toStringAsFixed(0),
-                     onChanged: (v) => setState(() => _brushSize = v),
-                   ),
-                 ),
-                 IconButton(
-                   icon: const Icon(Icons.undo, color: Colors.white54),
-                   onPressed: _strokes.isNotEmpty
-                       ? () => setState(() => _strokes.removeLast())
-                       : null,
-                 ),
-               ],
+              children: [
+                const Icon(Icons.brush, color: Colors.white54, size: 20),
+                Expanded(
+                  child: Slider(
+                    value: _brushSize,
+                    min: 5,
+                    max: 80,
+                    activeColor: LamaTheme.accent,
+                    label: _brushSize.toStringAsFixed(0),
+                    onChanged: (v) => setState(() => _brushSize = v),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.undo, color: Colors.white54),
+                  onPressed: _strokes.isNotEmpty
+                      ? () => setState(() => _strokes.removeLast())
+                      : null,
+                ),
+              ],
             ),
-            if (_activeMode == SharedToolMode.healRegion && healState is HealRegionReady) ...[
+            if (_activeMode == SharedToolMode.healRegion &&
+                healState is HealRegionReady) ...[
               Row(
                 children: [
-                  const Text('Heal Radius: ', style: TextStyle(color: Colors.white70)),
+                  const Text('Heal Radius: ',
+                      style: TextStyle(color: Colors.white70)),
                   Expanded(
                     child: Slider(
                       value: healState.healRadius.toDouble(),
@@ -571,14 +604,17 @@ class _SharedHealCleanPageState extends State<SharedHealCleanPage> {
                       divisions: 20,
                       activeColor: Colors.blueAccent,
                       label: healState.healRadius.toString(),
-                      onChanged: (v) => context.read<HealRegionCubit>().updateRadius(v.toInt()),
+                      onChanged: (v) => context
+                          .read<HealRegionCubit>()
+                          .updateRadius(v.toInt()),
                     ),
                   ),
                 ],
               ),
               Row(
                 children: [
-                  const Text('Feather / Softness: ', style: TextStyle(color: Colors.white70)),
+                  const Text('Feather / Softness: ',
+                      style: TextStyle(color: Colors.white70)),
                   Expanded(
                     child: Slider(
                       value: _brushSoftness,
@@ -605,10 +641,12 @@ class _SharedHealCleanPageState extends State<SharedHealCleanPage> {
                   ),
                 ],
               ),
-            ] else if (_activeMode == SharedToolMode.cleanEdges && cleanState is CleanEdgesReady) ...[
+            ] else if (_activeMode == SharedToolMode.cleanEdges &&
+                cleanState is CleanEdgesReady) ...[
               Row(
                 children: [
-                  const Text('Edge Radius: ', style: TextStyle(color: Colors.white70)),
+                  const Text('Edge Radius: ',
+                      style: TextStyle(color: Colors.white70)),
                   Expanded(
                     child: Slider(
                       value: cleanState.edgeRadius.toDouble(),
@@ -617,7 +655,9 @@ class _SharedHealCleanPageState extends State<SharedHealCleanPage> {
                       divisions: 9,
                       activeColor: Colors.blueAccent,
                       label: cleanState.edgeRadius.toString(),
-                      onChanged: (v) => context.read<CleanEdgesCubit>().updateRadius(v.toInt()),
+                      onChanged: (v) => context
+                          .read<CleanEdgesCubit>()
+                          .updateRadius(v.toInt()),
                     ),
                   ),
                 ],
@@ -703,7 +743,8 @@ class _InteractiveSharedCanvas extends StatelessWidget {
                         border: Border.all(color: Colors.white10),
                       ),
                       child: const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                         child: Text(
                           'Draw over the area/edges you want to edit. Results preview here immediately.',
                           style: TextStyle(color: Colors.white70, fontSize: 12),
@@ -753,7 +794,8 @@ class _HealLens extends StatelessWidget {
     const diameter = 120.0;
     const zoom = 2.2;
     final left = (focus.dx + 18).clamp(8.0, canvasSize.width - diameter - 8);
-    final top = (focus.dy - diameter - 18).clamp(8.0, canvasSize.height - diameter - 8);
+    final top =
+        (focus.dy - diameter - 18).clamp(8.0, canvasSize.height - diameter - 8);
     final offsetX = -(focus.dx * zoom) + (diameter / 2);
     final offsetY = -(focus.dy * zoom) + (diameter / 2);
 
@@ -790,23 +832,24 @@ class _HealLens extends StatelessWidget {
                         width: canvasSize.width,
                         height: canvasSize.height,
                         child: Stack(
-                           fit: StackFit.expand,
-                           children: [
-                             Image.memory(imageBytes, fit: BoxFit.contain),
-                             CustomPaint(
-                               painter: LamaMaskPainter(
-                                 strokes: strokes,
-                                 brushSize: brushSize,
-                                 softness: softness,
-                                 color: const Color(0xCCFF8B6E),
-                               ),
-                             ),
-                           ],
+                          fit: StackFit.expand,
+                          children: [
+                            Image.memory(imageBytes, fit: BoxFit.contain),
+                            CustomPaint(
+                              painter: LamaMaskPainter(
+                                strokes: strokes,
+                                brushSize: brushSize,
+                                softness: softness,
+                                color: const Color(0xCCFF8B6E),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
                   ),
-                  const Center(child: Icon(Icons.add, color: Colors.white, size: 18)),
+                  const Center(
+                      child: Icon(Icons.add, color: Colors.white, size: 18)),
                 ],
               ),
             ),

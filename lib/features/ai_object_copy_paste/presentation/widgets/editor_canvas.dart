@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 import '../../domain/entities/editor_models.dart';
 import '../controllers/ai_object_copy_paste_controller.dart';
@@ -8,6 +8,7 @@ enum _CanvasDragMode {
   drawing,
   moveSelection,
   resizeSelection,
+  panZoom,
 }
 
 class EditorCanvas extends StatefulWidget {
@@ -25,8 +26,20 @@ class EditorCanvas extends StatefulWidget {
 class _EditorCanvasState extends State<EditorCanvas> {
   _CanvasDragMode _dragMode = _CanvasDragMode.none;
   Offset? _lastImagePoint;
+  SelectionHandle? _activeHandle;
+  final TransformationController _transformationController =
+      TransformationController();
+  double _gestureStartScale = 1;
+  Offset _gestureStartTranslation = Offset.zero;
+  Offset _gestureStartFocalPoint = Offset.zero;
 
   AiObjectCopyPasteController get controller => widget.controller;
+
+  @override
+  void dispose() {
+    _transformationController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -68,19 +81,16 @@ class _EditorCanvasState extends State<EditorCanvas> {
           behavior: HitTestBehavior.opaque,
           onTapDown: (details) =>
               _handleTapDown(details.localPosition, viewport, document),
-          onPanStart: (details) =>
-              _handlePanStart(details.localPosition, viewport, document),
-          onPanUpdate: (details) =>
-              _handlePanUpdate(details.localPosition, viewport),
-          onPanEnd: (_) => _handlePanEnd(),
+          onScaleStart: (details) =>
+              _handleScaleStart(details, viewport, document),
+          onScaleUpdate: (details) => _handleScaleUpdate(details, viewport),
+          onScaleEnd: (_) => _handleScaleEnd(),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(24),
             child: Container(
               color: const Color(0xFF070809),
-              child: InteractiveViewer(
-                minScale: 0.8,
-                maxScale: 4,
-                boundaryMargin: const EdgeInsets.all(140),
+              child: Transform(
+                transform: _transformationController.value,
                 child: Stack(
                   children: [
                   Positioned.fromRect(
@@ -159,7 +169,7 @@ class _EditorCanvasState extends State<EditorCanvas> {
   void _handleTapDown(
       Offset localPosition, _CanvasViewport viewport, EditorDocument document) {
     final state = controller.state;
-    final imagePoint = viewport.localToImage(localPosition);
+    final imagePoint = _transformedLocalToImage(localPosition, viewport);
     final selection = state.selection;
     if (selection != null && selection.documentId == document.id) {
       if (_hitDeleteHandle(selection, imagePoint, viewport)) {
@@ -183,36 +193,57 @@ class _EditorCanvasState extends State<EditorCanvas> {
     }
   }
 
-  void _handlePanStart(
-      Offset localPosition, _CanvasViewport viewport, EditorDocument document) {
+  void _handleScaleStart(
+      ScaleStartDetails details, _CanvasViewport viewport, EditorDocument document) {
     final state = controller.state;
+    _gestureStartScale = _currentCanvasScale;
+    _gestureStartTranslation = _currentCanvasTranslation;
+    _gestureStartFocalPoint = details.localFocalPoint;
+
+    if (details.pointerCount > 1) {
+      _dragMode = _CanvasDragMode.panZoom;
+      _lastImagePoint = null;
+      _activeHandle = null;
+      return;
+    }
+
     if (state.interactionMode == CanvasInteractionMode.transform ||
         state.interactionMode == CanvasInteractionMode.smartTap ||
         state.interactionMode == CanvasInteractionMode.smartPersonTap) {
       _dragMode = _CanvasDragMode.none;
       return;
     }
-    final imagePoint = viewport.localToImage(localPosition);
+    final imagePoint = _transformedLocalToImage(details.localFocalPoint, viewport);
     _lastImagePoint = imagePoint;
     final selection = state.selection;
     if (selection != null && selection.documentId == document.id) {
       final handleHit = _hitResizeHandle(selection, imagePoint, viewport);
       final selectionHit = _hitSelection(selection, imagePoint, viewport);
-      if (handleHit) {
+      if (handleHit != null) {
         _dragMode = _CanvasDragMode.resizeSelection;
+        _activeHandle = handleHit;
+        controller.beginSelectionResize();
         return;
       }
       if (selectionHit) {
         _dragMode = _CanvasDragMode.moveSelection;
+        _activeHandle = null;
         return;
       }
     }
     _dragMode = _CanvasDragMode.drawing;
+    _activeHandle = null;
     controller.beginSelection(imagePoint);
   }
 
-  void _handlePanUpdate(Offset localPosition, _CanvasViewport viewport) {
-    final imagePoint = viewport.localToImage(localPosition);
+  void _handleScaleUpdate(ScaleUpdateDetails details, _CanvasViewport viewport) {
+    if (details.pointerCount > 1 || _dragMode == _CanvasDragMode.panZoom) {
+      _dragMode = _CanvasDragMode.panZoom;
+      _updateCanvasTransform(details);
+      return;
+    }
+
+    final imagePoint = _transformedLocalToImage(details.localFocalPoint, viewport);
     switch (_dragMode) {
       case _CanvasDragMode.drawing:
         controller.updateSelection(imagePoint);
@@ -224,7 +255,13 @@ class _EditorCanvasState extends State<EditorCanvas> {
         }
         break;
       case _CanvasDragMode.resizeSelection:
-        controller.resizeSelectionToPoint(imagePoint);
+        controller.resizeSelectionFromHandle(
+          imagePoint: imagePoint,
+          handle: _activeHandle ?? SelectionHandle.bottomRight,
+        );
+        break;
+      case _CanvasDragMode.panZoom:
+        _updateCanvasTransform(details);
         break;
       case _CanvasDragMode.none:
         break;
@@ -232,7 +269,7 @@ class _EditorCanvasState extends State<EditorCanvas> {
     _lastImagePoint = imagePoint;
   }
 
-  void _handlePanEnd() {
+  void _handleScaleEnd() {
     switch (_dragMode) {
       case _CanvasDragMode.drawing:
         controller.endSelection();
@@ -241,23 +278,59 @@ class _EditorCanvasState extends State<EditorCanvas> {
       case _CanvasDragMode.resizeSelection:
         controller.commitSelectionEdit();
         break;
+      case _CanvasDragMode.panZoom:
       case _CanvasDragMode.none:
         break;
     }
     _dragMode = _CanvasDragMode.none;
     _lastImagePoint = null;
+    _activeHandle = null;
   }
 
   bool _hitSelection(
       SelectionRegion selection, Offset imagePoint, _CanvasViewport viewport) {
+    if (selection.tool == SelectionTool.smart && selection.maskData != null) {
+      return _hitSmartMask(selection, imagePoint, viewport);
+    }
     final padding = 18 / viewport.scale;
     return selection.bounds.inflate(padding).contains(imagePoint);
   }
 
-  bool _hitResizeHandle(
+  bool _hitSmartMask(
+    SelectionRegion selection,
+    Offset imagePoint,
+    _CanvasViewport viewport,
+  ) {
+    final mask = selection.maskData;
+    if (mask == null || !selection.bounds.inflate(12 / viewport.scale).contains(imagePoint)) {
+      return false;
+    }
+    final localX = (((imagePoint.dx - selection.bounds.left) / selection.bounds.width) *
+            mask.width)
+        .floor()
+        .clamp(0, mask.width - 1);
+    final localY = (((imagePoint.dy - selection.bounds.top) / selection.bounds.height) *
+            mask.height)
+        .floor()
+        .clamp(0, mask.height - 1);
+    return mask.alpha[localY * mask.width + localX] >= 24;
+  }
+
+  SelectionHandle? _hitResizeHandle(
       SelectionRegion selection, Offset imagePoint, _CanvasViewport viewport) {
     final radius = 24 / viewport.scale;
-    return (selection.bounds.bottomRight - imagePoint).distance <= radius;
+    final handles = <SelectionHandle, Offset>{
+      SelectionHandle.topLeft: selection.bounds.topLeft,
+      SelectionHandle.topRight: selection.bounds.topRight,
+      SelectionHandle.bottomLeft: selection.bounds.bottomLeft,
+      SelectionHandle.bottomRight: selection.bounds.bottomRight,
+    };
+    for (final entry in handles.entries) {
+      if ((entry.value - imagePoint).distance <= radius) {
+        return entry.key;
+      }
+    }
+    return null;
   }
 
   bool _hitDeleteHandle(
@@ -266,6 +339,29 @@ class _EditorCanvasState extends State<EditorCanvas> {
         selection.bounds.center.dx, selection.bounds.top - 20 / viewport.scale);
     final radius = 22 / viewport.scale;
     return (center - imagePoint).distance <= radius;
+  }
+
+  void _updateCanvasTransform(ScaleUpdateDetails details) {
+    final desiredScale = (_gestureStartScale * details.scale).clamp(1.0, 5.0);
+    final focalDelta = details.localFocalPoint - _gestureStartFocalPoint;
+    final translated = _gestureStartTranslation + focalDelta;
+    final matrix = Matrix4.identity()
+      ..translate(translated.dx, translated.dy)
+      ..scale(desiredScale);
+    _transformationController.value = matrix;
+  }
+
+  Offset _transformedLocalToImage(Offset local, _CanvasViewport viewport) {
+    final inverse = Matrix4.inverted(_transformationController.value);
+    final corrected = MatrixUtils.transformPoint(inverse, local);
+    return viewport.localToImage(corrected);
+  }
+
+  double get _currentCanvasScale => _transformationController.value.getMaxScaleOnAxis();
+
+  Offset get _currentCanvasTranslation {
+    final storage = _transformationController.value.storage;
+    return Offset(storage[12], storage[13]);
   }
 }
 
@@ -436,7 +532,9 @@ class _SelectionPainter extends CustomPainter {
         ..color = const Color(0xFFE287FF)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2;
-      if (selection!.tool == SelectionTool.lasso &&
+      if (selection!.tool == SelectionTool.smart && selection!.maskData != null) {
+        _drawSmartSelection(canvas, selection!, fillPaint, linePaint);
+      } else if (selection!.tool == SelectionTool.lasso &&
           selection!.path.length > 2) {
         final first = viewport.imageToLocal(selection!.path.first);
         final path = Path()..moveTo(first.dx, first.dy);
@@ -480,22 +578,111 @@ class _SelectionPainter extends CustomPainter {
   }
 
   void _drawResizeHandle(Canvas canvas, Rect rect) {
-    final handleCenter = rect.bottomRight + const Offset(6, 6);
-    canvas.drawCircle(handleCenter, 18, Paint()..color = Colors.white);
-    final iconPaint = Paint()
-      ..color = Colors.black
-      ..strokeWidth = 2.2
-      ..strokeCap = StrokeCap.round;
-    canvas.drawLine(handleCenter + const Offset(-5, -5),
-        handleCenter + const Offset(5, 5), iconPaint);
-    canvas.drawLine(handleCenter + const Offset(1, -5),
-        handleCenter + const Offset(5, -5), iconPaint);
-    canvas.drawLine(handleCenter + const Offset(5, -5),
-        handleCenter + const Offset(5, -1), iconPaint);
-    canvas.drawLine(handleCenter + const Offset(-5, 1),
-        handleCenter + const Offset(-5, 5), iconPaint);
-    canvas.drawLine(handleCenter + const Offset(-5, 5),
-        handleCenter + const Offset(-1, 5), iconPaint);
+    final handles = <Offset>[
+      rect.topLeft,
+      rect.topRight,
+      rect.bottomLeft,
+      rect.bottomRight,
+    ];
+    for (final handle in handles) {
+      canvas.drawCircle(handle, 14, Paint()..color = Colors.white);
+      canvas.drawCircle(
+        handle,
+        5,
+        Paint()..color = const Color(0xFFE287FF),
+      );
+    }
+  }
+
+  void _drawSmartSelection(
+    Canvas canvas,
+    SelectionRegion selection,
+    Paint fillPaint,
+    Paint linePaint,
+  ) {
+    final mask = selection.maskData!;
+    final pixelWidth = selection.bounds.width / mask.width;
+    final pixelHeight = selection.bounds.height / mask.height;
+    final sampledPath = Path();
+    const step = 2;
+
+    for (var y = 0; y < mask.height; y += step) {
+      for (var x = 0; x < mask.width; x += step) {
+        final alpha = mask.alpha[y * mask.width + x];
+        if (alpha < 42) {
+          continue;
+        }
+        final left = selection.bounds.left + x * pixelWidth;
+        final top = selection.bounds.top + y * pixelHeight;
+        sampledPath.addRRect(
+          RRect.fromRectAndRadius(
+            viewport.imageRectFromPixels(
+              Rect.fromLTWH(left, top, pixelWidth * step, pixelHeight * step),
+            ),
+            const Radius.circular(1.5),
+          ),
+        );
+      }
+    }
+
+    final glowPaint = Paint()
+      ..color = const Color(0x33E287FF)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+    canvas.drawPath(sampledPath, glowPaint);
+    canvas.drawPath(sampledPath, fillPaint);
+    _drawSmartMaskOutline(canvas, selection, linePaint);
+  }
+
+  void _drawSmartMaskOutline(
+    Canvas canvas,
+    SelectionRegion selection,
+    Paint linePaint,
+  ) {
+    final mask = selection.maskData!;
+    final pixelWidth = selection.bounds.width / mask.width;
+    final pixelHeight = selection.bounds.height / mask.height;
+    final outlinePath = Path();
+    const step = 2;
+
+    for (var y = 0; y < mask.height; y += step) {
+      for (var x = 0; x < mask.width; x += step) {
+        final alpha = mask.alpha[y * mask.width + x];
+        if (alpha < 58) {
+          continue;
+        }
+        final left = selection.bounds.left + x * pixelWidth;
+        final top = selection.bounds.top + y * pixelHeight;
+        final current = viewport.imageRectFromPixels(
+          Rect.fromLTWH(left, top, pixelWidth * step, pixelHeight * step),
+        );
+
+        bool isEdge(int nx, int ny) {
+          if (nx < 0 || ny < 0 || nx >= mask.width || ny >= mask.height) {
+            return true;
+          }
+          return mask.alpha[ny * mask.width + nx] < 58;
+        }
+
+        if (isEdge(x, y - step)) {
+          outlinePath.moveTo(current.left, current.top);
+          outlinePath.lineTo(current.right, current.top);
+        }
+        if (isEdge(x + step, y)) {
+          outlinePath.moveTo(current.right, current.top);
+          outlinePath.lineTo(current.right, current.bottom);
+        }
+        if (isEdge(x, y + step)) {
+          outlinePath.moveTo(current.left, current.bottom);
+          outlinePath.lineTo(current.right, current.bottom);
+        }
+        if (isEdge(x - step, y)) {
+          outlinePath.moveTo(current.left, current.top);
+          outlinePath.lineTo(current.left, current.bottom);
+        }
+      }
+    }
+
+    _drawDashedPath(canvas, outlinePath, linePaint, dash: 10, gap: 5);
   }
 
   void _drawDashedRect(Canvas canvas, Rect rect, Paint paint,
@@ -591,3 +778,4 @@ class _CanvasViewport {
         topLeft.dx, topLeft.dy, rect.width * scale, rect.height * scale);
   }
 }
+

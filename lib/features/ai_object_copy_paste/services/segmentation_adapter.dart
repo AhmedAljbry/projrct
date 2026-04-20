@@ -1,4 +1,4 @@
-import 'dart:collection';
+﻿import 'dart:collection';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
@@ -87,12 +87,14 @@ class HybridSegmentationAdapter implements SegmentationAdapter {
 
 class MlKitSegmentationAdapter implements SegmentationAdapter {
   static const int maxSegmentationDimension = 512;
-  static const double _subjectThreshold = 0.34;
+  static const int _personSegmentationDimension = 448;
+  static const double _subjectThreshold = 0.24;
   static const double _personThreshold = 0.42;
 
   SubjectSegmenter? _subjectSegmenter;
   SelfieSegmenter? _selfieSegmenter;
   FaceDetector? _faceDetector;
+  _PreparedInputCache? _preparedCache;
 
   @override
   Future<SelectionRegion> buildSmartSelection(
@@ -113,10 +115,24 @@ class MlKitSegmentationAdapter implements SegmentationAdapter {
         ),
       ),
     );
+    _selfieSegmenter ??= SelfieSegmenter(mode: SegmenterMode.single);
+    _faceDetector ??= FaceDetector(
+      options: FaceDetectorOptions(
+        performanceMode: FaceDetectorMode.fast,
+        enableTracking: false,
+      ),
+    );
 
     final prepared = await _prepareInput(document);
     final inputImage = _inputImageFromPrepared(prepared);
-    final result = await _subjectSegmenter!.processImage(inputImage);
+    final results = await Future.wait([
+      _subjectSegmenter!.processImage(inputImage),
+      _selfieSegmenter!.processImage(inputImage),
+      _faceDetector!.processImage(inputImage),
+    ]);
+    final result = results[0] as SubjectSegmentationResult;
+    final selfieMask = results[1] as SegmentationMask;
+    final faces = results[2] as List<Face>;
 
     final mask = _composeSubjectMask(
       result: result,
@@ -129,8 +145,51 @@ class MlKitSegmentationAdapter implements SegmentationAdapter {
       throw StateError('No smart subject mask available.');
     }
 
+    final resizedSelfieMask = _resizeMask(
+      sourceMask: selfieMask.confidences,
+      sourceWidth: selfieMask.width,
+      sourceHeight: selfieMask.height,
+      targetWidth: document.width,
+      targetHeight: document.height,
+    );
+    final shouldUsePersonAssist = _shouldAssistSmartWithPersonMask(
+      focusPoint: focusPoint,
+      faces: faces,
+      personMask: resizedSelfieMask,
+      width: document.width,
+      height: document.height,
+    );
+    final smartMask = shouldUsePersonAssist
+        ? _mergeSmartAndPersonMasks(
+            subjectMask: mask,
+            personMask: resizedSelfieMask,
+            focusPoint: focusPoint,
+            width: document.width,
+            height: document.height,
+          )
+        : mask;
+
+    if (shouldUsePersonAssist) {
+      final personSelection = _buildFullBodyPersonSelection(
+        document: document,
+        personMask: resizedSelfieMask,
+        subjectMask: mask,
+        faces: faces,
+        focusPoint: focusPoint,
+      );
+      if (personSelection != null) {
+        return personSelection;
+      }
+    }
+
+    final refinedSmartMask = _buildRefinedSmartMask(
+      document: document,
+      mask: smartMask,
+      focusPoint: focusPoint,
+    );
+
     final filtered = _selectFocusedComponent(
-      alpha: _confidenceToAlpha(mask, threshold: _subjectThreshold),
+      alpha: _confidenceToAlpha(refinedSmartMask, threshold: _subjectThreshold),
       width: document.width,
       height: document.height,
       focusPoint: focusPoint,
@@ -165,12 +224,15 @@ class MlKitSegmentationAdapter implements SegmentationAdapter {
     _selfieSegmenter ??= SelfieSegmenter(mode: SegmenterMode.single);
     _faceDetector ??= FaceDetector(
       options: FaceDetectorOptions(
-        performanceMode: FaceDetectorMode.accurate,
+        performanceMode: FaceDetectorMode.fast,
         enableTracking: false,
       ),
     );
 
-    final prepared = await _prepareInput(document);
+    final prepared = await _prepareInput(
+      document,
+      targetMaxDimension: _personSegmentationDimension,
+    );
     final inputImage = _inputImageFromPrepared(prepared);
     final results = await Future.wait([
       _selfieSegmenter!.processImage(inputImage),
@@ -179,10 +241,40 @@ class MlKitSegmentationAdapter implements SegmentationAdapter {
 
     final segmentationMask = results[0] as SegmentationMask;
     final faces = results[1] as List<Face>;
-    final resizedMask = _resizeMask(
+    final personMask = _resizeMask(
       sourceMask: segmentationMask.confidences,
       sourceWidth: segmentationMask.width,
       sourceHeight: segmentationMask.height,
+      targetWidth: document.width,
+      targetHeight: document.height,
+    );
+    List<double>? subjectMask;
+    if (_shouldRefinePeopleMask(personMask, faces)) {
+      _subjectSegmenter ??= SubjectSegmenter(
+        options: SubjectSegmenterOptions(
+          enableForegroundBitmap: false,
+          enableForegroundConfidenceMask: true,
+          enableMultipleSubjects: SubjectResultOptions(
+            enableConfidenceMask: true,
+            enableSubjectBitmap: false,
+          ),
+        ),
+      );
+      final subjectResult = await _subjectSegmenter!.processImage(inputImage);
+      subjectMask = _composeSubjectMask(
+        result: subjectResult,
+        sourceWidth: prepared.width,
+        sourceHeight: prepared.height,
+        targetWidth: document.width,
+        targetHeight: document.height,
+      );
+    }
+    final resizedMask = _buildRefinedPersonMask(
+      personMask: personMask,
+      subjectMask: subjectMask,
+      faces: faces,
+      preparedWidth: prepared.width,
+      preparedHeight: prepared.height,
       targetWidth: document.width,
       targetHeight: document.height,
     );
@@ -224,20 +316,33 @@ class MlKitSegmentationAdapter implements SegmentationAdapter {
 
   Future<_PreparedSegmentationInput> _prepareInput(
     EditorDocument document,
+    {int targetMaxDimension = maxSegmentationDimension}
   ) async {
+    if (_preparedCache != null &&
+        _preparedCache!.documentId == document.id &&
+        _preparedCache!.targetMaxDimension == targetMaxDimension) {
+      return _preparedCache!.prepared;
+    }
     final preparedData = await compute(_prepareSegmentationInput, {
       'bytes': document.bytes,
       'width': document.width,
       'height': document.height,
+      'targetMaxDimension': targetMaxDimension,
     });
     if (preparedData == null) {
       throw StateError('Unable to prepare ML Kit input.');
     }
-    return _PreparedSegmentationInput(
+    final prepared = _PreparedSegmentationInput(
       bytes: preparedData['bytes'] as Uint8List,
       width: preparedData['width'] as int,
       height: preparedData['height'] as int,
     );
+    _preparedCache = _PreparedInputCache(
+      documentId: document.id,
+      targetMaxDimension: targetMaxDimension,
+      prepared: prepared,
+    );
+    return prepared;
   }
 
   InputImage _inputImageFromPrepared(_PreparedSegmentationInput prepared) {
@@ -372,6 +477,372 @@ class MlKitSegmentationAdapter implements SegmentationAdapter {
     );
   }
 
+  ui.Offset? _resolvePersonFocusPointFromDocument(
+    List<Face> faces,
+    EditorDocument document,
+  ) {
+    if (faces.isEmpty) {
+      return null;
+    }
+    final biggestFace = faces.reduce((best, current) {
+      final bestArea = best.boundingBox.width * best.boundingBox.height;
+      final currentArea = current.boundingBox.width * current.boundingBox.height;
+      return currentArea > bestArea ? current : best;
+    });
+    return ui.Offset(
+      biggestFace.boundingBox.center.dx,
+      biggestFace.boundingBox.center.dy,
+    );
+  }
+
+  List<double> _buildRefinedPersonMask({
+    required List<double> personMask,
+    required List<double>? subjectMask,
+    required List<Face> faces,
+    required int preparedWidth,
+    required int preparedHeight,
+    required int targetWidth,
+    required int targetHeight,
+  }) {
+    final refined = List<double>.filled(personMask.length, 0);
+    for (var i = 0; i < personMask.length; i++) {
+      final selfie = personMask[i];
+      final subject = subjectMask == null ? 0.0 : subjectMask[i];
+      refined[i] = (selfie * 0.72 + subject * 0.28).clamp(0.0, 1.0);
+    }
+
+    for (final face in faces) {
+      final left =
+          ((face.boundingBox.left / preparedWidth) * targetWidth).floor().clamp(0, targetWidth - 1);
+      final top =
+          ((face.boundingBox.top / preparedHeight) * targetHeight).floor().clamp(0, targetHeight - 1);
+      final right =
+          ((face.boundingBox.right / preparedWidth) * targetWidth).ceil().clamp(left + 1, targetWidth);
+      final bottom =
+          ((face.boundingBox.bottom / preparedHeight) * targetHeight).ceil().clamp(top + 1, targetHeight);
+      final faceWidth = math.max(1, right - left);
+      final faceHeight = math.max(1, bottom - top);
+      final expandX = (faceWidth * 1.15).round();
+      final expandTop = (faceHeight * 1.45).round();
+      final expandBottom = (faceHeight * 4.8).round();
+
+      final boostedLeft = math.max(0, left - expandX);
+      final boostedTop = math.max(0, top - expandTop);
+      final boostedRight = math.min(targetWidth, right + expandX);
+      final boostedBottom = math.min(targetHeight, bottom + expandBottom);
+      final centerX = (boostedLeft + boostedRight) / 2;
+      final centerY = top + faceHeight * 0.9;
+      final radiusX = math.max(1.0, (boostedRight - boostedLeft) * 0.62);
+      final radiusY = math.max(1.0, (boostedBottom - boostedTop) * 0.68);
+
+      for (var y = boostedTop; y < boostedBottom; y++) {
+        final dy = (y - centerY) / radiusY;
+        for (var x = boostedLeft; x < boostedRight; x++) {
+          final dx = (x - centerX) / radiusX;
+          final distance = math.sqrt(dx * dx + dy * dy);
+          final boost = (1.0 - distance).clamp(0.0, 1.0) * 0.42;
+          final index = y * targetWidth + x;
+          refined[index] = math.max(refined[index], (refined[index] + boost).clamp(0.0, 1.0));
+        }
+      }
+    }
+
+    return refined;
+  }
+
+  SelectionRegion? _buildFullBodyPersonSelection({
+    required EditorDocument document,
+    required List<double> personMask,
+    required List<double> subjectMask,
+    required List<Face> faces,
+    required ui.Offset? focusPoint,
+  }) {
+    final mergedPersonMask = _buildRefinedPersonMask(
+      personMask: personMask,
+      subjectMask: subjectMask,
+      faces: faces,
+      preparedWidth: document.width,
+      preparedHeight: document.height,
+      targetWidth: document.width,
+      targetHeight: document.height,
+    );
+    final expandedPersonMask = _expandFullBodyPersonMask(
+      mask: mergedPersonMask,
+      faces: faces,
+      width: document.width,
+      height: document.height,
+    );
+    final personAlpha = _bridgePersonAlpha(
+      _confidenceToAlpha(expandedPersonMask, threshold: 0.1),
+      document.width,
+      document.height,
+    );
+    final filtered = _selectFocusedComponent(
+      alpha: personAlpha,
+      width: document.width,
+      height: document.height,
+      focusPoint:
+          focusPoint ?? _resolvePersonFocusPointFromDocument(faces, document),
+      allowNearCenterFallback: true,
+    );
+    if (filtered == null) {
+      return null;
+    }
+
+    return _selectionFromAlpha(
+      document: document,
+      fullAlpha: _softenAlpha(
+        _bridgePersonAlpha(filtered.alpha, filtered.width, filtered.height),
+        filtered.width,
+        filtered.height,
+      ),
+      minX: filtered.minX,
+      minY: filtered.minY,
+      maxX: filtered.maxX,
+      maxY: filtered.maxY,
+      feather: 9,
+      paddingScale: 0.12,
+      topPaddingScale: 0.2,
+      bottomPaddingScale: 0.28,
+    );
+  }
+
+  List<double> _expandFullBodyPersonMask({
+    required List<double> mask,
+    required List<Face> faces,
+    required int width,
+    required int height,
+  }) {
+    if (faces.isEmpty) {
+      return List<double>.from(mask);
+    }
+    final expanded = List<double>.from(mask);
+    for (final face in faces) {
+      final left = face.boundingBox.left.floor().clamp(0, width - 1);
+      final top = face.boundingBox.top.floor().clamp(0, height - 1);
+      final right = face.boundingBox.right.ceil().clamp(left + 1, width);
+      final bottom = face.boundingBox.bottom.ceil().clamp(top + 1, height);
+      final faceWidth = math.max(1, right - left);
+      final faceHeight = math.max(1, bottom - top);
+
+      final bodyLeft = math.max(0, left - (faceWidth * 1.8).round());
+      final bodyTop = math.max(0, top - (faceHeight * 1.35).round());
+      final bodyRight = math.min(width, right + (faceWidth * 1.8).round());
+      final bodyBottom = math.min(height, bottom + (faceHeight * 6.8).round());
+      final centerX = (left + right) / 2;
+      final centerY = top + faceHeight * 1.4;
+      final radiusX = math.max(faceWidth * 1.45, (bodyRight - bodyLeft) * 0.34);
+      final radiusY = math.max(faceHeight * 3.4, (bodyBottom - bodyTop) * 0.44);
+
+      for (var y = bodyTop; y < bodyBottom; y++) {
+        final verticalProgress =
+            ((y - top) / math.max(1.0, bodyBottom - top)).clamp(0.0, 1.0);
+        final widthScale = 1.0 - (verticalProgress * 0.18);
+        final currentRadiusX = math.max(1.0, radiusX * widthScale);
+        final dy = (y - centerY) / radiusY;
+        for (var x = bodyLeft; x < bodyRight; x++) {
+          final dx = (x - centerX) / currentRadiusX;
+          final distance = math.sqrt(dx * dx + dy * dy);
+          if (distance > 1.08) {
+            continue;
+          }
+          final index = y * width + x;
+          final base = expanded[index];
+          final armBias =
+              1.0 - ((x - centerX).abs() / math.max(1.0, currentRadiusX * 1.05));
+          final boost = ((1.0 - distance).clamp(0.0, 1.0) * 0.24) +
+              (armBias.clamp(0.0, 1.0) * 0.06) +
+              (verticalProgress * 0.03);
+          if (base >= 0.03 || boost >= 0.18) {
+            expanded[index] = math.max(base, (base + boost).clamp(0.0, 1.0));
+          }
+        }
+      }
+    }
+    return expanded;
+  }
+
+  List<int> _bridgePersonAlpha(List<int> alpha, int width, int height) {
+    final expanded = _dilate(alpha, width, height, radius: 2);
+    final softened = _boxBlur(expanded, width, height, radius: 1);
+    final output = List<int>.filled(alpha.length, 0);
+    for (var i = 0; i < alpha.length; i++) {
+      final boosted = math.max(alpha[i], softened[i]);
+      output[i] = boosted >= 14 ? boosted : 0;
+    }
+    return output;
+  }
+
+  bool _shouldAssistSmartWithPersonMask({
+    required ui.Offset? focusPoint,
+    required List<Face> faces,
+    required List<double> personMask,
+    required int width,
+    required int height,
+  }) {
+    if (faces.isNotEmpty) {
+      return true;
+    }
+    if (focusPoint == null) {
+      return false;
+    }
+    final x = focusPoint.dx.round().clamp(0, width - 1);
+    final y = focusPoint.dy.round().clamp(0, height - 1);
+    final index = y * width + x;
+    return personMask[index] >= 0.18;
+  }
+
+  List<double> _mergeSmartAndPersonMasks({
+    required List<double> subjectMask,
+    required List<double> personMask,
+    required ui.Offset? focusPoint,
+    required int width,
+    required int height,
+  }) {
+    final merged = List<double>.filled(subjectMask.length, 0);
+    final center = focusPoint ??
+        ui.Offset(
+          width / 2,
+          height / 2,
+        );
+
+    for (var y = 0; y < height; y++) {
+      final normDy = ((y - center.dy).abs() / math.max(1.0, height * 0.55))
+          .clamp(0.0, 1.0);
+      for (var x = 0; x < width; x++) {
+        final index = y * width + x;
+        final subject = subjectMask[index];
+        final person = personMask[index];
+        final normDx = ((x - center.dx).abs() / math.max(1.0, width * 0.4))
+            .clamp(0.0, 1.0);
+        final focusBias = (1.0 - (normDx * 0.7 + normDy * 0.9)).clamp(0.0, 1.0);
+        merged[index] = math.max(
+          subject,
+          (person * (0.72 + focusBias * 0.22)).clamp(0.0, 1.0),
+        );
+      }
+    }
+
+    return merged;
+  }
+
+  List<double> _buildRefinedSmartMask({
+    required EditorDocument document,
+    required List<double> mask,
+    required ui.Offset? focusPoint,
+  }) {
+    final refined = List<double>.from(mask);
+    final width = document.width;
+    final height = document.height;
+    final seedPoint = focusPoint ??
+        ui.Offset(
+          width / 2,
+          height / 2,
+        );
+    final startX = seedPoint.dx.round().clamp(0, width - 1);
+    final startY = seedPoint.dy.round().clamp(0, height - 1);
+    final seedPixel = document.bitmap.getPixel(startX, startY);
+    final visited = Uint8List(width * height);
+    final queue = Queue<(int, int)>()..add((startX, startY));
+    visited[startY * width + startX] = 1;
+
+    while (queue.isNotEmpty) {
+      final current = queue.removeFirst();
+      final x = current.$1;
+      final y = current.$2;
+      final index = y * width + x;
+      final confidence = refined[index];
+      final pixel = document.bitmap.getPixel(x, y);
+      final colorDistance = _smartColorDistance(seedPixel, pixel);
+      final gradientPenalty = _smartLocalGradient(document.bitmap, x, y);
+      final affinity = (1.0 - (colorDistance / 110.0)).clamp(0.0, 1.0) * 0.55 +
+          (1.0 - (gradientPenalty / 95.0)).clamp(0.0, 1.0) * 0.25 +
+          confidence * 0.2;
+
+      if (affinity < 0.34 && confidence < 0.18) {
+        continue;
+      }
+
+      refined[index] = math.max(confidence, (affinity * 0.92).clamp(0.0, 1.0));
+
+      for (final neighbor in const <(int, int)>[
+        (-1, 0),
+        (1, 0),
+        (0, -1),
+        (0, 1),
+        (-1, -1),
+        (1, -1),
+        (-1, 1),
+        (1, 1),
+      ]) {
+        final nx = x + neighbor.$1;
+        final ny = y + neighbor.$2;
+        if (nx < 0 || ny < 0 || nx >= width || ny >= height) {
+          continue;
+        }
+        final neighborIndex = ny * width + nx;
+        if (visited[neighborIndex] == 1) {
+          continue;
+        }
+        final neighborConfidence = refined[neighborIndex];
+        if (neighborConfidence < 0.08 && affinity < 0.48) {
+          continue;
+        }
+        visited[neighborIndex] = 1;
+        queue.add((nx, ny));
+      }
+    }
+
+    return _smoothConfidenceMask(refined, width, height);
+  }
+
+  List<double> _smoothConfidenceMask(List<double> mask, int width, int height) {
+    final output = List<double>.filled(mask.length, 0);
+    for (var y = 0; y < height; y++) {
+      for (var x = 0; x < width; x++) {
+        var sum = 0.0;
+        var count = 0.0;
+        for (var yy = math.max(0, y - 1); yy <= math.min(height - 1, y + 1); yy++) {
+          for (var xx = math.max(0, x - 1); xx <= math.min(width - 1, x + 1); xx++) {
+            sum += mask[yy * width + xx];
+            count += 1;
+          }
+        }
+        output[y * width + x] = (sum / count).clamp(0.0, 1.0);
+      }
+    }
+    return output;
+  }
+
+  double _smartColorDistance(img.Pixel a, img.Pixel b) {
+    return math.sqrt(
+      math.pow(a.r - b.r, 2) + math.pow(a.g - b.g, 2) + math.pow(a.b - b.b, 2),
+    );
+  }
+
+  double _smartLocalGradient(img.Image image, int x, int y) {
+    final center = image.getPixel(x, y);
+    final right = image.getPixel((x + 1).clamp(0, image.width - 1), y);
+    final down = image.getPixel(x, (y + 1).clamp(0, image.height - 1));
+    return (_smartColorDistance(center, right) +
+            _smartColorDistance(center, down)) /
+        2;
+  }
+
+  bool _shouldRefinePeopleMask(List<double> personMask, List<Face> faces) {
+    if (faces.isEmpty) {
+      return true;
+    }
+    var strongPixels = 0;
+    for (final value in personMask) {
+      if (value >= 0.68) {
+        strongPixels += 1;
+      }
+    }
+    final strongCoverage = strongPixels / personMask.length;
+    return strongCoverage < 0.035;
+  }
+
   @override
   Future<void> dispose() async {
     await _subjectSegmenter?.close();
@@ -380,6 +851,7 @@ class MlKitSegmentationAdapter implements SegmentationAdapter {
     _subjectSegmenter = null;
     _selfieSegmenter = null;
     _faceDetector = null;
+    _preparedCache = null;
   }
 }
 
@@ -838,6 +1310,18 @@ class _PreparedSegmentationInput {
   final int height;
 }
 
+class _PreparedInputCache {
+  const _PreparedInputCache({
+    required this.documentId,
+    required this.targetMaxDimension,
+    required this.prepared,
+  });
+
+  final String documentId;
+  final int targetMaxDimension;
+  final _PreparedSegmentationInput prepared;
+}
+
 class _ConnectedComponent {
   const _ConnectedComponent({
     required this.indices,
@@ -1135,6 +1619,7 @@ extension on MlKitSegmentationAdapter {
     required double feather,
     required double paddingScale,
     required double topPaddingScale,
+    double? bottomPaddingScale,
   }) {
     final boxWidth = math.max(1, maxX - minX + 1);
     final boxHeight = math.max(1, maxY - minY + 1);
@@ -1142,8 +1627,10 @@ extension on MlKitSegmentationAdapter {
     final top = math.max(0, (minY - boxHeight * topPaddingScale).floor());
     final right =
         math.min(document.width - 1, (maxX + boxWidth * paddingScale).ceil());
-    final bottom =
-        math.min(document.height - 1, (maxY + boxHeight * paddingScale).ceil());
+    final bottom = math.min(
+      document.height - 1,
+      (maxY + boxHeight * (bottomPaddingScale ?? paddingScale)).ceil(),
+    );
     final bounds = ui.Rect.fromLTRB(
       left.toDouble(),
       top.toDouble(),
@@ -1158,6 +1645,7 @@ extension on MlKitSegmentationAdapter {
         cropped[y * width + x] = fullAlpha[(top + y) * document.width + left + x];
       }
     }
+    final cleaned = _cleanupSelectionAlpha(cropped, width, height);
     return SelectionRegion(
       documentId: document.id,
       tool: SelectionTool.smart,
@@ -1167,9 +1655,20 @@ extension on MlKitSegmentationAdapter {
         bounds: bounds,
         width: width,
         height: height,
-        alpha: cropped,
+        alpha: cleaned,
       ),
     );
+  }
+
+  List<int> _cleanupSelectionAlpha(List<int> alpha, int width, int height) {
+    final dilated = _dilate(alpha, width, height, radius: 1);
+    final smoothed = _boxBlur(dilated, width, height, radius: 1);
+    final output = List<int>.filled(alpha.length, 0);
+    for (var i = 0; i < alpha.length; i++) {
+      final boosted = math.max(alpha[i], smoothed[i]);
+      output[i] = boosted >= 22 ? boosted : 0;
+    }
+    return output;
   }
 }
 
@@ -1177,6 +1676,8 @@ Map<String, dynamic>? _prepareSegmentationInput(Map<String, dynamic> data) {
   final imageBytes = data['bytes'] as Uint8List;
   final imageWidth = data['width'] as int;
   final imageHeight = data['height'] as int;
+  final targetMaxDimension = data['targetMaxDimension'] as int? ??
+      MlKitSegmentationAdapter.maxSegmentationDimension;
 
   if (imageBytes.isEmpty || imageWidth <= 0 || imageHeight <= 0) {
     return null;
@@ -1188,11 +1689,11 @@ Map<String, dynamic>? _prepareSegmentationInput(Map<String, dynamic> data) {
   }
 
   final maxDimension = math.max(decoded.width, decoded.height);
-  if (maxDimension <= MlKitSegmentationAdapter.maxSegmentationDimension) {
+  if (maxDimension <= targetMaxDimension) {
     return _encodeToNv21(decoded);
   }
 
-  final scale = MlKitSegmentationAdapter.maxSegmentationDimension / maxDimension;
+  final scale = targetMaxDimension / maxDimension;
   final targetWidth = math.max(128, (decoded.width * scale).round());
   final targetHeight = math.max(128, (decoded.height * scale).round());
   final resized = img.copyResize(
@@ -1236,3 +1737,4 @@ Map<String, dynamic> _encodeToNv21(img.Image image) {
     'height': height,
   };
 }
+

@@ -79,7 +79,6 @@ class MaskGenerationService {
     }
     if (masks.length == 1) return masks.first;
 
-    // Compute the union bounding box.
     int minL = imageWidth, minT = imageHeight, maxR = 0, maxB = 0;
     for (final m in masks) {
       if (m.bounds.left < minL) minL = m.bounds.left;
@@ -123,23 +122,23 @@ class MaskGenerationService {
     );
   }
 
-  // ─── Private helpers ────────────────────────────────────────────────────────
-
-  /// Compute dab positions along the stroke path using spacing.
-  /// Uses Catmull-Rom interpolation when ≥4 points are available for smoothing.
   List<Offset> _computeDabPositions(
       List<Offset> rawPoints, BrushSettings brush) {
     if (rawPoints.length == 1) return [rawPoints.first];
 
-    // Smooth the path using Catmull-Rom interpolation.
     final segmentsPerSpan = brush.radius <= 18
         ? 14
         : brush.radius <= 36
             ? 10
-            : 8;
+            : 6;
     final smoothed =
         _catmullRomPath(rawPoints, segmentsPerSpan: segmentsPerSpan);
-    final spacing = math.max(0.75, brush.spacing * brush.radius * 2.0);
+    final spacingBoost = brush.radius <= 24
+        ? 2.0
+        : brush.radius <= 40
+            ? 2.25
+            : 2.55;
+    final spacing = math.max(1.0, brush.spacing * brush.radius * spacingBoost);
     if (spacing < 1.0) return smoothed;
 
     final dabs = <Offset>[smoothed.first];
@@ -153,7 +152,6 @@ class MaskGenerationService {
 
       while (accumulated >= spacing) {
         accumulated -= spacing;
-        // Interpolate back along segment to place dab at exact spacing interval.
         final t = 1.0 - (accumulated / segLen).clamp(0.0, 1.0);
         dabs.add(Offset.lerp(prev, curr, t)!);
       }
@@ -166,7 +164,6 @@ class MaskGenerationService {
     return dabs;
   }
 
-  /// Catmull-Rom spline interpolation to smooth raw touch points.
   List<Offset> _catmullRomPath(List<Offset> pts, {int segmentsPerSpan = 8}) {
     if (pts.length < 2) return pts;
     if (pts.length == 2) {
@@ -174,7 +171,6 @@ class MaskGenerationService {
     }
 
     final result = <Offset>[];
-    // Pad endpoints.
     final extended = [pts.first, ...pts, pts.last];
 
     for (int i = 1; i < extended.length - 2; i++) {

@@ -13,6 +13,7 @@ import 'package:untitled2/vv/export_service.dart';
 import 'package:untitled2/vv/history_service.dart';
 import 'package:untitled2/vv/mask_data.dart';
 import 'package:untitled2/vv/mask_generation_service.dart';
+import 'package:untitled2/vv/patch_blender.dart';
 
 import 'blemish_state.dart';
 
@@ -22,6 +23,7 @@ class BlemishCubit extends Cubit<BlemishState> {
   final BrushInteractionService _brushInteraction;
   final HistoryService _history;
   final ExportService _exportService;
+  final PatchBlender _instantBlender = PatchBlender();
 
   Uint8List? _sourcePixels;
   Uint8List? _previewPixelsCache;
@@ -61,14 +63,14 @@ class BlemishCubit extends Cubit<BlemishState> {
     ));
   }
 
-  void setBrushRadius(double radius) =>
-      emit(state.copyWith(brushSettings: state.brushSettings.copyWith(radius: radius)));
+  void setBrushRadius(double radius) => emit(state.copyWith(
+      brushSettings: state.brushSettings.copyWith(radius: radius)));
 
-  void setBrushSoftness(double softness) =>
-      emit(state.copyWith(brushSettings: state.brushSettings.copyWith(softness: softness)));
+  void setBrushSoftness(double softness) => emit(state.copyWith(
+      brushSettings: state.brushSettings.copyWith(softness: softness)));
 
-  void setBrushStrength(double strength) =>
-      emit(state.copyWith(brushSettings: state.brushSettings.copyWith(strength: strength)));
+  void setBrushStrength(double strength) => emit(state.copyWith(
+      brushSettings: state.brushSettings.copyWith(strength: strength)));
 
   void setBrushSettings(BrushSettings settings) =>
       emit(state.copyWith(brushSettings: settings));
@@ -83,7 +85,7 @@ class BlemishCubit extends Cubit<BlemishState> {
   }
 
   void onStrokeBegin(Offset canvasPoint) {
-    if (state.sourceImage == null) return;
+    if (state.sourceImage == null || state.isProcessing) return;
     final imagePoint = _toImageSpace(canvasPoint);
     _brushInteraction.beginStroke(imagePoint);
     emit(state.copyWith(
@@ -93,7 +95,7 @@ class BlemishCubit extends Cubit<BlemishState> {
   }
 
   void onStrokeUpdate(Offset canvasPoint) {
-    if (state.sourceImage == null) return;
+    if (state.sourceImage == null || state.isProcessing) return;
     final imagePoint = _toImageSpace(canvasPoint);
     final added = _brushInteraction.continueStroke(imagePoint);
     if (added) {
@@ -104,16 +106,19 @@ class BlemishCubit extends Cubit<BlemishState> {
   }
 
   Future<void> onSpotHeal(Offset canvasPoint) async {
-    if (state.sourceImage == null) return;
+    if (state.sourceImage == null || state.isProcessing) return;
     final imagePoint = _toImageSpace(canvasPoint);
 
     emit(state.copyWith(
       activeStrokePoints: [imagePoint],
-      processingStatus: ProcessingStatus.processingPreview,
       clearError: true,
     ));
 
-    await _commitStroke([imagePoint], StrokeType.spotHeal);
+    await _commitStroke(
+      [imagePoint],
+      StrokeType.spotHeal,
+      preferInstantPreview: true,
+    );
 
     if (!isClosed) {
       emit(state.copyWith(activeStrokePoints: const []));
@@ -121,7 +126,7 @@ class BlemishCubit extends Cubit<BlemishState> {
   }
 
   Future<void> onStrokeEnd() async {
-    if (state.sourceImage == null) return;
+    if (state.sourceImage == null || state.isProcessing) return;
     final strokePoints = _brushInteraction.endStroke();
     if (strokePoints.isEmpty) return;
 
@@ -174,7 +179,8 @@ class BlemishCubit extends Cubit<BlemishState> {
     ));
   }
 
-  void setCompareMode(CompareMode mode) => emit(state.copyWith(compareMode: mode));
+  void setCompareMode(CompareMode mode) =>
+      emit(state.copyWith(compareMode: mode));
 
   void toggleCompare() {
     final next = state.compareMode == CompareMode.edited
@@ -221,13 +227,21 @@ class BlemishCubit extends Cubit<BlemishState> {
     return null;
   }
 
-  Future<void> _commitStroke(List<Offset> strokePoints, StrokeType strokeType) async {
-    if (_sourcePixels == null) return;
+  Future<void> _commitStroke(
+    List<Offset> strokePoints,
+    StrokeType strokeType, {
+    bool preferInstantPreview = false,
+  }) async {
+    if (_sourcePixels == null || state.isProcessing) return;
 
     try {
+      final tunedBrush = state.brushSettings.normalizedForHealing(
+        imageWidth: state.imageWidth,
+        imageHeight: state.imageHeight,
+      );
       final mask = _maskService.generateStrokeMask(
         strokePoints: strokePoints,
-        brush: state.brushSettings,
+        brush: tunedBrush,
         imageWidth: state.imageWidth,
         imageHeight: state.imageHeight,
       );
@@ -240,13 +254,45 @@ class BlemishCubit extends Cubit<BlemishState> {
       final operation = BlemishOperation(
         id: _generateOperationId(),
         createdAt: DateTime.now(),
-        brushSettings: state.brushSettings,
+        brushSettings: tunedBrush,
         strokePoints: strokePoints,
         strokeType: strokeType,
         mask: mask,
       );
 
-      final inputPixels = Uint8List.fromList(_previewPixelsCache ?? _sourcePixels!);
+      if (preferInstantPreview && strokeType == StrokeType.spotHeal) {
+        final previewSeed =
+            Uint8List.fromList(_previewPixelsCache ?? _sourcePixels!);
+        final baselinePixels = Uint8List.fromList(previewSeed);
+        final instantApplied = _applyInstantSpotPreview(
+          previewSeed,
+          operation,
+        );
+
+        if (instantApplied) {
+          _previewPixelsCache = previewSeed;
+          _history.commit(operation.copyWith(isProcessed: true));
+
+          if (!isClosed) {
+            emit(state.copyWith(
+              operations: _history.operations,
+              previewPixels: _previewPixelsCache,
+              processingStatus: ProcessingStatus.idle,
+              hasUnsavedChanges: true,
+            ));
+          }
+
+          unawaited(_refineSpotPreview(
+            operation: operation,
+            baselinePixels: baselinePixels,
+            historyCount: _history.undoCount,
+          ));
+          return;
+        }
+      }
+
+      final inputPixels =
+          Uint8List.fromList(_previewPixelsCache ?? _sourcePixels!);
       final result = await _worker.heal(
         imagePixels: inputPixels,
         imageWidth: state.imageWidth,
@@ -256,7 +302,8 @@ class BlemishCubit extends Cubit<BlemishState> {
       );
 
       if (result.isSuccess) {
-        _writeRegion(inputPixels, result.healed!.bounds, result.healed!.healedPixels);
+        _writeRegion(
+            inputPixels, result.healed!.bounds, result.healed!.healedPixels);
         _previewPixelsCache = inputPixels;
         _history.commit(operation.copyWith(isProcessed: true));
 
@@ -289,8 +336,194 @@ class BlemishCubit extends Cubit<BlemishState> {
     }
   }
 
+  Future<void> _refineSpotPreview({
+    required BlemishOperation operation,
+    required Uint8List baselinePixels,
+    required int historyCount,
+  }) async {
+    try {
+      final result = await _worker.heal(
+        imagePixels: baselinePixels,
+        imageWidth: state.imageWidth,
+        imageHeight: state.imageHeight,
+        operation: operation,
+        mode: EngineQualityMode.preview,
+      );
+
+      if (result.isFailure || isClosed) {
+        return;
+      }
+
+      final isStillLatest = _history.undoCount == historyCount &&
+          _history.lastOperation?.id == operation.id;
+      if (!isStillLatest || _previewPixelsCache == null) {
+        return;
+      }
+
+      final refinedPixels = Uint8List.fromList(_previewPixelsCache!);
+      _writeRegion(
+          refinedPixels, result.healed!.bounds, result.healed!.healedPixels);
+      _previewPixelsCache = refinedPixels;
+
+      emit(state.copyWith(
+        previewPixels: _previewPixelsCache,
+        processingStatus: ProcessingStatus.idle,
+      ));
+    } catch (e, stack) {
+      debugPrint('[BlemishCubit] _refineSpotPreview error: $e\n$stack');
+    }
+  }
+
+  bool _applyInstantSpotPreview(Uint8List pixels, BlemishOperation operation) {
+    final targetBounds = operation.mask.computeTightBounds().clampTo(
+          state.imageWidth,
+          state.imageHeight,
+        );
+    if (targetBounds.isEmpty) {
+      return false;
+    }
+
+    final sourceBounds = _pickInstantSourceBounds(targetBounds);
+    if (sourceBounds == null) {
+      return false;
+    }
+
+    final sourcePatch = _extractRegion(pixels, sourceBounds);
+    _instantBlender.blend(
+      outputPixels: pixels,
+      imageWidth: state.imageWidth,
+      imageHeight: state.imageHeight,
+      sourcePatch: sourcePatch,
+      patchWidth: targetBounds.width,
+      patchHeight: targetBounds.height,
+      sourceAnchorX: sourceBounds.left,
+      sourceAnchorY: sourceBounds.top,
+      targetBounds: targetBounds,
+      mask: operation.mask,
+      strength: (operation.brushSettings.strength * 0.92).clamp(0.48, 0.88),
+    );
+    return true;
+  }
+
+  MaskBounds? _pickInstantSourceBounds(MaskBounds targetBounds) {
+    final patchW = targetBounds.width;
+    final patchH = targetBounds.height;
+    if (patchW <= 0 || patchH <= 0) {
+      return null;
+    }
+
+    final gap = patchW <= 18 ? 2 : 4;
+    final candidates = <MaskBounds>[
+      MaskBounds(
+        left: targetBounds.right + gap,
+        top: targetBounds.top,
+        right: targetBounds.right + gap + patchW,
+        bottom: targetBounds.top + patchH,
+      ),
+      MaskBounds(
+        left: targetBounds.left - gap - patchW,
+        top: targetBounds.top,
+        right: targetBounds.left - gap,
+        bottom: targetBounds.top + patchH,
+      ),
+      MaskBounds(
+        left: targetBounds.left,
+        top: targetBounds.bottom + gap,
+        right: targetBounds.left + patchW,
+        bottom: targetBounds.bottom + gap + patchH,
+      ),
+      MaskBounds(
+        left: targetBounds.left,
+        top: targetBounds.top - gap - patchH,
+        right: targetBounds.left + patchW,
+        bottom: targetBounds.top - gap,
+      ),
+    ];
+
+    MaskBounds? bestBounds;
+    double bestScore = double.infinity;
+
+    for (final candidate in candidates) {
+      final clamped = candidate.clampTo(state.imageWidth, state.imageHeight);
+      if (clamped.width != patchW || clamped.height != patchH) {
+        continue;
+      }
+      if (_boundsOverlap(targetBounds, clamped, margin: 1)) {
+        continue;
+      }
+
+      final score = _estimatePatchDifference(targetBounds, clamped);
+      if (score < bestScore) {
+        bestScore = score;
+        bestBounds = clamped;
+      }
+    }
+
+    return bestBounds;
+  }
+
+  double _estimatePatchDifference(MaskBounds target, MaskBounds source) {
+    final pixels = _previewPixelsCache ?? _sourcePixels;
+    if (pixels == null) {
+      return double.infinity;
+    }
+
+    double targetLuma = 0;
+    double sourceLuma = 0;
+    int count = 0;
+
+    for (int dy = 0; dy < target.height; dy++) {
+      final targetY = target.top + dy;
+      final sourceY = source.top + dy;
+      for (int dx = 0; dx < target.width; dx++) {
+        final targetX = target.left + dx;
+        final sourceX = source.left + dx;
+
+        final targetIdx = (targetY * state.imageWidth + targetX) * 4;
+        final sourceIdx = (sourceY * state.imageWidth + sourceX) * 4;
+        targetLuma += _lumaAt(pixels, targetIdx);
+        sourceLuma += _lumaAt(pixels, sourceIdx);
+        count++;
+      }
+    }
+
+    if (count == 0) {
+      return double.infinity;
+    }
+
+    return (targetLuma - sourceLuma).abs() / count;
+  }
+
+  double _lumaAt(Uint8List pixels, int offset) {
+    return (pixels[offset] * 0.299) +
+        (pixels[offset + 1] * 0.587) +
+        (pixels[offset + 2] * 0.114);
+  }
+
+  bool _boundsOverlap(MaskBounds a, MaskBounds b, {required int margin}) {
+    return a.left < b.right + margin &&
+        a.top < b.bottom + margin &&
+        a.right > b.left - margin &&
+        a.bottom > b.top - margin;
+  }
+
+  Uint8List _extractRegion(Uint8List pixels, MaskBounds bounds) {
+    final w = bounds.width;
+    final h = bounds.height;
+    final buffer = Uint8List(w * h * 4);
+
+    for (int dy = 0; dy < h; dy++) {
+      final sy = bounds.top + dy;
+      final srcOffset = (sy * state.imageWidth + bounds.left) * 4;
+      final dstOffset = dy * w * 4;
+      buffer.setRange(dstOffset, dstOffset + w * 4, pixels, srcOffset);
+    }
+
+    return buffer;
+  }
+
   Future<void> _recomputePreview() async {
-    if (_sourcePixels == null) return;
+    if (_sourcePixels == null || state.isProcessing) return;
     if (_history.operations.isEmpty) {
       _previewPixelsCache = null;
       emit(state.copyWith(
@@ -328,7 +561,8 @@ class BlemishCubit extends Cubit<BlemishState> {
     }
   }
 
-  void _writeRegion(Uint8List buffer, MaskBounds bounds, Uint8List regionPixels) {
+  void _writeRegion(
+      Uint8List buffer, MaskBounds bounds, Uint8List regionPixels) {
     final w = bounds.width;
     for (int dy = 0; dy < bounds.height; dy++) {
       final sy = bounds.top + dy;
@@ -361,4 +595,3 @@ class BlemishCubit extends Cubit<BlemishState> {
     return super.close();
   }
 }
-

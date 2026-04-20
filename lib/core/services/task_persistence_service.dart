@@ -4,7 +4,8 @@ class TaskPersistenceService {
   static const String _keyTasks = 'active_tasks';
   SharedPreferences? _prefs;
 
-  static final TaskPersistenceService _instance = TaskPersistenceService._internal();
+  static final TaskPersistenceService _instance =
+      TaskPersistenceService._internal();
   factory TaskPersistenceService() => _instance;
   TaskPersistenceService._internal();
 

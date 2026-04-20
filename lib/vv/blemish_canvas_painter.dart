@@ -1,9 +1,9 @@
 import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:untitled2/vv/blemish_state.dart';
 import 'package:untitled2/vv/brush_settings.dart';
 
-/// يرسم الصورة فقط — المؤشر في layer منفصل في blemish_edit_canvas
 class BlemishCanvasPainter extends CustomPainter {
   final ui.Image? sourceImage;
   final ui.Image? previewImage;
@@ -25,7 +25,6 @@ class BlemishCanvasPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // خلفية سوداء
     canvas.drawRect(
       Rect.fromLTWH(0, 0, size.width, size.height),
       Paint()..color = const Color(0xFF0C0C0C),
@@ -35,7 +34,6 @@ class BlemishCanvasPainter extends CustomPainter {
     canvas.translate(canvasTranslation.dx, canvasTranslation.dy);
     canvas.scale(canvasScale);
 
-    // الصورة — Original أو Preview
     final img = compareMode == CompareMode.original
         ? (sourceImage ?? previewImage)
         : (previewImage ?? sourceImage);
@@ -44,14 +42,35 @@ class BlemishCanvasPainter extends CustomPainter {
       canvas.drawImage(img, Offset.zero, Paint());
     }
 
+    if (activeStrokePoints.isNotEmpty) {
+      _paintActiveStroke(canvas);
+    }
+
     canvas.restore();
   }
 
+  void _paintActiveStroke(Canvas canvas) {
+    final fillPaint = Paint()
+      ..color = const Color(0xFF16B07E).withValues(alpha: 0.18)
+      ..style = PaintingStyle.fill;
+    final edgePaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.82)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0 / canvasScale.clamp(0.2, 12.0);
+
+    for (final point in activeStrokePoints) {
+      canvas.drawCircle(point, brushSettings.radius, fillPaint);
+      canvas.drawCircle(point, brushSettings.radius, edgePaint);
+    }
+  }
+
   @override
-  bool shouldRepaint(covariant BlemishCanvasPainter o) =>
-      o.sourceImage       != sourceImage       ||
-          o.previewImage      != previewImage      ||
-          o.canvasScale       != canvasScale       ||
-          o.canvasTranslation != canvasTranslation ||
-          o.compareMode       != compareMode;
+  bool shouldRepaint(covariant BlemishCanvasPainter oldDelegate) =>
+      oldDelegate.sourceImage != sourceImage ||
+      oldDelegate.previewImage != previewImage ||
+      oldDelegate.activeStrokePoints != activeStrokePoints ||
+      oldDelegate.brushSettings != brushSettings ||
+      oldDelegate.canvasScale != canvasScale ||
+      oldDelegate.canvasTranslation != canvasTranslation ||
+      oldDelegate.compareMode != compareMode;
 }

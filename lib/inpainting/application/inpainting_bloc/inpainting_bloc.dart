@@ -14,6 +14,8 @@ import 'inpainting_state.dart';
 
 class InpaintingBloc extends Bloc<InpaintingEvent, InpaintingState> {
   InpaintingBloc({required this.repo}) : super(InpaintingState.idle()) {
+    on<InpaintingPrepare>(_onPrepare);
+    on<InpaintingPreparationFailed>(_onPreparationFailed);
     on<InpaintingStart>(_onStart);
     on<InpaintingCancel>(_onCancel);
     on<InpaintingReset>(_onReset);
@@ -29,6 +31,38 @@ class InpaintingBloc extends Bloc<InpaintingEvent, InpaintingState> {
 
   void _log(String message) {
     debugPrint('[InpaintingBloc] $message');
+  }
+
+  Future<void> _onPrepare(
+    InpaintingPrepare event,
+    Emitter<InpaintingState> emit,
+  ) async {
+    _log('Preparation started');
+    _cancelled = false;
+    emit(InpaintingState(
+      status: InpaintingStatus.preparing,
+      startedAt: DateTime.now(),
+      lastUpdatedAt: DateTime.now(),
+      serverStage: 'preparing',
+      serverMessage: event.message ?? 'Preparing image and mask',
+    ));
+  }
+
+  Future<void> _onPreparationFailed(
+    InpaintingPreparationFailed event,
+    Emitter<InpaintingState> emit,
+  ) async {
+    _log('Preparation failed: ${event.message}');
+    emit(state.copyWith(
+      status: InpaintingStatus.failed,
+      failure: const InpaintingFailure(
+        code: 'prepare_failed',
+        messageKey: 'failed',
+      ),
+      serverStage: 'preparing',
+      serverMessage: event.message,
+      lastUpdatedAt: DateTime.now(),
+    ));
   }
 
   Future<void> _onReset(
@@ -136,11 +170,16 @@ class InpaintingBloc extends Bloc<InpaintingEvent, InpaintingState> {
         return;
       }
 
+      final failure = e is InpaintingFailure
+          ? e
+          : const InpaintingFailure(code: 'unknown', messageKey: 'failed');
+
       emit(state.copyWith(
         status: InpaintingStatus.failed,
-        failure: e is InpaintingFailure
-            ? e
-            : const InpaintingFailure(code: 'unknown', messageKey: 'failed'),
+        failure: failure,
+        serverStage: 'failed',
+        serverProgress: null,
+        serverMessage: e.toString(),
         lastUpdatedAt: DateTime.now(),
       ));
     }
@@ -235,8 +274,8 @@ class InpaintingBloc extends Bloc<InpaintingEvent, InpaintingState> {
           status: InpaintingStatus.success,
           result: resultBytes,
           serverProgress: 100,
-          serverStage: 'completed',
-          serverMessage: null,
+          serverStage: 'result_ready',
+          serverMessage: 'Result downloaded successfully',
           lastUpdatedAt: DateTime.now(),
           clearFailure: true,
         ));
@@ -254,6 +293,8 @@ class InpaintingBloc extends Bloc<InpaintingEvent, InpaintingState> {
             code: 'background_failed',
             messageKey: 'failed',
           ),
+          serverStage: 'failed',
+          serverProgress: null,
           serverMessage: job.message,
           lastUpdatedAt: DateTime.now(),
         ));
@@ -271,6 +312,9 @@ class InpaintingBloc extends Bloc<InpaintingEvent, InpaintingState> {
             code: 'cancelled',
             messageKey: 'cancelled',
           ),
+          serverStage: 'cancelled',
+          serverProgress: null,
+          serverMessage: null,
           lastUpdatedAt: DateTime.now(),
         ));
         return;

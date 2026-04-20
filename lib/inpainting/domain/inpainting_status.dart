@@ -1,1 +1,12 @@
-enum InpaintingStatus { idle, uploading, processing, downloading, success, failed, cancelled, timeout, queued }
+enum InpaintingStatus {
+  idle,
+  preparing,
+  uploading,
+  processing,
+  downloading,
+  success,
+  failed,
+  cancelled,
+  timeout,
+  queued,
+}

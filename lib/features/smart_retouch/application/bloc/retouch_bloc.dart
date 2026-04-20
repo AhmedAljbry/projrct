@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -91,15 +92,40 @@ class RetouchBloc extends Bloc<RetouchEvent, RetouchState> {
     ApplyOperationEvent event,
     Emitter<RetouchState> emit,
   ) async {
+    final Uint8List? sourceImageBytes = state.originalImageBytes;
+    final Uint8List? baseTargetBytes =
+        state.currentImageBytes ?? state.originalImageBytes;
     final updatedOps = List.of(state.operations)..add(event.operation);
 
     emit(state.copyWith(
-      status: RetouchStatus.ready,
+      status: RetouchStatus.processing,
       operations: updatedOps,
       redoStack: [],
       lastStrokeEnd: _extractTargetEnd(event.operation),
       lastSourceEnd: _extractSourceEnd(event.operation),
     ));
+
+    if (sourceImageBytes != null && baseTargetBytes != null) {
+      final resultBytes =
+          await RetouchImageService.renderSingleOperationPreview(
+        sourceImageBytes: sourceImageBytes,
+        currentImageBytes: baseTargetBytes,
+        operation: event.operation,
+      );
+
+      if (resultBytes != null) {
+        final codec = await ui.instantiateImageCodec(resultBytes);
+        final frame = await codec.getNextFrame();
+        emit(state.copyWith(
+          status: RetouchStatus.ready,
+          currentImage: frame.image,
+          currentImageBytes: resultBytes,
+          lastStrokeEnd: _extractTargetEnd(event.operation),
+          lastSourceEnd: _extractSourceEnd(event.operation),
+        ));
+        return;
+      }
+    }
 
     await _renderAndEmit(updatedOps, emit);
   }

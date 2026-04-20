@@ -40,6 +40,22 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    match /device_installations/{installationIdHash} {
+      allow read, write: if false;
+    }
+
+    match /signup_rate_limits/{bucketId} {
+      allow read, write: if false;
+    }
+
+    match /signup_audit_logs/{logId} {
+      allow read, write: if false;
+    }
+
+    match /account_recovery_requests/{requestId} {
+      allow read, write: if false;
+    }
+
   }
 }
 

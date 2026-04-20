@@ -9,6 +9,7 @@ rootProject.buildDir = "../build"
 subprojects {
     project.buildDir = "${rootProject.buildDir}/${project.name}"
     configurations.configureEach {
+        exclude group: "com.google.firebase", module: "firebase-iid"
         resolutionStrategy {
             force "androidx.work:work-runtime:2.8.1"
             force "androidx.work:work-runtime-ktx:2.8.1"

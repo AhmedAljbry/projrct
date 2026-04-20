@@ -32,6 +32,7 @@ class _BlemishEditCanvasState extends State<BlemishEditCanvas>
   Offset? _singleTouchStart;
   Offset? _singleTouchCurrent;
   bool _singleTouchMoved = false;
+  bool _strokeStarted = false;
 
   ui.Image? _sourceUiImage;
   ui.Image? _previewUiImage;
@@ -135,6 +136,7 @@ class _BlemishEditCanvasState extends State<BlemishEditCanvas>
       _isPinching = true;
       _hideCursor();
       context.read<BlemishCubit>().cancelActiveStroke();
+      _strokeStarted = false;
 
       final state = context.read<BlemishCubit>().state;
       _scaleStart = state.canvasScale;
@@ -148,6 +150,8 @@ class _BlemishEditCanvasState extends State<BlemishEditCanvas>
     _singleTouchStart = details.localFocalPoint;
     _singleTouchCurrent = details.localFocalPoint;
     _singleTouchMoved = false;
+    _strokeStarted = true;
+    context.read<BlemishCubit>().onStrokeBegin(details.localFocalPoint);
   }
 
   void _onScaleUpdate(ScaleUpdateDetails details) {
@@ -173,6 +177,10 @@ class _BlemishEditCanvasState extends State<BlemishEditCanvas>
             _tapMovementTolerance) {
       _singleTouchMoved = true;
     }
+
+    if (_strokeStarted) {
+      context.read<BlemishCubit>().onStrokeUpdate(details.localFocalPoint);
+    }
   }
 
   Future<void> _onScaleEnd(ScaleEndDetails details) async {
@@ -184,6 +192,7 @@ class _BlemishEditCanvasState extends State<BlemishEditCanvas>
       _singleTouchStart = null;
       _singleTouchCurrent = null;
       _singleTouchMoved = false;
+      _strokeStarted = false;
       return;
     }
 
@@ -194,7 +203,14 @@ class _BlemishEditCanvasState extends State<BlemishEditCanvas>
     _singleTouchMoved = false;
 
     if (shouldHeal) {
-      await context.read<BlemishCubit>().onSpotHeal(tapPoint);
+      if (_strokeStarted) {
+        context.read<BlemishCubit>().cancelActiveStroke();
+      }
+      _strokeStarted = false;
+      unawaited(context.read<BlemishCubit>().onSpotHeal(tapPoint));
+    } else if (_strokeStarted) {
+      _strokeStarted = false;
+      await context.read<BlemishCubit>().onStrokeEnd();
     }
 
     _cursorHideTimer?.cancel();
@@ -213,7 +229,12 @@ class _BlemishEditCanvasState extends State<BlemishEditCanvas>
 
   void _hideCursor() {
     if (!mounted) return;
-    setState(() => _cursorVisible = false);
+    setState(() {
+      _cursorVisible = false;
+      if (!_strokeStarted) {
+        _cursorPos = null;
+      }
+    });
   }
 
   void _fitImage(BlemishState state, double canvasWidth, double canvasHeight) {
@@ -300,9 +321,10 @@ class _CursorOnlyPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final pulseScale = 0.95 + (pulse * 0.10);
-    final animatedRadius = screenRadius * pulseScale;
-    final outerRadius = animatedRadius * 1.12;
+    final compactRadius = screenRadius * 0.84;
+    final pulseScale = 0.97 + (pulse * 0.06);
+    final animatedRadius = compactRadius * pulseScale;
+    final outerRadius = animatedRadius * 1.08;
 
     canvas.drawCircle(
       pos,
@@ -322,7 +344,7 @@ class _CursorOnlyPainter extends CustomPainter {
       Paint()
         ..color = Colors.white.withValues(alpha: 0.92)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.8,
+        ..strokeWidth = 1.5,
     );
 
     if (softness > 0.05) {

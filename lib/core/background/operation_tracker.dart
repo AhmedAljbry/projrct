@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import 'package:untitled2/core/background/bg_job_models.dart';
@@ -24,12 +25,18 @@ class OperationTracker {
   }) async {
     final tempDir = await getTemporaryDirectory();
     final localJobId = DateTime.now().microsecondsSinceEpoch.toString();
-    final sourcePath = '${tempDir.path}\\${sourcePrefix}_$localJobId.png';
+    final sourcePath = p.join(
+      tempDir.path,
+      '${sourcePrefix}_$localJobId.png',
+    );
     String? maskPath;
 
     await File(sourcePath).writeAsBytes(sourceBytes);
     if (maskBytes != null) {
-      maskPath = '${tempDir.path}\\${maskPrefix}_$localJobId.png';
+      maskPath = p.join(
+        tempDir.path,
+        '${maskPrefix}_$localJobId.png',
+      );
       await File(maskPath).writeAsBytes(maskBytes);
     }
 
@@ -69,7 +76,7 @@ class OperationTracker {
       status: queued ? JobStatus.queued : JobStatus.processing,
       queuePosition: queuePosition ?? job?.queuePosition,
       progress: queued ? 0 : 10,
-      errorMessage: message,
+      errorMessage: queued ? message : '',
       metadata: metadata,
     );
   }
@@ -94,7 +101,10 @@ class OperationTracker {
       localJobId,
       status: mappedStatus,
       progress: status.progress.clamp(0, 100),
-      errorMessage: status.error ?? status.message,
+      errorMessage: switch (mappedStatus) {
+        JobStatus.failed || JobStatus.cancelled => status.error ?? status.message,
+        _ => '',
+      },
       queuePosition: queuePosition,
     );
   }
@@ -107,7 +117,10 @@ class OperationTracker {
     if (job == null) {
       return;
     }
-    final outputPath = '${File(job.sourceImagePath).parent.path}\\out_$localJobId.png';
+    final outputPath = p.join(
+      File(job.sourceImagePath).parent.path,
+      'out_$localJobId.png',
+    );
     await File(outputPath).writeAsBytes(resultBytes);
     await _repository.patchJob(
       localJobId,

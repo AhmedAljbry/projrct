@@ -15,6 +15,8 @@ enum CanvasInteractionMode {
 
 enum SelectionTool { rectangle, lasso, smart }
 
+enum SelectionHandle { topLeft, topRight, bottomLeft, bottomRight }
+
 class EditorDocument {
   const EditorDocument({
     required this.id,

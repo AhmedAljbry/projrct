@@ -146,9 +146,17 @@ class PatchSearcher {
       final spatialDist = math.sqrt(dx * dx + dy * dy);
       final normalizedSpatial = spatialDist / math.max(1.0, maxRadius.toDouble());
 
-      if (normalizedSpatial > 0.52) return;
-      if (normalizedSpatial > 0.34 && featureDist > 30.0) return;
-      if (normalizedSpatial > 0.24 && featureDist > 38.0) return;
+      final maxNormalizedSpatial = switch (sizeClass) {
+        BlemishSizeClass.small => 0.52,
+        BlemishSizeClass.medium => 0.58,
+        BlemishSizeClass.largeNatural => 0.68,
+      };
+      final featureGate1 = sizeClass == BlemishSizeClass.largeNatural ? 34.0 : 30.0;
+      final featureGate2 = sizeClass == BlemishSizeClass.largeNatural ? 42.0 : 38.0;
+
+      if (normalizedSpatial > maxNormalizedSpatial) return;
+      if (normalizedSpatial > 0.34 && featureDist > featureGate1) return;
+      if (normalizedSpatial > 0.24 && featureDist > featureGate2) return;
 
       final axisBias = math.min(dx.abs(), dy.abs()) /
           math.max(1.0, math.max(dx.abs(), dy.abs()));
@@ -166,7 +174,8 @@ class PatchSearcher {
       var score = featureDist;
       score += interiorDist * 0.10;
       score += normalizedSpatial * spatialWeight;
-      score += (targetRingFeatures.meanLuminance - candidateInterior.meanLuminance).abs() * 0.06;
+      score +=
+          (targetRingFeatures.meanLuminance - candidateInterior.meanLuminance).abs() * 0.06;
       score += (targetRingFeatures.energy - candidateRingFeatures.energy).abs() * 0.018;
       score += _colorPenalty(targetRingFeatures, candidateInterior);
       score += axisBias * (targetSurface == SurfaceClass.skinLike ? 8.0 : 5.0);
@@ -194,6 +203,7 @@ class PatchSearcher {
       patchH,
       exclusionMargin,
       targetSurface,
+      sizeClass,
     )) {
       for (final point in lane.points) {
         considerCandidate(
@@ -248,36 +258,56 @@ class PatchSearcher {
     int patchH,
     int exclusionMargin,
     SurfaceClass targetSurface,
+    BlemishSizeClass sizeClass,
   ) {
     final nearGapX = math.max(1, exclusionMargin);
     final nearGapY = math.max(1, exclusionMargin);
     final centerTop = target.top;
+    final extraSpread =
+        sizeClass == BlemishSizeClass.largeNatural ? math.max(2, patchH ~/ 4) : 0;
+    final extraSpreadX =
+        sizeClass == BlemishSizeClass.largeNatural ? math.max(2, patchW ~/ 4) : 0;
 
     List<({int x, int y})> rightLane(int anchorY, int gap) {
       final spread = math.max(1, patchH ~/ 7);
-      return <({int x, int y})>[
+      final points = <({int x, int y})>[
         (x: target.right + gap, y: anchorY),
         (x: target.right + gap, y: anchorY - spread),
         (x: target.right + gap, y: anchorY + spread),
       ];
+      if (extraSpread > 0) {
+        points.add((x: target.right + gap, y: anchorY - extraSpread));
+        points.add((x: target.right + gap, y: anchorY + extraSpread));
+      }
+      return points;
     }
 
     List<({int x, int y})> leftLane(int anchorY, int gap) {
       final spread = math.max(1, patchH ~/ 7);
-      return <({int x, int y})>[
+      final points = <({int x, int y})>[
         (x: target.left - patchW - gap, y: anchorY),
         (x: target.left - patchW - gap, y: anchorY - spread),
         (x: target.left - patchW - gap, y: anchorY + spread),
       ];
+      if (extraSpread > 0) {
+        points.add((x: target.left - patchW - gap, y: anchorY - extraSpread));
+        points.add((x: target.left - patchW - gap, y: anchorY + extraSpread));
+      }
+      return points;
     }
 
     List<({int x, int y})> topLane(int anchorX, int gap) {
       final spread = math.max(1, patchW ~/ 7);
-      return <({int x, int y})>[
+      final points = <({int x, int y})>[
         (x: anchorX, y: target.top - patchH - gap),
         (x: anchorX - spread, y: target.top - patchH - gap),
         (x: anchorX + spread, y: target.top - patchH - gap),
       ];
+      if (extraSpreadX > 0) {
+        points.add((x: anchorX - extraSpreadX, y: target.top - patchH - gap));
+        points.add((x: anchorX + extraSpreadX, y: target.top - patchH - gap));
+      }
+      return points;
     }
 
     if (targetSurface == SurfaceClass.skinLike) {
@@ -290,11 +320,16 @@ class PatchSearcher {
 
     List<({int x, int y})> bottomLane(int anchorX, int gap) {
       final spread = math.max(1, patchW ~/ 6);
-      return <({int x, int y})>[
+      final points = <({int x, int y})>[
         (x: anchorX, y: target.bottom + gap),
         (x: anchorX - spread, y: target.bottom + gap),
         (x: anchorX + spread, y: target.bottom + gap),
       ];
+      if (extraSpreadX > 0) {
+        points.add((x: anchorX - extraSpreadX, y: target.bottom + gap));
+        points.add((x: anchorX + extraSpreadX, y: target.bottom + gap));
+      }
+      return points;
     }
 
     return <_PriorityLane>[
@@ -373,7 +408,7 @@ class PatchSearcher {
       case BlemishSizeClass.medium:
         return mode == EngineQualityMode.preview ? (base * 0.68).ceil() : (base * 0.84).ceil();
       case BlemishSizeClass.largeNatural:
-        return mode == EngineQualityMode.preview ? (base * 0.78).ceil() : (base * 0.96).ceil();
+        return mode == EngineQualityMode.preview ? (base * 1.02).ceil() : (base * 1.26).ceil();
     }
   }
 

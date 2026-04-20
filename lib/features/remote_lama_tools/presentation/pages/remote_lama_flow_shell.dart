@@ -5,6 +5,7 @@ import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 
 import 'package:untitled2/core/config/app_config.dart';
 import 'package:untitled2/features/remote_lama_tools/data/datasources/lama_remote_data_source.dart';
@@ -14,17 +15,18 @@ import 'package:untitled2/features/remote_lama_tools/domain/usecases/lama_usecas
 import 'package:untitled2/features/remote_lama_tools/presentation/background/background_cubit.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/background/background_page.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/clean_edges/clean_edges_cubit.dart';
+import 'package:untitled2/features/remote_lama_tools/presentation/clean_edges/clean_edges_page.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/descratch/descratch_cubit.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/descratch/descratch_page.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/expand_canvas/expand_canvas_cubit.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/expand_canvas/expand_canvas_page.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/heal_region/heal_region_cubit.dart';
+import 'package:untitled2/features/remote_lama_tools/presentation/heal_region/heal_region_page.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/hub/remote_lama_hub_cubit.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/hub/remote_lama_hub_page.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/repair_damage/repair_damage_cubit.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/repair_damage/repair_damage_manual_mask_cubit.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/repair_damage/repair_damage_page.dart';
-import 'package:untitled2/features/remote_lama_tools/presentation/shared/shared_heal_clean_page.dart';
 import 'package:untitled2/features/retouch_mask_assist/data/repositories/retouch_mask_assist_repository_impl.dart';
 import 'package:untitled2/features/retouch_mask_assist/domain/repositories/retouch_mask_assist_repository.dart';
 import 'package:untitled2/features/retouch_mask_assist/domain/usecases/retouch_mask_assist_usecases.dart';
@@ -90,21 +92,12 @@ class _RemoteLamaFlowShellState extends State<RemoteLamaFlowShell> {
             if (widget.initialImage != null) {
               healCubit.setImage(widget.initialImage!);
             }
-            final cleanCubit = CleanEdgesCubit(
-              submitJobUseCase: context.read<SubmitJobUseCase>(),
-              pollJobStatusUseCase: context.read<PollJobStatusUseCase>(),
-              getJobResultUseCase: context.read<GetJobResultUseCase>(),
-            );
-            if (widget.initialImage != null) {
-              cleanCubit.setImage(widget.initialImage!);
-            }
-            return MultiBlocProvider(
-              providers: [
-                BlocProvider.value(value: healCubit),
-                BlocProvider.value(value: cleanCubit),
-              ],
-              child: const SharedHealCleanPage(
-                initialMode: SharedToolMode.healRegion,
+            return BlocProvider.value(
+              value: healCubit,
+              child: _ImageRequiredRoute(
+                initialImage: widget.initialImage,
+                onImageSelected: healCubit.setImage,
+                child: const HealRegionPage(),
               ),
             );
           },
@@ -214,27 +207,20 @@ class _RemoteLamaFlowShellState extends State<RemoteLamaFlowShell> {
         GoRoute(
           path: '/lama/clean',
           builder: (context, state) {
-            final healCubit = HealRegionCubit(
-              submitJobUseCase: context.read<SubmitJobUseCase>(),
-              pollJobStatusUseCase: context.read<PollJobStatusUseCase>(),
-              getJobResultUseCase: context.read<GetJobResultUseCase>(),
-            );
             final cleanCubit = CleanEdgesCubit(
               submitJobUseCase: context.read<SubmitJobUseCase>(),
               pollJobStatusUseCase: context.read<PollJobStatusUseCase>(),
               getJobResultUseCase: context.read<GetJobResultUseCase>(),
             );
             if (widget.initialImage != null) {
-              healCubit.setImage(widget.initialImage!);
               cleanCubit.setImage(widget.initialImage!);
             }
-            return MultiBlocProvider(
-              providers: [
-                BlocProvider.value(value: healCubit),
-                BlocProvider.value(value: cleanCubit),
-              ],
-              child: const SharedHealCleanPage(
-                initialMode: SharedToolMode.cleanEdges,
+            return BlocProvider.value(
+              value: cleanCubit,
+              child: _ImageRequiredRoute(
+                initialImage: widget.initialImage,
+                onImageSelected: cleanCubit.setImage,
+                child: const CleanEdgesPage(),
               ),
             );
           },
@@ -290,6 +276,77 @@ class _RemoteLamaFlowShellState extends State<RemoteLamaFlowShell> {
         ],
         theme: Theme.of(context),
         routerConfig: _router,
+      ),
+    );
+  }
+}
+
+class _ImageRequiredRoute extends StatefulWidget {
+  const _ImageRequiredRoute({
+    required this.initialImage,
+    required this.onImageSelected,
+    required this.child,
+  });
+
+  final Uint8List? initialImage;
+  final ValueChanged<Uint8List> onImageSelected;
+  final Widget child;
+
+  @override
+  State<_ImageRequiredRoute> createState() => _ImageRequiredRouteState();
+}
+
+class _ImageRequiredRouteState extends State<_ImageRequiredRoute> {
+  bool _isPicking = false;
+  bool _isReady = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final initialImage = widget.initialImage;
+    if (initialImage != null) {
+      widget.onImageSelected(initialImage);
+      _isReady = true;
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _pickImage();
+      });
+    }
+  }
+
+  Future<void> _pickImage() async {
+    if (_isPicking || !mounted) {
+      return;
+    }
+    _isPicking = true;
+    final picker = ImagePicker();
+    final file = await picker.pickImage(source: ImageSource.gallery);
+    if (!mounted) {
+      return;
+    }
+    if (file == null) {
+      context.go('/editor');
+      return;
+    }
+    final bytes = await file.readAsBytes();
+    if (!mounted) {
+      return;
+    }
+    widget.onImageSelected(bytes);
+    setState(() {
+      _isReady = true;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isReady) {
+      return widget.child;
+    }
+
+    return const Scaffold(
+      body: Center(
+        child: CircularProgressIndicator(),
       ),
     );
   }

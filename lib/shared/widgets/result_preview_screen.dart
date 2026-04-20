@@ -3,17 +3,20 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:gal/gal.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:untitled2/inpainting/presentation/widgets/before_after_slider.dart';
 
 class ResultPreviewScreen extends StatefulWidget {
   const ResultPreviewScreen({
     super.key,
     required this.title,
     required this.resultBytes,
+    this.originalBytes,
     this.onDone,
   });
 
   final String title;
   final Uint8List resultBytes;
+  final Uint8List? originalBytes;
   final VoidCallback? onDone;
 
   @override
@@ -24,6 +27,9 @@ class _ResultPreviewScreenState extends State<ResultPreviewScreen> {
   bool _isSaving = false;
   bool _isSharing = false;
   bool _saved = false;
+  bool _showCompare = true;
+
+  bool get _canCompare => widget.originalBytes != null;
 
   Future<void> _saveResult() async {
     if (_isSaving) return;
@@ -162,7 +168,9 @@ class _ResultPreviewScreenState extends State<ResultPreviewScreen> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'معاينة نهائية جاهزة للحفظ أو المشاركة مباشرة.',
+                        _canCompare
+                            ? 'معاينة نهائية مع مقارنة قبل وبعد، ثم الحفظ أو المشاركة مباشرة.'
+                            : 'معاينة نهائية جاهزة للحفظ أو المشاركة مباشرة.',
                         style: theme.textTheme.bodyMedium?.copyWith(
                           color: Colors.white70,
                           height: 1.45,
@@ -185,8 +193,14 @@ class _ResultPreviewScreenState extends State<ResultPreviewScreen> {
                       child: _InfoChip(
                         icon: _saved
                             ? Icons.check_circle_rounded
-                            : Icons.auto_awesome_rounded,
-                        label: _saved ? 'تم الحفظ' : 'جاهزة للتصدير',
+                            : (_canCompare
+                                ? Icons.compare_rounded
+                                : Icons.auto_awesome_rounded),
+                        label: _saved
+                            ? 'تم الحفظ'
+                            : (_canCompare
+                                ? 'المقارنة متاحة'
+                                : 'جاهزة للتصدير'),
                       ),
                     ),
                   ],
@@ -222,14 +236,41 @@ class _ResultPreviewScreenState extends State<ResultPreviewScreen> {
                         fit: StackFit.expand,
                         children: [
                           Container(color: const Color(0xFF15181D)),
-                          InteractiveViewer(
-                            minScale: 0.8,
-                            maxScale: 4,
-                            child: Image.memory(
-                              widget.resultBytes,
-                              fit: BoxFit.contain,
+                          if (_canCompare && _showCompare)
+                            BeforeAfterSlider(
+                              before: Image.memory(
+                                widget.originalBytes!,
+                                fit: BoxFit.contain,
+                              ),
+                              after: Image.memory(
+                                widget.resultBytes,
+                                fit: BoxFit.contain,
+                              ),
+                              beforeLabel: 'Before',
+                              afterLabel: 'After',
+                            )
+                          else
+                            InteractiveViewer(
+                              minScale: 0.8,
+                              maxScale: 4,
+                              child: Image.memory(
+                                widget.resultBytes,
+                                fit: BoxFit.contain,
+                              ),
                             ),
-                          ),
+                          if (_canCompare)
+                            Positioned(
+                              top: 12,
+                              right: 12,
+                              child: _CompareToggleChip(
+                                active: _showCompare,
+                                onTap: () {
+                                  setState(() {
+                                    _showCompare = !_showCompare;
+                                  });
+                                },
+                              ),
+                            ),
                         ],
                       ),
                     ),
@@ -364,6 +405,55 @@ class _InfoChip extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _CompareToggleChip extends StatelessWidget {
+  const _CompareToggleChip({
+    required this.active,
+    required this.onTap,
+  });
+
+  final bool active;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(999),
+      onTap: onTap,
+      child: Ink(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.48),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: active
+                ? const Color(0xFF56E39F).withValues(alpha: 0.58)
+                : Colors.white24,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              active ? Icons.compare_rounded : Icons.image_rounded,
+              color: Colors.white,
+              size: 16,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              active ? 'Compare' : 'Preview',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

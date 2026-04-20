@@ -3,6 +3,7 @@ const _defaultInpaintingBaseUrl =
 
 class AppConfig {
   final String baseUrl;
+  final String? secureSignupBaseUrl;
   final String? apiKey;
   final String? ownerId;
   final String? openAIApiKey;
@@ -12,6 +13,7 @@ class AppConfig {
 
   const AppConfig({
     required this.baseUrl,
+    this.secureSignupBaseUrl,
     this.apiKey,
     this.ownerId,
     this.openAIApiKey,
@@ -27,6 +29,9 @@ class AppConfig {
     );
     const rawApiKey = String.fromEnvironment('LAMA_API_KEY');
     const rawOwnerId = String.fromEnvironment('LAMA_OWNER_ID');
+    const rawSecureSignupBaseUrl = String.fromEnvironment(
+      'SECURE_SIGNUP_BASE_URL',
+    );
     const rawOpenAIApiKey = String.fromEnvironment('OPENAI_API_KEY');
     const openAIVisionModel = String.fromEnvironment(
       'OPENAI_VISION_MODEL',
@@ -43,6 +48,8 @@ class AppConfig {
 
     return AppConfig(
       baseUrl: baseUrl,
+      secureSignupBaseUrl:
+          rawSecureSignupBaseUrl.isEmpty ? null : rawSecureSignupBaseUrl,
       apiKey: rawApiKey.isEmpty ? null : rawApiKey,
       ownerId: rawOwnerId.isEmpty ? null : rawOwnerId,
       openAIApiKey: rawOpenAIApiKey.isEmpty ? null : rawOpenAIApiKey,

@@ -44,6 +44,7 @@ class AiObjectCopyPasteController extends ChangeNotifier {
   EditorSessionState _state = const EditorSessionState();
   Offset? _selectionStart;
   List<Offset> _lassoPoints = <Offset>[];
+  SelectionRegion? _selectionResizeBase;
 
   EditorSessionState get state => _state;
   bool get canPaste => _state.clipboard != null;
@@ -146,6 +147,10 @@ class AiObjectCopyPasteController extends ChangeNotifier {
   void toggleLayers() {
     _state = _state.copyWith(showLayers: !_state.showLayers);
     notifyListeners();
+  }
+
+  void beginSelectionResize() {
+    _selectionResizeBase = _state.selection;
   }
 
   void beginSelection(Offset imagePoint) {
@@ -425,22 +430,33 @@ class AiObjectCopyPasteController extends ChangeNotifier {
   }
 
   void resizeSelectionToPoint(Offset imagePoint) {
+    resizeSelectionFromHandle(
+      imagePoint: imagePoint,
+      handle: SelectionHandle.bottomRight,
+    );
+  }
+
+  void resizeSelectionFromHandle({
+    required Offset imagePoint,
+    required SelectionHandle handle,
+  }) {
     final selection = _state.selection;
     final document = _state.activeDocument;
     if (selection == null || document == null) {
       return;
     }
-    final topLeft = selection.bounds.topLeft;
+    final baseSelection = _selectionResizeBase ?? selection;
     final clamped = _clampPointToDocument(imagePoint, document);
-    final width =
-        (clamped.dx - topLeft.dx).clamp(12.0, document.width - topLeft.dx);
-    final height =
-        (clamped.dy - topLeft.dy).clamp(12.0, document.height - topLeft.dy);
-    final nextBounds = Rect.fromLTWH(topLeft.dx, topLeft.dy, width, height);
+    final nextBounds = _resizedBoundsFromHandle(
+      bounds: baseSelection.bounds,
+      point: clamped,
+      handle: handle,
+      document: document,
+    );
 
-    if (selection.tool == SelectionTool.rectangle) {
+    if (baseSelection.tool == SelectionTool.rectangle) {
       replaceSelection(
-        selection.copyWith(
+        baseSelection.copyWith(
           bounds: nextBounds,
           clearMaskData: true,
         ),
@@ -448,29 +464,40 @@ class AiObjectCopyPasteController extends ChangeNotifier {
       return;
     }
 
-    if (selection.tool == SelectionTool.lasso && selection.path.isNotEmpty) {
-      final oldBounds = selection.bounds;
-      final scaleX =
-          oldBounds.width == 0 ? 1.0 : nextBounds.width / oldBounds.width;
-      final scaleY =
-          oldBounds.height == 0 ? 1.0 : nextBounds.height / oldBounds.height;
-      final nextPath = selection.path.map((point) {
-        final dx = point.dx - oldBounds.left;
-        final dy = point.dy - oldBounds.top;
-        return Offset(
-            nextBounds.left + dx * scaleX, nextBounds.top + dy * scaleY);
-      }).toList(growable: false);
+    if (baseSelection.tool == SelectionTool.lasso &&
+        baseSelection.path.isNotEmpty) {
       replaceSelection(
-        selection.copyWith(
+        baseSelection.copyWith(
           bounds: nextBounds,
-          path: nextPath,
+          path:
+              _scaledPath(baseSelection.path, baseSelection.bounds, nextBounds),
           clearMaskData: true,
         ),
       );
+      return;
     }
+
+    replaceSelection(
+      baseSelection.copyWith(
+        bounds: nextBounds,
+        path: baseSelection.path.isEmpty
+            ? baseSelection.path
+            : _scaledPath(
+                baseSelection.path,
+                baseSelection.bounds,
+                nextBounds,
+              ),
+        maskData: _scaledMask(
+          baseSelection.maskData,
+          baseSelection.bounds,
+          nextBounds,
+        ),
+      ),
+    );
   }
 
   void commitSelectionEdit() {
+    _selectionResizeBase = null;
     if (_state.pendingItem != null) {
       confirmPendingPaste();
       return;
@@ -763,6 +790,88 @@ class AiObjectCopyPasteController extends ChangeNotifier {
     return Offset(
       point.dx.clamp(0.0, document.width.toDouble()),
       point.dy.clamp(0.0, document.height.toDouble()),
+    );
+  }
+
+  Rect _resizedBoundsFromHandle({
+    required Rect bounds,
+    required Offset point,
+    required SelectionHandle handle,
+    required EditorDocument document,
+  }) {
+    var left = bounds.left;
+    var top = bounds.top;
+    var right = bounds.right;
+    var bottom = bounds.bottom;
+    const minSize = 12.0;
+
+    switch (handle) {
+      case SelectionHandle.topLeft:
+        left = point.dx.clamp(0.0, right - minSize);
+        top = point.dy.clamp(0.0, bottom - minSize);
+        break;
+      case SelectionHandle.topRight:
+        right = point.dx.clamp(left + minSize, document.width.toDouble());
+        top = point.dy.clamp(0.0, bottom - minSize);
+        break;
+      case SelectionHandle.bottomLeft:
+        left = point.dx.clamp(0.0, right - minSize);
+        bottom = point.dy.clamp(top + minSize, document.height.toDouble());
+        break;
+      case SelectionHandle.bottomRight:
+        right = point.dx.clamp(left + minSize, document.width.toDouble());
+        bottom = point.dy.clamp(top + minSize, document.height.toDouble());
+        break;
+    }
+
+    return Rect.fromLTRB(left, top, right, bottom);
+  }
+
+  List<Offset> _scaledPath(List<Offset> path, Rect oldBounds, Rect newBounds) {
+    if (path.isEmpty) {
+      return path;
+    }
+    final scaleX = oldBounds.width == 0 ? 1.0 : newBounds.width / oldBounds.width;
+    final scaleY =
+        oldBounds.height == 0 ? 1.0 : newBounds.height / oldBounds.height;
+    return path.map((point) {
+      final dx = point.dx - oldBounds.left;
+      final dy = point.dy - oldBounds.top;
+      return Offset(newBounds.left + dx * scaleX, newBounds.top + dy * scaleY);
+    }).toList(growable: false);
+  }
+
+  SelectionMaskData? _scaledMask(
+    SelectionMaskData? mask,
+    Rect oldBounds,
+    Rect newBounds,
+  ) {
+    if (mask == null) {
+      return null;
+    }
+    final targetWidth = newBounds.width.round().clamp(1, 1 << 20);
+    final targetHeight = newBounds.height.round().clamp(1, 1 << 20);
+    final resized = List<int>.filled(targetWidth * targetHeight, 0);
+    final scaleX = oldBounds.width == 0 ? 1.0 : mask.width / oldBounds.width;
+    final scaleY = oldBounds.height == 0 ? 1.0 : mask.height / oldBounds.height;
+    for (var y = 0; y < targetHeight; y++) {
+      final normalizedY = targetHeight == 1 ? 0.0 : y / (targetHeight - 1);
+      final sourceY = (normalizedY * (newBounds.height * scaleY - 1))
+          .round()
+          .clamp(0, mask.height - 1);
+      for (var x = 0; x < targetWidth; x++) {
+        final normalizedX = targetWidth == 1 ? 0.0 : x / (targetWidth - 1);
+        final sourceX = (normalizedX * (newBounds.width * scaleX - 1))
+            .round()
+            .clamp(0, mask.width - 1);
+        resized[y * targetWidth + x] = mask.alpha[sourceY * mask.width + sourceX];
+      }
+    }
+    return SelectionMaskData(
+      bounds: newBounds,
+      width: targetWidth,
+      height: targetHeight,
+      alpha: resized,
     );
   }
 

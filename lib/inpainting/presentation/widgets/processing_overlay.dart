@@ -37,7 +37,8 @@ class ProcessingOverlay extends StatelessWidget {
   const ProcessingOverlay({super.key, required this.t, this.onCancel});
 
   static bool _isActive(InpaintingStatus s) =>
-      s == InpaintingStatus.uploading ||
+      s == InpaintingStatus.preparing ||
+          s == InpaintingStatus.uploading ||
           s == InpaintingStatus.queued    ||
           s == InpaintingStatus.processing||
           s == InpaintingStatus.downloading;

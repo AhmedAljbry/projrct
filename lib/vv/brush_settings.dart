@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:meta/meta.dart';
 
 /// Immutable brush configuration for blemish removal strokes.
@@ -15,7 +17,7 @@ class BrushSettings {
   /// Controls how aggressively the blemish region is replaced.
   final double strength;
 
-  /// Spacing between dabs when dragging (0.0–1.0 as fraction of radius).
+  /// Spacing between dabs when dragging (0.0-1.0 as fraction of radius).
   /// Lower = denser stroke, higher = more separated dabs.
   final double spacing;
 
@@ -23,10 +25,10 @@ class BrushSettings {
   final bool velocityPressure;
 
   const BrushSettings({
-    this.radius = 28.0,
+    this.radius = 18.0,
     this.softness = 0.82,
-    this.strength = 0.9,
-    this.spacing = 0.16,
+    this.strength = 0.92,
+    this.spacing = 0.14,
     this.velocityPressure = false,
   })  : assert(radius > 0.0),
         assert(softness >= 0.0 && softness <= 1.0),
@@ -46,6 +48,39 @@ class BrushSettings {
       strength: strength ?? this.strength,
       spacing: spacing ?? this.spacing,
       velocityPressure: velocityPressure ?? this.velocityPressure,
+    );
+  }
+
+  BrushSettings normalizedForHealing({
+    required int imageWidth,
+    required int imageHeight,
+  }) {
+    final maxSide = imageWidth > imageHeight ? imageWidth : imageHeight;
+    final minSide = imageWidth < imageHeight ? imageWidth : imageHeight;
+    if (maxSide <= 0) {
+      return this;
+    }
+
+    final adaptiveRadiusCap = (minSide * 0.042).clamp(12.0, 30.0);
+    final oversizeMix =
+        ((radius - adaptiveRadiusCap) / adaptiveRadiusCap).clamp(0.0, 1.0);
+    final compressedRadius = radius <= adaptiveRadiusCap
+        ? radius
+        : adaptiveRadiusCap + ((radius - adaptiveRadiusCap) * 0.35);
+    final radiusRatio = (radius / maxSide).clamp(0.0, 1.0);
+    final largeBrushMix = ((radius - 24.0) / 28.0).clamp(0.0, 1.0);
+    final imageAwareMix = ((radiusRatio - 0.018) / 0.045).clamp(0.0, 1.0);
+    final mix = math.max(math.max(largeBrushMix, imageAwareMix), oversizeMix);
+
+    if (mix <= 0.0) {
+      return this;
+    }
+
+    return copyWith(
+      radius: compressedRadius,
+      softness: (softness + (0.10 * mix)).clamp(0.48, 0.94),
+      strength: (strength - (0.08 * mix)).clamp(0.58, 0.96),
+      spacing: (spacing + (0.10 * mix)).clamp(0.12, 0.28),
     );
   }
 

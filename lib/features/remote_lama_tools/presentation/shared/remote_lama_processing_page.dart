@@ -9,6 +9,7 @@ import '../../../../core/ui/AppL10n.dart';
 import '../../../../inpainting/presentation/widgets/inpainting_studio_chrome.dart';
 import '../clean_edges/clean_edges_cubit.dart';
 import '../heal_region/heal_region_cubit.dart';
+import 'remote_lama_operations_page.dart';
 import 'shared_heal_clean_page.dart';
 
 class RemoteLamaProcessingPage extends StatefulWidget {
@@ -72,7 +73,7 @@ class _RemoteLamaProcessingPageState extends State<RemoteLamaProcessingPage>
       return BlocConsumer<HealRegionCubit, HealRegionState>(
         listener: (context, state) {
           if (state is HealRegionSuccess) {
-            context.pop(); // Go back to shared page to show result
+            context.pop(state.resultBytes);
           }
         },
         builder: (context, state) {
@@ -82,7 +83,8 @@ class _RemoteLamaProcessingPageState extends State<RemoteLamaProcessingPage>
             jobId: _inferJobId(state),
             progress: _inferProgress(state),
             serverMessage: _inferMessage(state),
-            onRetry: () => context.pop(), // Pop backward so they can submit again
+            onRetry: () =>
+                context.pop(), // Pop backward so they can submit again
             onCancel: () => context.pop(),
           );
         },
@@ -91,7 +93,7 @@ class _RemoteLamaProcessingPageState extends State<RemoteLamaProcessingPage>
       return BlocConsumer<CleanEdgesCubit, CleanEdgesState>(
         listener: (context, state) {
           if (state is CleanEdgesSuccess) {
-            context.pop(); // Go back to show result
+            context.pop(state.resultBytes);
           }
         },
         builder: (context, state) {
@@ -122,7 +124,8 @@ class _RemoteLamaProcessingPageState extends State<RemoteLamaProcessingPage>
     final isFailed = status == _InternalStatus.failed;
     final isQueued = status == _InternalStatus.queued;
     final activeStep = _stepFromStatus(status);
-    final elapsed = '--:--'; // Mock for now since we don't have start time in cubit
+    final elapsed =
+        '--:--'; // Mock for now since we don't have start time in cubit
 
     if (isFailed) {
       _scannerController.stop();
@@ -280,6 +283,17 @@ class _RemoteLamaProcessingPageState extends State<RemoteLamaProcessingPage>
             label: status.name.toUpperCase(),
             accent: InpaintingStudioTheme.cyan,
           ),
+          const SizedBox(width: 8),
+          _GlassIconButton(
+            icon: Icons.dashboard_customize_rounded,
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const RemoteLamaOperationsPage(),
+                ),
+              );
+            },
+          ),
         ],
       ),
     );
@@ -290,9 +304,8 @@ class _RemoteLamaProcessingPageState extends State<RemoteLamaProcessingPage>
     required bool isFailed,
     required bool isQueued,
   }) {
-    final accent = isFailed
-        ? InpaintingStudioTheme.rose
-        : InpaintingStudioTheme.mint;
+    final accent =
+        isFailed ? InpaintingStudioTheme.rose : InpaintingStudioTheme.mint;
 
     return StudioGlassPanel(
       radius: 34,
@@ -411,9 +424,8 @@ class _RemoteLamaProcessingPageState extends State<RemoteLamaProcessingPage>
     required VoidCallback onRetry,
     required VoidCallback onCancel,
   }) {
-    final accent = isFailed
-        ? InpaintingStudioTheme.rose
-        : InpaintingStudioTheme.mint;
+    final accent =
+        isFailed ? InpaintingStudioTheme.rose : InpaintingStudioTheme.mint;
     final jobLabel = jobId == null
         ? '...'
         : jobId.substring(0, jobId.length > 8 ? 8 : jobId.length);
@@ -543,7 +555,8 @@ class _RemoteLamaProcessingPageState extends State<RemoteLamaProcessingPage>
                   ),
                 ),
                 child: done
-                    ? const Icon(Icons.check_rounded, size: 14, color: Colors.black)
+                    ? const Icon(Icons.check_rounded,
+                        size: 14, color: Colors.black)
                     : active
                         ? Center(
                             child: Container(
@@ -596,7 +609,9 @@ class _RemoteLamaProcessingPageState extends State<RemoteLamaProcessingPage>
 
   double _inferProgress(HealRegionState state) {
     if (state is HealRegionSubmitting) return 0.1;
-    if (state is HealRegionProcessing) return (state.status.progress / 100).clamp(0.1, 0.95);
+    if (state is HealRegionProcessing) {
+      return (state.status.progress / 100).clamp(0.1, 0.95);
+    }
     if (state is HealRegionSuccess) return 1.0;
     return 0.1;
   }
@@ -625,7 +640,9 @@ class _RemoteLamaProcessingPageState extends State<RemoteLamaProcessingPage>
 
   double _inferProgressClean(CleanEdgesState state) {
     if (state is CleanEdgesSubmitting) return 0.1;
-    if (state is CleanEdgesProcessing) return (state.status.progress / 100).clamp(0.1, 0.95);
+    if (state is CleanEdgesProcessing) {
+      return (state.status.progress / 100).clamp(0.1, 0.95);
+    }
     if (state is CleanEdgesSuccess) return 1.0;
     return 0.1;
   }
