@@ -6,6 +6,23 @@ plugins {
     id "com.google.firebase.crashlytics"
 }
 
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.withReader("UTF-8") { reader ->
+        localProperties.load(reader)
+    }
+}
+def debugAbiFilters = localProperties
+        .getProperty("debug.abi")
+        ?.split(",")
+        ?.collect { it.trim() }
+        ?.findAll { !it.isEmpty() }
+def admobApplicationId = localProperties.getProperty(
+        "admob.applicationId",
+        "ca-app-pub-3940256099942544~3347511713"
+)
+
 android {
     namespace = "com.example.untitled2"
     compileSdk = flutter.compileSdkVersion
@@ -27,9 +44,19 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        manifestPlaceholders += [
+                admobApplicationId: admobApplicationId
+        ]
     }
 
     buildTypes {
+        debug {
+            if (debugAbiFilters) {
+                ndk {
+                    abiFilters.addAll(debugAbiFilters)
+                }
+            }
+        }
         release {
             signingConfig = signingConfigs.debug
         }
@@ -42,10 +69,6 @@ flutter {
 
 dependencies {
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'
-    implementation 'com.google.mlkit:text-recognition-chinese:16.0.1'
-    implementation 'com.google.mlkit:text-recognition-devanagari:16.0.1'
-    implementation 'com.google.mlkit:text-recognition-japanese:16.0.1'
-    implementation 'com.google.mlkit:text-recognition-korean:16.0.1'
     implementation platform('com.google.firebase:firebase-bom:33.7.0')
 }
 

@@ -12,7 +12,11 @@ import 'package:untitled2/core/di/injection.dart';
 import 'package:untitled2/core/firebase/firebase_bootstrap.dart';
 import 'package:untitled2/core/firebase/firebase_runtime_options.dart';
 import 'package:untitled2/core/i18n/locale_controller.dart';
+import 'package:untitled2/core/monetization/services/monetization_engine.dart';
 import 'package:untitled2/core/services/app_check/app_check_service.dart';
+import 'package:untitled2/core/services/analytics/app_analytics.dart';
+import 'package:untitled2/core/services/analytics/app_analytics_event.dart';
+import 'package:untitled2/core/services/connectivity/connectivity_service.dart';
 import 'package:untitled2/core/services/crashlytics/crash_reporter.dart';
 import 'package:untitled2/core/services/remote_config/remote_config_service.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -33,13 +37,28 @@ Future<void> main() async {
         localeController: localeController,
       );
       final talker = getIt<Talker>();
+      FlutterError.onError = (details) {
+        talker.handle(details.exception, details.stack);
+      };
       Bloc.observer = TalkerBlocObserver(talker: talker);
+      ErrorWidget.builder = (details) => Material(
+            color: const Color(0xFF0C0C0E),
+            child: Center(
+              child: Icon(
+                Icons.error_outline_rounded,
+                color: Colors.white.withValues(alpha: 0.85),
+                size: 42,
+              ),
+            ),
+          );
+      await getIt<ConnectivityService>().initialize();
       final firebaseEnabled = await getIt<FirebaseBootstrap>().initialize();
       if (firebaseEnabled) {
         await getIt<AppCheckService>().activate();
         await getIt<RemoteConfigService>().initialize();
         await _wireCrashReporting();
       }
+      await getIt<MonetizationEngine>().initialize();
       SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
         statusBarIconBrightness: Brightness.light,
@@ -53,6 +72,14 @@ Future<void> main() async {
       );
     },
     (error, stackTrace) async {
+      if (getIt.isRegistered<AppAnalytics>()) {
+        await getIt<AppAnalytics>().log(
+          AppAnalyticsEvent.errorTracked(
+            area: 'root_zone',
+            type: error.runtimeType.toString(),
+          ),
+        );
+      }
       if (getIt.isRegistered<CrashReporter>() &&
           FirebaseRuntimeOptions.isConfigured) {
         await getIt<CrashReporter>().recordError(

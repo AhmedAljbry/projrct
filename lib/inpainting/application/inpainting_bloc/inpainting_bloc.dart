@@ -1,9 +1,12 @@
 import 'dart:async';
+import 'dart:typed_data';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:talker/talker.dart';
 import 'package:untitled2/core/background/bg_job_models.dart';
 import 'package:untitled2/core/background/operation_tracker.dart';
+import 'package:untitled2/core/monetization/domain/monetization_models.dart';
+import 'package:untitled2/core/monetization/services/monetization_engine.dart';
 import 'package:untitled2/features/remote_lama_tools/domain/entities/lama_entities.dart';
 
 import '../../data/inpainting_repository.dart';
@@ -13,7 +16,13 @@ import 'inpainting_event.dart';
 import 'inpainting_state.dart';
 
 class InpaintingBloc extends Bloc<InpaintingEvent, InpaintingState> {
-  InpaintingBloc({required this.repo}) : super(InpaintingState.idle()) {
+  InpaintingBloc({
+    required this.repo,
+    required MonetizationEngine monetizationEngine,
+    Talker? talker,
+  })  : _monetizationEngine = monetizationEngine,
+        _talker = talker ?? Talker(),
+        super(InpaintingState.idle()) {
     on<InpaintingPrepare>(_onPrepare);
     on<InpaintingPreparationFailed>(_onPreparationFailed);
     on<InpaintingStart>(_onStart);
@@ -23,6 +32,8 @@ class InpaintingBloc extends Bloc<InpaintingEvent, InpaintingState> {
 
   final InpaintingRepository repo;
   final OperationTracker _tracker = OperationTracker();
+  final MonetizationEngine _monetizationEngine;
+  final Talker _talker;
 
   bool _cancelled = false;
   String? _localJobId;
@@ -30,7 +41,7 @@ class InpaintingBloc extends Bloc<InpaintingEvent, InpaintingState> {
   Uint8List? _lastMaskBytes;
 
   void _log(String message) {
-    debugPrint('[InpaintingBloc] $message');
+    _talker.info('[InpaintingBloc] $message');
   }
 
   Future<void> _onPrepare(
@@ -121,6 +132,19 @@ class InpaintingBloc extends Bloc<InpaintingEvent, InpaintingState> {
       serverMessage: 'Preparing files',
     ));
 
+    final operation = MonetizationOperationContext(
+      operationId: 'inpainting_${DateTime.now().millisecondsSinceEpoch}',
+      operationType: 'magic_inpainting',
+      estimatedApiCostUnits: 1.5,
+      isRetry: state.pollCount > 0,
+      sessionDepth: state.pollCount,
+      metadata: <String, Object?>{
+        'image_bytes': event.imageBytes.length,
+        'mask_bytes': event.maskBytes.length,
+      },
+    );
+    await _monetizationEngine.trackApiStarted(operation);
+
     try {
       _localJobId = await _tracker.createForegroundJob(
         type: BgJobType.magic,
@@ -166,6 +190,11 @@ class InpaintingBloc extends Bloc<InpaintingEvent, InpaintingState> {
       await _monitorServerJob(jobId, event.imageBytes, emit);
     } catch (e) {
       _log('Start failed for local inpainting flow: $e');
+      await _monetizationEngine.trackApiCompleted(
+        operation: operation,
+        success: false,
+        costlyFailure: true,
+      );
       if (_cancelled) {
         return;
       }
@@ -200,6 +229,13 @@ class InpaintingBloc extends Bloc<InpaintingEvent, InpaintingState> {
     Uint8List sentImageBytes,
     Emitter<InpaintingState> emit,
   ) async {
+    final operation = MonetizationOperationContext(
+      operationId: jobId,
+      operationType: 'magic_inpainting',
+      estimatedApiCostUnits: 1.5,
+      isRetry: state.pollCount > 0,
+      sessionDepth: state.pollCount,
+    );
     const pollInterval = Duration(seconds: 2);
     const maxWait = Duration(minutes: 15);
     final startedAt = DateTime.now();
@@ -270,6 +306,11 @@ class InpaintingBloc extends Bloc<InpaintingEvent, InpaintingState> {
           await _tracker.completeJob(_localJobId!, resultBytes);
         }
         _log('Download complete for server jobId=$jobId (${resultBytes.length} bytes)');
+        await _monetizationEngine.trackApiCompleted(
+          operation: operation,
+          success: true,
+          costlyFailure: false,
+        );
         emit(state.copyWith(
           status: InpaintingStatus.success,
           result: resultBytes,
@@ -284,6 +325,11 @@ class InpaintingBloc extends Bloc<InpaintingEvent, InpaintingState> {
 
       if (job.isFailed) {
         _log('Server job failed jobId=$jobId message=${job.message}');
+        await _monetizationEngine.trackApiCompleted(
+          operation: operation,
+          success: false,
+          costlyFailure: true,
+        );
         if (_localJobId != null) {
           await _tracker.failJob(_localJobId!, job.message);
         }
@@ -303,6 +349,11 @@ class InpaintingBloc extends Bloc<InpaintingEvent, InpaintingState> {
 
       if (job.isCancelled) {
         _log('Server job cancelled jobId=$jobId');
+        await _monetizationEngine.trackApiCompleted(
+          operation: operation,
+          success: false,
+          costlyFailure: true,
+        );
         if (_localJobId != null) {
           await _tracker.cancelJob(_localJobId!);
         }

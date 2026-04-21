@@ -8,7 +8,10 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:untitled2/core/di/injection.dart';
 import 'package:untitled2/core/i18n/t.dart';
+import 'package:untitled2/core/monetization/domain/monetization_models.dart';
+import 'package:untitled2/core/monetization/services/monetization_engine.dart';
 
 import 'package:untitled2/core/ui/AppL10n.dart';
 import 'package:untitled2/core/routing/app_routes.dart';

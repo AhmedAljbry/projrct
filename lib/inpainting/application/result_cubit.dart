@@ -4,6 +4,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_gallery_saver_plus/image_gallery_saver_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:untitled2/core/monetization/domain/monetization_models.dart';
+import 'package:untitled2/core/monetization/services/monetization_engine.dart';
 
 sealed class ResultState {}
 class ResultIdle extends ResultState {}
@@ -15,7 +17,11 @@ class ResultError extends ResultState {
 }
 
 class ResultCubit extends Cubit<ResultState> {
-  ResultCubit() : super(ResultIdle());
+  ResultCubit({MonetizationEngine? monetizationEngine})
+      : _monetizationEngine = monetizationEngine,
+        super(ResultIdle());
+
+  final MonetizationEngine? _monetizationEngine;
 
   Future<void> save(Uint8List bytes) async {
     emit(ResultSaving());
@@ -32,11 +38,47 @@ class ResultCubit extends Cubit<ResultState> {
         name: "Magic_${DateTime.now().millisecondsSinceEpoch}",
       );
       if (res != null && res['isSuccess'] == true) {
+        if (_monetizationEngine != null) {
+          await _monetizationEngine.trackSaveExportCompleted(
+            operation: MonetizationOperationContext(
+              operationId: 'save_${DateTime.now().millisecondsSinceEpoch}',
+              operationType: 'inpainting_result_save',
+              estimatedApiCostUnits: 0.4,
+              saveCountIncrement: 1,
+              exportCountIncrement: 1,
+            ),
+            success: true,
+          );
+        }
         emit(ResultSaved());
       } else {
+        if (_monetizationEngine != null) {
+          await _monetizationEngine.trackSaveExportCompleted(
+            operation: MonetizationOperationContext(
+              operationId: 'save_${DateTime.now().millisecondsSinceEpoch}',
+              operationType: 'inpainting_result_save',
+              estimatedApiCostUnits: 0.4,
+              saveCountIncrement: 1,
+              exportCountIncrement: 1,
+            ),
+            success: false,
+          );
+        }
         emit(ResultError('save_failed'));
       }
     } catch (_) {
+      if (_monetizationEngine != null) {
+        await _monetizationEngine.trackSaveExportCompleted(
+          operation: MonetizationOperationContext(
+            operationId: 'save_${DateTime.now().millisecondsSinceEpoch}',
+            operationType: 'inpainting_result_save',
+            estimatedApiCostUnits: 0.4,
+            saveCountIncrement: 1,
+            exportCountIncrement: 1,
+          ),
+          success: false,
+        );
+      }
       emit(ResultError('save_failed'));
     }
   }

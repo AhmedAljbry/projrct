@@ -3,6 +3,9 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:untitled2/core/di/injection.dart';
+import 'package:untitled2/core/monetization/domain/monetization_models.dart';
+import 'package:untitled2/core/monetization/services/monetization_engine.dart';
 import '../shared/widgets/result_preview_screen.dart';
 import 'package:untitled2/vv/blemish_cubit.dart';
 import 'package:untitled2/vv/blemish_edit_canvas.dart';
@@ -133,11 +136,40 @@ class _TopBar extends StatelessWidget {
   }
 
   Future<void> _onApply(BuildContext context) async {
-    final bytes = await context.read<BlemishCubit>().exportImage();
+    final cubit = context.read<BlemishCubit>();
+    final navigator = Navigator.of(context);
+    final screen =
+        context.findAncestorWidgetOfExactType<BlemishRemoverScreen>();
+    final monetizationEngine = getIt<MonetizationEngine>();
+    final operation = MonetizationOperationContext(
+      operationId: 'blemish_export_${DateTime.now().millisecondsSinceEpoch}',
+      operationType: 'blemish_export',
+      estimatedApiCostUnits: 0.8,
+      saveCountIncrement: 1,
+      exportCountIncrement: 1,
+    );
+    final decision = await monetizationEngine.guardPlacement(
+      placement: MonetizationPlacement.saveResult,
+      operation: operation,
+      uiState: const MonetizationUiState(
+        routeName: 'blemish_remover',
+        allowFullScreenAds: true,
+      ),
+    );
+    await monetizationEngine.maybeShow(
+      decision: decision,
+      operation: operation,
+    );
+    if (!context.mounted) {
+      return;
+    }
+    final bytes = await cubit.exportImage();
     if (bytes != null && context.mounted) {
-      final screen =
-          context.findAncestorWidgetOfExactType<BlemishRemoverScreen>();
-      Navigator.of(context).pushReplacement(
+      await monetizationEngine.trackSaveExportCompleted(
+        operation: operation,
+        success: true,
+      );
+      navigator.pushReplacement(
         MaterialPageRoute<void>(
           builder: (_) => ResultPreviewScreen(
             title: 'Blemish Result',
@@ -147,6 +179,11 @@ class _TopBar extends StatelessWidget {
                 : () => screen!.onApply!.call(bytes),
           ),
         ),
+      );
+    } else {
+      await monetizationEngine.trackSaveExportCompleted(
+        operation: operation,
+        success: false,
       );
     }
   }

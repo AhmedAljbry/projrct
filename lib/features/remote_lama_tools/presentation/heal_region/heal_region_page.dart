@@ -3,15 +3,14 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:go_router/go_router.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
-import 'package:untitled2/features/remote_lama_tools/presentation/heal_region/heal_processing_flow.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/heal_region/heal_region_cubit.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/shared/lama_home_pick_view.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/shared/lama_mask_painter.dart';
+import 'package:untitled2/features/remote_lama_tools/presentation/shared/remote_lama_processing_page.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/shared/lama_theme_colors.dart';
-import 'package:untitled2/features/remote_lama_tools/presentation/shared/remote_lama_operations_page.dart';
+import 'package:untitled2/features/remote_lama_tools/presentation/shared/shared_heal_clean_page.dart';
 
 class HealRegionPage extends StatefulWidget {
   const HealRegionPage({super.key});
@@ -195,14 +194,20 @@ class _HealRegionPageState extends State<HealRegionPage> {
       _strokes.clear();
     });
 
-    await Navigator.of(context).push(
+    final resultBytes = await Navigator.of(context).push<Uint8List>(
       MaterialPageRoute(
-        builder: (_) => HealProcessingFlow(
-          originalBytes: currentImage,
-          healCubit: healCubit,
+        builder: (_) => BlocProvider.value(
+          value: healCubit,
+          child: RemoteLamaProcessingPage(
+            activeMode: SharedToolMode.healRegion,
+            imageBytes: currentImage,
+          ),
         ),
       ),
     );
+    if (resultBytes != null && mounted) {
+      _applyNewResult(resultBytes);
+    }
   }
 
   void _applyNewResult(Uint8List newResultBytes) {
@@ -241,21 +246,11 @@ class _HealRegionPageState extends State<HealRegionPage> {
             appBar: AppBar(
               leading: IconButton(
                 icon: const Icon(Icons.arrow_back),
-                onPressed: () => context.go('/editor'),
+                onPressed: () =>
+                    Navigator.of(context, rootNavigator: true).maybePop(),
               ),
               title: const Text('AI Heal Region'),
               centerTitle: true,
-              actions: [
-                IconButton(
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const RemoteLamaOperationsPage(),
-                    ),
-                  ),
-                  icon: const Icon(Icons.dashboard_customize_rounded),
-                ),
-              ],
             ),
             body: Column(
               children: [

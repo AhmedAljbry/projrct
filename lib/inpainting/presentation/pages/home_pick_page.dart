@@ -3,6 +3,11 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:untitled2/core/di/injection.dart';
+import 'package:untitled2/core/services/analytics/app_analytics.dart';
+import 'package:untitled2/core/services/analytics/app_analytics_event.dart';
+import 'package:untitled2/core/services/help/help_topic.dart';
+import 'package:untitled2/core/widgets/common/app_help_button.dart';
 
 import '../../../../core/ui/AppL10n.dart';
 import '../../../../core/routing/app_routes.dart';
@@ -18,10 +23,17 @@ class HomePickPage extends StatefulWidget {
 
 class _HomePickPageState extends State<HomePickPage>
     with SingleTickerProviderStateMixin {
+  final AppAnalytics _analytics = getIt<AppAnalytics>();
   late final AnimationController _glowController = AnimationController(
     vsync: this,
     duration: const Duration(seconds: 5),
   )..repeat(reverse: true);
+
+  @override
+  void initState() {
+    super.initState();
+    _analytics.log(AppAnalyticsEvent.onboardingOpened());
+  }
 
   @override
   void dispose() {
@@ -38,6 +50,9 @@ class _HomePickPageState extends State<HomePickPage>
       body: BlocConsumer<ImagePickCubit, ImagePickState>(
         listener: (context, state) {
           if (state is ImagePickReady) {
+            _analytics.log(
+              AppAnalyticsEvent.editorOpened(editor: 'magic_eraser'),
+            );
             context.push(AppRoutes.editor);
           }
           if (state is ImagePickError) {
@@ -194,6 +209,8 @@ class _HomePickPageState extends State<HomePickPage>
             label: l10n.get('control_center'),
             accent: InpaintingStudioTheme.violet,
           ),
+          const SizedBox(width: 8),
+          const AppHelpButton(topic: HelpTopic.inpaintingHome),
         ],
       ),
     );

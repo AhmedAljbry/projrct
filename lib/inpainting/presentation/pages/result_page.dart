@@ -3,6 +3,14 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:untitled2/core/di/injection.dart';
+import 'package:untitled2/core/services/analytics/app_analytics.dart';
+import 'package:untitled2/core/services/analytics/app_analytics_event.dart';
+import 'package:untitled2/core/services/help/help_topic.dart';
+import 'package:untitled2/core/widgets/common/app_help_button.dart';
+import 'package:untitled2/core/monetization/domain/monetization_models.dart';
+import 'package:untitled2/core/monetization/presentation/widgets/monetization_native_ad_slot.dart';
+import 'package:untitled2/core/monetization/services/monetization_engine.dart';
 
 import '../../../../core/ui/AppL10n.dart';
 import '../../../../core/routing/app_routes.dart';
@@ -22,6 +30,7 @@ class ResultPage extends StatefulWidget {
 
 class _ResultPageState extends State<ResultPage>
     with SingleTickerProviderStateMixin {
+  final AppAnalytics _analytics = getIt<AppAnalytics>();
   late final AnimationController _glowController = AnimationController(
     vsync: this,
     duration: const Duration(seconds: 5),
@@ -116,6 +125,13 @@ class _ResultPageState extends State<ResultPage>
                                 ],
                               ),
                         SizedBox(height: 18),
+                        MonetizationNativeAdSlot(
+                          adInventoryManager:
+                              getIt<MonetizationEngine>().adInventoryManager,
+                          remoteConfigService:
+                              getIt<MonetizationEngine>().remoteConfigService,
+                        ),
+                        SizedBox(height: 6),
                          _buildActionDock(context, l10n, resultBytes),
                       ],
                     ),
@@ -170,6 +186,8 @@ class _ResultPageState extends State<ResultPage>
             accent: InpaintingStudioTheme.mint,
             filled: true,
           ),
+          SizedBox(width: 8),
+          const AppHelpButton(topic: HelpTopic.inpaintingResult),
         ],
       ),
     );
@@ -282,9 +300,11 @@ class _ResultPageState extends State<ResultPage>
   }
 
   Widget _buildActionDock(BuildContext context, AppL10n l10n, Uint8List resultBytes) {
+    final monetizationEngine = getIt<MonetizationEngine>();
     return BlocConsumer<ResultCubit, ResultState>(
       listener: (context, state) {
         if (state is ResultSaved) {
+          _analytics.log(AppAnalyticsEvent.exportCompleted(flow: 'inpainting'));
           _toast(context, l10n.get('saved_ok'), isSuccess: true);
         }
         if (state is ResultError) {
@@ -314,8 +334,12 @@ class _ResultPageState extends State<ResultPage>
               SizedBox(
                 width: 180,
                 child: StudioSecondaryButton(
-                  onPressed: () =>
-                      context.read<ResultCubit>().shareBytes(resultBytes),
+                  onPressed: () {
+                    _analytics.log(
+                      AppAnalyticsEvent.exportStarted(flow: 'inpainting_share'),
+                    );
+                    context.read<ResultCubit>().shareBytes(resultBytes);
+                  },
                   icon: Icons.ios_share_rounded,
                   label: l10n.get('share'),
                   accent: InpaintingStudioTheme.textPrimary,
@@ -335,7 +359,39 @@ class _ResultPageState extends State<ResultPage>
                 child: StudioPrimaryButton(
                   onPressed: saving
                       ? null
-                      : () => context.read<ResultCubit>().save(resultBytes),
+                      : () async {
+                          _analytics.log(
+                            AppAnalyticsEvent.exportStarted(flow: 'inpainting'),
+                          );
+                          _analytics.log(
+                            AppAnalyticsEvent.purchaseFlowOpened(),
+                          );
+                          final operation = MonetizationOperationContext(
+                            operationId:
+                                'save_result_${DateTime.now().millisecondsSinceEpoch}',
+                            operationType: 'inpainting_result_save',
+                            estimatedApiCostUnits: 0.5,
+                            saveCountIncrement: 1,
+                            exportCountIncrement: 1,
+                            allowRewardedUpsell: true,
+                          );
+                          final decision = await monetizationEngine.guardPlacement(
+                            placement: MonetizationPlacement.saveResult,
+                            operation: operation,
+                            uiState: const MonetizationUiState(
+                              routeName: AppRoutes.result,
+                              allowFullScreenAds: true,
+                            ),
+                          );
+                          await monetizationEngine.maybeShow(
+                            decision: decision,
+                            operation: operation,
+                          );
+                          if (!context.mounted) {
+                            return;
+                          }
+                          await context.read<ResultCubit>().save(resultBytes);
+                        },
                   icon: saving
                       ? Icons.downloading_rounded
                       : Icons.download_rounded,

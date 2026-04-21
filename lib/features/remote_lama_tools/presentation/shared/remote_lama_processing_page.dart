@@ -9,7 +9,6 @@ import '../../../../core/ui/AppL10n.dart';
 import '../../../../inpainting/presentation/widgets/inpainting_studio_chrome.dart';
 import '../clean_edges/clean_edges_cubit.dart';
 import '../heal_region/heal_region_cubit.dart';
-import 'remote_lama_operations_page.dart';
 import 'shared_heal_clean_page.dart';
 
 class RemoteLamaProcessingPage extends StatefulWidget {
@@ -282,17 +281,6 @@ class _RemoteLamaProcessingPageState extends State<RemoteLamaProcessingPage>
             icon: Icons.memory_rounded,
             label: status.name.toUpperCase(),
             accent: InpaintingStudioTheme.cyan,
-          ),
-          const SizedBox(width: 8),
-          _GlassIconButton(
-            icon: Icons.dashboard_customize_rounded,
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => const RemoteLamaOperationsPage(),
-                ),
-              );
-            },
           ),
         ],
       ),

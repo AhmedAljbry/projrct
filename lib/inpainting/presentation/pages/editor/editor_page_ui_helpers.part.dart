@@ -35,6 +35,7 @@ extension _EditorPageUIHelpers on _EditorPageState {
     ui.Image image,
     AppL10n l10n,
   ) async {
+    final monetizationEngine = getIt<MonetizationEngine>();
     final inpaintingBloc = context.read<InpaintingBloc>();
     final router = GoRouter.of(context);
     final drawingState = context.read<DrawingCubit>().state;
@@ -44,12 +45,39 @@ extension _EditorPageUIHelpers on _EditorPageState {
     }
 
     _updateEditorUi(() => _isPreparing = true);
-    inpaintingBloc.add(
-      InpaintingPrepare(message: 'Preparing image and mask'),
-    );
-    router.go(AppRoutes.processing);
-
     try {
+      final decision = await monetizationEngine.guardPlacement(
+        placement: MonetizationPlacement.processStart,
+        operation: MonetizationOperationContext(
+          operationId: 'magic_pipeline_${DateTime.now().millisecondsSinceEpoch}',
+          operationType: 'magic_inpainting',
+          estimatedApiCostUnits: 1.5,
+          sessionDepth: context.read<InpaintingBloc>().state.pollCount,
+          metadata: <String, Object?>{
+            'stroke_count': drawingState.strokes.length,
+          },
+        ),
+        uiState: MonetizationUiState(
+          routeName: AppRoutes.editor,
+          isEditingGestureActive:
+              _isDrawingStroke || _isViewportGestureActive || _activePointers > 0,
+          allowFullScreenAds: true,
+        ),
+      );
+      await monetizationEngine.maybeShow(
+        decision: decision,
+        operation: MonetizationOperationContext(
+          operationId: 'magic_pipeline_${DateTime.now().millisecondsSinceEpoch}',
+          operationType: 'magic_inpainting',
+          estimatedApiCostUnits: 1.5,
+        ),
+      );
+
+      inpaintingBloc.add(
+        InpaintingPrepare(message: 'Preparing image and mask'),
+      );
+      router.go(AppRoutes.processing);
+
       final raw = await _renderBinaryMask(image, drawingState);
       final maskBytes = await prepareMaskForLama(raw);
       final originalBytes = await _uiToBytes(image);

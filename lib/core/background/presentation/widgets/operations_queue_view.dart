@@ -14,18 +14,31 @@ class OperationsQueueView extends StatelessWidget {
     this.showHeader = true,
     this.compact = false,
     this.onJobTap,
+    this.jobIdFilter,
   });
 
   final bool showHeader;
   final bool compact;
   final ValueChanged<BackgroundJob>? onJobTap;
+  final String? jobIdFilter;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppL10n.of(context);
     return BlocBuilder<JobQueueCubit, JobQueueState>(
       builder: (context, state) {
-        if (state.activeJobs.isEmpty && state.completedJobs.isEmpty) {
+        final activeJobs = jobIdFilter == null
+            ? state.activeJobs
+            : state.activeJobs
+                .where((job) => job.jobId == jobIdFilter)
+                .toList();
+        final completedJobs = jobIdFilter == null
+            ? state.completedJobs
+            : state.completedJobs
+                .where((job) => job.jobId == jobIdFilter)
+                .toList();
+
+        if (activeJobs.isEmpty && completedJobs.isEmpty) {
           return Center(
             child: Text(
               l10n.get('operations_none'),
@@ -49,15 +62,15 @@ class OperationsQueueView extends StatelessWidget {
                   vertical: compact ? 8 : 12,
                 ),
                 children: [
-                  if (state.activeJobs.isNotEmpty) ...[
+                  if (activeJobs.isNotEmpty) ...[
                     _SectionLabel(label: l10n.get('operations_running')),
-                    ...state.activeJobs.map(
+                    ...activeJobs.map(
                       (job) => _OperationTile(job: job, onTap: onJobTap),
                     ),
                   ],
-                  if (state.completedJobs.isNotEmpty) ...[
+                  if (completedJobs.isNotEmpty) ...[
                     _SectionLabel(label: l10n.get('operations_history')),
-                    ...state.completedJobs.map(
+                    ...completedJobs.map(
                       (job) => _OperationTile(job: job, onTap: onJobTap),
                     ),
                   ],

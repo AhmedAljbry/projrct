@@ -89,9 +89,8 @@ class HealRegionCubit extends Cubit<HealRegionState> {
 
     emit(HealRegionSubmitting());
 
-    String? localJobId;
     try {
-      localJobId = await _operationTracker.createForegroundJob(
+      final localJobId = await _operationTracker.createForegroundJob(
         type: BgJobType.heal,
         sourceBytes: currentState.imageBytes,
         maskBytes: maskBytes,
@@ -99,14 +98,33 @@ class HealRegionCubit extends Cubit<HealRegionState> {
         sourcePrefix: 'heal_source',
         maskPrefix: 'heal_mask',
       );
+      unawaited(_submitRemoteJob(
+        localJobId: localJobId,
+        imageBytes: currentState.imageBytes,
+        maskBytes: maskBytes,
+        healRadius: currentState.healRadius,
+      ));
+      return localJobId;
+    } catch (e) {
+      await _failJob(null, e);
+      return null;
+    }
+  }
 
+  Future<void> _submitRemoteJob({
+    required String localJobId,
+    required Uint8List imageBytes,
+    required Uint8List maskBytes,
+    required int healRadius,
+  }) async {
+    try {
       final remoteJobId = await _submitJobUseCase.execute(
         HealRegionOptions(
-          imageBytes: currentState.imageBytes,
+          imageBytes: imageBytes,
           imageName: 'heal_region.png',
           maskBytes: maskBytes,
           maskName: 'heal_region_mask.png',
-          healRadius: currentState.healRadius,
+          healRadius: healRadius,
         ),
       );
 
@@ -123,12 +141,12 @@ class HealRegionCubit extends Cubit<HealRegionState> {
         progress: 0,
         message: 'Queued on API',
       );
-      emit(HealRegionProcessing(queuedStatus));
+      if (!isClosed) {
+        emit(HealRegionProcessing(queuedStatus));
+      }
       _pollJob(remoteJobId, localJobId);
-      return localJobId;
     } catch (e) {
       await _failJob(localJobId, e);
-      return null;
     }
   }
 
@@ -189,7 +207,8 @@ class HealRegionCubit extends Cubit<HealRegionState> {
 
   void _handleError(Object e) {
     if (e is LamaRateLimitFailure || e is LamaServerBusyFailure) {
-      emit(HealRegionFailure(message: (e as dynamic).message, isRetryable: true));
+      emit(HealRegionFailure(
+          message: (e as dynamic).message, isRetryable: true));
     } else {
       emit(HealRegionFailure(message: e.toString(), isRetryable: true));
     }

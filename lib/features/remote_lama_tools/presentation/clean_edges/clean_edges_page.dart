@@ -3,14 +3,14 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:go_router/go_router.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/clean_edges/clean_edges_cubit.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/shared/lama_home_pick_view.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/shared/lama_mask_painter.dart';
+import 'package:untitled2/features/remote_lama_tools/presentation/shared/remote_lama_processing_page.dart';
 import 'package:untitled2/features/remote_lama_tools/presentation/shared/lama_theme_colors.dart';
-import 'package:untitled2/features/remote_lama_tools/presentation/shared/remote_lama_operations_page.dart';
+import 'package:untitled2/features/remote_lama_tools/presentation/shared/shared_heal_clean_page.dart';
 
 class CleanEdgesPage extends StatefulWidget {
   const CleanEdgesPage({super.key});
@@ -173,18 +173,35 @@ class _CleanEdgesPageState extends State<CleanEdgesPage> {
     final maskBytes = await _generateMaskPng(Size(width, height));
     if (maskBytes == null || !context.mounted) return;
 
-    final localJobId =
-        await context.read<CleanEdgesCubit>().submitJob(maskBytes);
+    final cleanCubit = context.read<CleanEdgesCubit>();
+    final currentState = cleanCubit.state;
+    if (currentState is! CleanEdgesReady) {
+      return;
+    }
+
+    final originalBytes = currentState.imageBytes;
+    final localJobId = await cleanCubit.submitJob(maskBytes);
     if (localJobId == null || !context.mounted) {
       return;
     }
     setState(() {
       _strokes.clear();
     });
-    await Navigator.push(
+    final resultBytes = await Navigator.push<Uint8List>(
       context,
-      MaterialPageRoute(builder: (_) => const RemoteLamaOperationsPage()),
+      MaterialPageRoute(
+        builder: (_) => BlocProvider.value(
+          value: cleanCubit,
+          child: RemoteLamaProcessingPage(
+            activeMode: SharedToolMode.cleanEdges,
+            imageBytes: originalBytes,
+          ),
+        ),
+      ),
     );
+    if (resultBytes != null && mounted) {
+      _applyNewResult(resultBytes);
+    }
   }
 
   void _applyNewResult(Uint8List newResultBytes) {
@@ -223,21 +240,11 @@ class _CleanEdgesPageState extends State<CleanEdgesPage> {
             appBar: AppBar(
               leading: IconButton(
                 icon: const Icon(Icons.arrow_back),
-                onPressed: () => context.go('/editor'),
+                onPressed: () =>
+                    Navigator.of(context, rootNavigator: true).maybePop(),
               ),
               title: const Text('AI Clean Edges'),
               centerTitle: true,
-              actions: [
-                IconButton(
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const RemoteLamaOperationsPage(),
-                    ),
-                  ),
-                  icon: const Icon(Icons.dashboard_customize_rounded),
-                ),
-              ],
             ),
             body: Column(
               children: [

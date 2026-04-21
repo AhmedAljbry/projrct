@@ -3,10 +3,18 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:untitled2/core/di/injection.dart';
+import 'package:untitled2/core/services/analytics/app_analytics.dart';
+import 'package:untitled2/core/services/analytics/app_analytics_event.dart';
 
 import '../../../../core/ui/AppL10n.dart';
 import '../../../../core/routing/app_routes.dart';
 import '../../../../core/background/presentation/pages/operations_page.dart';
+import '../../../../core/i18n/app_localizations_x.dart';
+import '../../../../core/services/connectivity/connectivity_cubit.dart';
+import '../../../../core/services/help/help_topic.dart';
+import '../../../../core/widgets/common/app_help_button.dart';
+import '../../../../core/widgets/states/app_offline_state.dart';
 import '../../application/image_pick_cubit.dart';
 import '../../application/inpainting_bloc/inpainting_bloc.dart';
 import '../../application/inpainting_bloc/inpainting_event.dart';
@@ -23,6 +31,7 @@ class ProcessingPage extends StatefulWidget {
 
 class _ProcessingPageState extends State<ProcessingPage>
     with TickerProviderStateMixin {
+  final AppAnalytics _analytics = getIt<AppAnalytics>();
   late final AnimationController _glowController = AnimationController(
     vsync: this,
     duration: const Duration(seconds: 4),
@@ -34,6 +43,12 @@ class _ProcessingPageState extends State<ProcessingPage>
   )..repeat(reverse: true);
 
   @override
+  void initState() {
+    super.initState();
+    _analytics.log(AppAnalyticsEvent.processingStarted(flow: 'inpainting'));
+  }
+
+  @override
   void dispose() {
     _glowController.dispose();
     _scannerController.dispose();
@@ -42,16 +57,43 @@ class _ProcessingPageState extends State<ProcessingPage>
 
   @override
   Widget build(BuildContext context) {
-     final l10n = context.read<AppL10n>();
+    final l10n = context.read<AppL10n>();
     final pickState = context.watch<ImagePickCubit>().state;
     final rawImage = pickState is ImagePickReady ? pickState.uiImage : null;
+    final connectivityState = context.watch<ConnectivityCubit>().state;
+
+    if (!connectivityState.isOnline) {
+      return Scaffold(
+        backgroundColor: InpaintingStudioTheme.background,
+        body: SafeArea(
+          child: AppOfflineState(
+            title: context.tr.offlineStateTitle,
+            description: context.tr.msgNoInternetConnection,
+            actionLabel: context.tr.commonRetry,
+            onAction: context.read<ConnectivityCubit>().refresh,
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: InpaintingStudioTheme.background,
       body: BlocConsumer<InpaintingBloc, InpaintingState>(
           listener: (context, state) {
             if (state.status == InpaintingStatus.success) {
+              _analytics.log(
+                AppAnalyticsEvent.processingCompleted(flow: 'inpainting'),
+              );
               context.go(AppRoutes.result);
+            }
+            if (state.status == InpaintingStatus.failed ||
+                state.status == InpaintingStatus.timeout) {
+              _analytics.log(
+                AppAnalyticsEvent.processingFailed(
+                  flow: 'inpainting',
+                  reason: state.failure?.messageKey ?? state.status.name,
+                ),
+              );
             }
           },
           builder: (context, state) {
@@ -232,9 +274,11 @@ class _ProcessingPageState extends State<ProcessingPage>
             },
           ),
           SizedBox(width: 8),
+          const AppHelpButton(topic: HelpTopic.inpaintingProcessing),
+          SizedBox(width: 8),
           StudioPill(
             icon: Icons.memory_rounded,
-             label: state.serverStage ?? l10n.get('processing'),
+            label: state.serverStage ?? l10n.get('processing'),
             accent: InpaintingStudioTheme.cyan,
           ),
         ],
